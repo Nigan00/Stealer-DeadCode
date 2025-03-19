@@ -1,7 +1,7 @@
 name: Build DeadCode
 
 on:
-  workflow_dispatch: # Ручной запуск через интерфейс GitHub
+  workflow_dispatch: # Manual trigger via GitHub UI
   push:
     branches:
       - main
@@ -25,7 +25,9 @@ jobs:
       with:
         platform: x64
         static: true
-        version: '13.2.0'
+        version: '8.1.0' # Match Qt's mingw81_64 requirement
+      env:
+        MSYS2_URL: https://github.com/msys2/MSYS2-packages/releases/download
 
     - name: Verify MinGW installation
       run: |
@@ -126,32 +128,52 @@ jobs:
             exit 1
           }
         }
-        # Проверка существования vcpkg.exe
+        # Verify vcpkg.exe exists
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
         if (-not (Test-Path $vcpkgExe)) {
           Write-Host "Error: vcpkg.exe not found at $vcpkgExe"
           exit 1
         }
         $env:Path = "C:/vcpkg;" + $env:Path
-        # Вывод версии vcpkg
+        # Display vcpkg version
         Write-Host "vcpkg version:"
         & $vcpkgExe --version
-        # Очистка кэша vcpkg
+        # Clean vcpkg cache
         Write-Host "Cleaning vcpkg cache..."
         & $vcpkgExe remove --outdated --recurse
-        # Полная очистка buildtrees
+        # Clean buildtrees
         Write-Host "Cleaning vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build --debug > vcpkg_install.log 2>&1
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build --debug --debug-env --x-build-concurrency=1 > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check logs for details."
           Get-Content vcpkg_install.log
           dir C:/vcpkg/installed/x64-mingw-static/lib
+          # Display OpenSSL build logs if they exist
+          Write-Host "OpenSSL build logs:"
+          dir C:/vcpkg/buildtrees/openssl
+          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log) {
+            Write-Host "Contents of install-x64-mingw-static-rel-err.log:"
+            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log
+          }
+          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log) {
+            Write-Host "Contents of install-x64-mingw-static-rel-out.log:"
+            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log
+          }
           exit 1
         }
         Write-Host "vcpkg installation completed"
       shell: powershell
+
+    - name: Upload vcpkg logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: vcpkg-logs
+        path: |
+          C:/vcpkg/vcpkg_install.log
+          C:/vcpkg/buildtrees/openssl/*.log
 
     - name: Verify vcpkg installation
       run: |
@@ -251,27 +273,35 @@ jobs:
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-mingw-static/bin;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-mingw-static/lib;" + $env:LIB
+        # Clean previous build artifacts
+        if (Test-Path build) {
+          Remove-Item -Path build -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        New-Item -Path . -Name build -ItemType Directory -Force
+        # Generate Makefile with qmake
         & qmake -spec win32-g++ ui/DeadCode.pro -o Makefile
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"
           exit 1
         }
+        # Build the project
         & mingw32-make -f Makefile.Release
-        if (-not (Test-Path ../build/DeadCode.exe)) {
+        if (-not (Test-Path build/DeadCode.exe)) {
           Write-Host "Error: DeadCode.exe was not created"
-          dir ../build
+          dir build
           exit 1
         }
+        # Copy additional files to build directory
         if (Test-Path ui/icon.ico) {
-          Copy-Item ui/icon.ico ../build/icon.ico
+          Copy-Item ui/icon.ico build/icon.ico
           Write-Host "Icon copied to build directory"
         }
         if (Test-Path src/build_key.h) {
-          Copy-Item src/build_key.h ../build/build_key.h
+          Copy-Item src/build_key.h build/build_key.h
           Write-Host "build_key.h copied to build directory"
         }
         if (Test-Path src/polymorphic_code.h) {
-          Copy-Item src/polymorphic_code.h ../build/polymorphic_code.h
+          Copy-Item src/polymorphic_code.h build/polymorphic_code.h
           Write-Host "polymorphic_code.h copied to build directory"
         }
       shell: powershell
@@ -280,7 +310,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DeadCode.exe
-        path: Stealer-DeadCode/../build/DeadCode.exe
+        path: Stealer-DeadCode/build/DeadCode.exe
 
     - name: Cleanup
       if: always()
@@ -288,4 +318,5 @@ jobs:
         Remove-Item -Path "C:/vcpkg" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "C:/mingw64" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "Stealer-DeadCode" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
