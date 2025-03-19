@@ -100,7 +100,19 @@ jobs:
         target: 'desktop'
         arch: 'win64_mingw81'
         dir: 'C:/Qt'
-        cache: true
+        cache: false  # Temporarily disable caching to force reinstall
+
+    - name: Debug Qt installation
+      run: |
+        Write-Host "Listing contents of C:/Qt:"
+        dir C:/Qt -Recurse
+        Write-Host "Checking for qmake.exe in C:/Qt/5.15.2/mingw81_64/bin:"
+        if (Test-Path C:/Qt/5.15.2/mingw81_64/bin/qmake.exe) {
+          Write-Host "qmake.exe found!"
+        } else {
+          Write-Host "qmake.exe not found in C:/Qt/5.15.2/mingw81_64/bin"
+        }
+      shell: powershell
 
     - name: Cache vcpkg
       uses: actions/cache@v4
@@ -186,7 +198,7 @@ jobs:
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
-        $libs = @("sqlite3", "zip", "zlib", "bz2", "ssl", "crypto")  # Changed "z" to "zlib"
+        $libs = @("sqlite3", "zip", "zlib", "bz2", "ssl", "crypto")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
