@@ -79,19 +79,6 @@ jobs:
         & $ninjaPath --version
       shell: powershell
 
-    - name: Install Perl
-      run: |
-        Write-Host "Installing Perl..."
-        choco install strawberryperl -y
-        $perlPath = "perl"
-        if (-not (Get-Command $perlPath -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: perl not found in PATH"
-          exit 1
-        }
-        Write-Host "Perl version:"
-        & $perlPath --version
-      shell: powershell
-
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
@@ -139,11 +126,8 @@ jobs:
         # Очистка кэша vcpkg
         Write-Host "Cleaning vcpkg cache..."
         & $vcpkgExe remove --outdated --recurse
-        # Полная очистка buildtrees
-        Write-Host "Cleaning vcpkg buildtrees..."
-        Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build --debug > vcpkg_install.log 2>&1
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check logs for details."
           Get-Content vcpkg_install.log
