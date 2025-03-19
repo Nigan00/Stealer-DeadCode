@@ -149,22 +149,22 @@ jobs:
         # Полная очистка buildtrees
         Write-Host "Очистка vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "Установка зависимостей vcpkg с триплетом x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build --debug --debug-env --x-build-concurrency=1 > vcpkg_install.log 2>&1
+        Write-Host "Установка зависимостей vcpkg с триплетом x64-mingw-static..."
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build --debug --debug-env --x-build-concurrency=1 > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Ошибка: vcpkg install завершился с ошибкой. Проверьте логи для деталей."
           Get-Content vcpkg_install.log
-          dir C:/vcpkg/installed/x64-windows-static/lib
+          dir C:/vcpkg/installed/x64-mingw-static/lib
           # Вывод логов для отладки
           Write-Host "Вывод логов vcpkg..."
           dir C:/vcpkg/buildtrees/openssl
-          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log) {
-            Write-Host "Содержимое install-x64-windows-static-rel-err.log:"
-            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log
+          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log) {
+            Write-Host "Содержимое install-x64-mingw-static-rel-err.log:"
+            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log
           }
-          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log) {
-            Write-Host "Содержимое install-x64-windows-static-rel-out.log:"
-            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
+          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log) {
+            Write-Host "Содержимое install-x64-mingw-static-rel-out.log:"
+            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log
           }
           exit 1
         }
@@ -178,20 +178,20 @@ jobs:
         name: vcpkg-logs
         path: |
           C:/vcpkg/vcpkg_install.log
-          C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log
-          C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
+          C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log
+          C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log
         if-no-files-found: warn
 
     - name: Verify vcpkg installation
       run: |
-        $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
-        $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
+        $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
+        $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
         $libs = @("sqlite3", "zip", "z", "bz2", "ssl", "crypto")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
-          if (-not (Test-Path "$libDir/lib$lib.lib")) {
-            $missing += "lib$lib.lib"
+          if (-not (Test-Path "$libDir/lib$lib.a")) {
+            $missing += "lib$lib.a"
           }
         }
         foreach ($header in $headers) {
@@ -277,9 +277,9 @@ jobs:
     - name: Configure and build
       run: |
         cd Stealer-DeadCode
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-windows-static/bin;" + $env:Path
-        $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
-        $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-mingw-static/bin;" + $env:Path
+        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-static/include;" + $env:INCLUDE
+        $env:LIB = "C:/vcpkg/installed/x64-mingw-static/lib;" + $env:LIB
         & qmake -spec win32-g++ ui/DeadCode.pro -o Makefile
         if (-not (Test-Path Makefile)) {
           Write-Host "Ошибка: Makefile не был сгенерирован"
