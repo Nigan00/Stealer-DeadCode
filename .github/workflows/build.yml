@@ -1,7 +1,7 @@
 name: Build DeadCode
 
 on:
-  workflow_dispatch: # Ручной запуск через интерфейс GitHub
+  workflow_dispatch: # Manual trigger via GitHub UI
   push:
     branches:
       - main
@@ -31,21 +31,21 @@ jobs:
       run: |
         $mingwBinPath = "C:/mingw64/bin"
         if (-not (Test-Path $mingwBinPath)) {
-          Write-Host "Ошибка: Каталог MinGW bin не найден по пути $mingwBinPath"
+          Write-Host "Error: MinGW bin directory not found at $mingwBinPath"
           exit 1
         }
         $env:Path = "$mingwBinPath;" + $env:Path
         if (-not (Get-Command "g++" -ErrorAction SilentlyContinue)) {
-          Write-Host "Ошибка: g++ не найден в PATH"
+          Write-Host "Error: g++ not found in PATH"
           exit 1
         }
-        Write-Host "Версия g++:"
+        Write-Host "g++ version:"
         & g++ --version
         if (-not (Get-Command "make" -ErrorAction SilentlyContinue)) {
-          Write-Host "Ошибка: make не найден в PATH"
+          Write-Host "Error: make not found in PATH"
           exit 1
         }
-        Write-Host "Версия make:"
+        Write-Host "make version:"
         & make --version
       shell: powershell
 
@@ -59,36 +59,36 @@ jobs:
       run: |
         $cmakePath = "cmake"
         if (-not (Get-Command $cmakePath -ErrorAction SilentlyContinue)) {
-          Write-Host "Ошибка: cmake не найден в PATH"
+          Write-Host "Error: cmake not found in PATH"
           exit 1
         }
-        Write-Host "Версия CMake:"
+        Write-Host "CMake version:"
         & $cmakePath --version
       shell: powershell
 
     - name: Install Ninja
       run: |
-        Write-Host "Установка Ninja..."
+        Write-Host "Installing Ninja..."
         choco install ninja -y
         $ninjaPath = "ninja"
         if (-not (Get-Command $ninjaPath -ErrorAction SilentlyContinue)) {
-          Write-Host "Ошибка: ninja не найден в PATH"
+          Write-Host "Error: ninja not found in PATH"
           exit 1
         }
-        Write-Host "Версия Ninja:"
+        Write-Host "Ninja version:"
         & $ninjaPath --version
       shell: powershell
 
     - name: Install Perl
       run: |
-        Write-Host "Установка Perl..."
+        Write-Host "Installing Perl..."
         choco install strawberryperl -y
         $perlPath = "perl"
         if (-not (Get-Command $perlPath -ErrorAction SilentlyContinue)) {
-          Write-Host "Ошибка: perl не найден в PATH"
+          Write-Host "Error: perl not found in PATH"
           exit 1
         }
-        Write-Host "Версия Perl:"
+        Write-Host "Perl version:"
         & $perlPath --version
       shell: powershell
 
@@ -113,62 +113,62 @@ jobs:
     - name: Install vcpkg and dependencies
       run: |
         if (-not (Test-Path C:/vcpkg)) {
-          Write-Host "Клонирование vcpkg..."
+          Write-Host "Cloning vcpkg..."
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
-          Write-Host "Обновление vcpkg до последней версии..."
+          Write-Host "Updating vcpkg to the latest version..."
           cd C:/vcpkg
           git pull origin master
           cd ../
-          Write-Host "Запуск bootstrap-vcpkg..."
+          Write-Host "Running bootstrap-vcpkg..."
           & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "Ошибка: Bootstrap завершился с ошибкой. Проверьте логи."
+            Write-Host "Error: Bootstrap failed. Check the logs."
             exit 1
           }
         }
-        # Проверка существования vcpkg.exe
+        # Verify vcpkg.exe exists
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
         if (-not (Test-Path $vcpkgExe)) {
-          Write-Host "Ошибка: vcpkg.exe не найден по пути $vcpkgExe"
+          Write-Host "Error: vcpkg.exe not found at $vcpkgExe"
           exit 1
         }
         $env:Path = "C:/vcpkg;" + $env:Path
-        # Вывод версии vcpkg
-        Write-Host "Версия vcpkg:"
+        # Print vcpkg version
+        Write-Host "vcpkg version:"
         & $vcpkgExe --version
-        # Проверка Perl
-        Write-Host "Проверка Perl перед установкой..."
+        # Verify Perl
+        Write-Host "Checking Perl before installation..."
         & perl --version
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Ошибка: Perl не работает корректно"
+          Write-Host "Error: Perl is not working correctly"
           exit 1
         }
-        # Очистка кэша vcpkg
-        Write-Host "Очистка кэша vcpkg..."
+        # Clear vcpkg cache
+        Write-Host "Clearing vcpkg cache..."
         & $vcpkgExe remove --outdated --recurse
-        # Полная очистка buildtrees
-        Write-Host "Очистка vcpkg buildtrees..."
+        # Fully clear buildtrees
+        Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "Установка зависимостей vcpkg с триплетом x64-mingw-static..."
+        Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
         & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build --debug --debug-env > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Ошибка: vcpkg install завершился с ошибкой. Проверьте логи для деталей."
+          Write-Host "Error: vcpkg install failed. Check the logs for details."
           Get-Content vcpkg_install.log
           dir C:/vcpkg/installed/x64-mingw-static/lib
-          # Вывод логов для отладки
-          Write-Host "Вывод логов vcpkg..."
+          # Print logs for debugging
+          Write-Host "Printing vcpkg logs..."
           dir C:/vcpkg/buildtrees/openssl
           if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log) {
-            Write-Host "Содержимое install-x64-mingw-static-rel-err.log:"
+            Write-Host "Contents of install-x64-mingw-static-rel-err.log:"
             Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log
           }
           if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log) {
-            Write-Host "Содержимое install-x64-mingw-static-rel-out.log:"
+            Write-Host "Contents of install-x64-mingw-static-rel-out.log:"
             Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log
           }
           exit 1
         }
-        Write-Host "Установка vcpkg завершена успешно"
+        Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
     - name: Upload vcpkg logs
@@ -200,61 +200,61 @@ jobs:
           }
         }
         if ($missing) {
-          Write-Host "Ошибка: Отсутствуют библиотеки или заголовочные файлы: $missing"
-          Write-Host "Содержимое каталога ${libDir}:"
+          Write-Host "Error: Missing libraries or header files: $missing"
+          Write-Host "Contents of directory ${libDir}:"
           dir ${libDir}
-          Write-Host "Содержимое каталога ${includeDir}:"
+          Write-Host "Contents of directory ${includeDir}:"
           dir ${includeDir}
           exit 1
         }
-        Write-Host "Все зависимости vcpkg проверены"
+        Write-Host "All vcpkg dependencies verified"
       shell: powershell
 
     - name: Verify Qt installation
       run: |
         $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         if (-not (Test-Path $qmakePath)) {
-          Write-Host "Ошибка: qmake не найден по пути $qmakePath"
+          Write-Host "Error: qmake not found at $qmakePath"
           exit 1
         }
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;" + $env:Path
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Ошибка: qmake --version завершился с ошибкой"
+          Write-Host "Error: qmake --version failed"
           exit 1
         }
-        Write-Host "Установка Qt проверена"
+        Write-Host "Qt installation verified"
       shell: powershell
 
     - name: Verify project structure
       run: |
         cd Stealer-DeadCode
         if (-not (Test-Path ui/DeadCode.pro)) {
-          Write-Host "Ошибка: DeadCode.pro не найден в ui/"
+          Write-Host "Error: DeadCode.pro not found in ui/"
           dir ui
           exit 1
         }
         if (-not (Test-Path src/main.cpp)) {
-          Write-Host "Ошибка: main.cpp не найден в src/"
+          Write-Host "Error: main.cpp not found in src/"
           dir src
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.ui)) {
-          Write-Host "Ошибка: mainwindow.ui не найден в ui/"
+          Write-Host "Error: mainwindow.ui not found in ui/"
           dir ui
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.cpp)) {
-          Write-Host "Ошибка: mainwindow.cpp не найден в ui/"
+          Write-Host "Error: mainwindow.cpp not found in ui/"
           dir ui
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.h)) {
-          Write-Host "Ошибка: mainwindow.h не найден в ui/"
+          Write-Host "Error: mainwindow.h not found in ui/"
           dir ui
           exit 1
         }
-        Write-Host "Структура проекта проверена"
+        Write-Host "Project structure verified"
       shell: powershell
 
     - name: Generate headers
@@ -282,26 +282,26 @@ jobs:
         $env:LIB = "C:/vcpkg/installed/x64-mingw-static/lib;" + $env:LIB
         & qmake -spec win32-g++ ui/DeadCode.pro -o Makefile
         if (-not (Test-Path Makefile)) {
-          Write-Host "Ошибка: Makefile не был сгенерирован"
+          Write-Host "Error: Makefile was not generated"
           exit 1
         }
         & mingw32-make -f Makefile.Release
         if (-not (Test-Path ../build/DeadCode.exe)) {
-          Write-Host "Ошибка: DeadCode.exe не был создан"
+          Write-Host "Error: DeadCode.exe was not created"
           dir ../build
           exit 1
         }
         if (Test-Path ui/icon.ico) {
           Copy-Item ui/icon.ico ../build/icon.ico
-          Write-Host "Иконка скопирована в каталог сборки"
+          Write-Host "Icon copied to build directory"
         }
         if (Test-Path src/build_key.h) {
           Copy-Item src/build_key.h ../build/build_key.h
-          Write-Host "build_key.h скопирован в каталог сборки"
+          Write-Host "build_key.h copied to build directory"
         }
         if (Test-Path src/polymorphic_code.h) {
           Copy-Item src/polymorphic_code.h ../build/polymorphic_code.h
-          Write-Host "polymorphic_code.h скопирован в каталог сборки"
+          Write-Host "polymorphic_code.h copied to build directory"
         }
       shell: powershell
 
