@@ -186,7 +186,7 @@ jobs:
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
-        $libs = @("sqlite3", "zip", "z", "bz2", "ssl", "crypto")
+        $libs = @("sqlite3", "zip", "zlib", "bz2", "ssl", "crypto")  # Changed "z" to "zlib"
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
