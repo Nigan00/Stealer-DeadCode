@@ -25,7 +25,7 @@ jobs:
       with:
         platform: x64
         static: true
-        version: '13.2.0'
+        version: '8.1.0' # Изменили версию на 8.1.0 для совместимости с Qt
 
     - name: Verify MinGW installation
       run: |
