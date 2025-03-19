@@ -41,6 +41,12 @@ jobs:
         }
         Write-Host "g++ version:"
         & g++ --version
+        if (-not (Get-Command "make" -ErrorAction SilentlyContinue)) {
+          Write-Host "Error: make not found in PATH"
+          exit 1
+        }
+        Write-Host "make version:"
+        & make --version
       shell: powershell
 
     - name: Install CMake
@@ -104,12 +110,12 @@ jobs:
         # Вывод версии vcpkg
         Write-Host "vcpkg version:"
         & $vcpkgExe --version
-        Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build > vcpkg_install.log 2>&1
+        Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check logs for details."
           Get-Content vcpkg_install.log
-          dir C:/vcpkg/installed/x64-windows-static/lib
+          dir C:/vcpkg/installed/x64-mingw-static/lib
           exit 1
         }
         Write-Host "vcpkg installation completed"
@@ -117,8 +123,8 @@ jobs:
 
     - name: Verify vcpkg installation
       run: |
-        $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
-        $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
+        $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
+        $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
         $libs = @("sqlite3", "zip", "z", "bz2", "ssl", "crypto")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
@@ -210,9 +216,9 @@ jobs:
     - name: Configure and build
       run: |
         cd Stealer-DeadCode
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-windows-static/bin;" + $env:Path
-        $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
-        $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-mingw-static/bin;" + $env:Path
+        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-static/include;" + $env:INCLUDE
+        $env:LIB = "C:/vcpkg/installed/x64-mingw-static/lib;" + $env:LIB
         & qmake -spec win32-g++ ui/DeadCode.pro -o Makefile
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"

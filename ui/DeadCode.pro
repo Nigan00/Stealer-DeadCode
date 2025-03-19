@@ -31,7 +31,7 @@ INCLUDEPATH += $$PWD/../src \
 # Пути для библиотек (используем динамическое определение VCPKG)
 VCPKG_INSTALL_DIR = $$(VCPKG_INSTALL_DIR)
 isEmpty(VCPKG_INSTALL_DIR) {
-    VCPKG_INSTALL_DIR = C:/vcpkg/installed/x64-windows-static
+    VCPKG_INSTALL_DIR = C:/vcpkg/installed/x64-mingw-static
     message("VCPKG_INSTALL_DIR not set, using default: $$VCPKG_INSTALL_DIR")
 }
 INCLUDEPATH += $$VCPKG_INSTALL_DIR/include
