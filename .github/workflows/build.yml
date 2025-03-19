@@ -1,7 +1,7 @@
 name: Build DeadCode
 
 on:
-  workflow_dispatch: # Manual trigger via GitHub UI
+  workflow_dispatch: # Ручной запуск через интерфейс GitHub
   push:
     branches:
       - main
@@ -25,29 +25,27 @@ jobs:
       with:
         platform: x64
         static: true
-        version: '8.1.0' # Match Qt's mingw81_64 requirement
-      env:
-        MSYS2_URL: https://github.com/msys2/MSYS2-packages/releases/download
+        version: '13.2.0'
 
     - name: Verify MinGW installation
       run: |
         $mingwBinPath = "C:/mingw64/bin"
         if (-not (Test-Path $mingwBinPath)) {
-          Write-Host "Error: MinGW bin directory not found at $mingwBinPath"
+          Write-Host "Ошибка: Каталог MinGW bin не найден по пути $mingwBinPath"
           exit 1
         }
         $env:Path = "$mingwBinPath;" + $env:Path
         if (-not (Get-Command "g++" -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: g++ not found in PATH"
+          Write-Host "Ошибка: g++ не найден в PATH"
           exit 1
         }
-        Write-Host "g++ version:"
+        Write-Host "Версия g++:"
         & g++ --version
         if (-not (Get-Command "make" -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: make not found in PATH"
+          Write-Host "Ошибка: make не найден в PATH"
           exit 1
         }
-        Write-Host "make version:"
+        Write-Host "Версия make:"
         & make --version
       shell: powershell
 
@@ -61,36 +59,36 @@ jobs:
       run: |
         $cmakePath = "cmake"
         if (-not (Get-Command $cmakePath -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: cmake not found in PATH"
+          Write-Host "Ошибка: cmake не найден в PATH"
           exit 1
         }
-        Write-Host "CMake version:"
+        Write-Host "Версия CMake:"
         & $cmakePath --version
       shell: powershell
 
     - name: Install Ninja
       run: |
-        Write-Host "Installing Ninja..."
+        Write-Host "Установка Ninja..."
         choco install ninja -y
         $ninjaPath = "ninja"
         if (-not (Get-Command $ninjaPath -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: ninja not found in PATH"
+          Write-Host "Ошибка: ninja не найден в PATH"
           exit 1
         }
-        Write-Host "Ninja version:"
+        Write-Host "Версия Ninja:"
         & $ninjaPath --version
       shell: powershell
 
     - name: Install Perl
       run: |
-        Write-Host "Installing Perl..."
+        Write-Host "Установка Perl..."
         choco install strawberryperl -y
         $perlPath = "perl"
         if (-not (Get-Command $perlPath -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: perl not found in PATH"
+          Write-Host "Ошибка: perl не найден в PATH"
           exit 1
         }
-        Write-Host "Perl version:"
+        Write-Host "Версия Perl:"
         & $perlPath --version
       shell: powershell
 
@@ -115,58 +113,58 @@ jobs:
     - name: Install vcpkg and dependencies
       run: |
         if (-not (Test-Path C:/vcpkg)) {
-          Write-Host "Cloning vcpkg..."
+          Write-Host "Клонирование vcpkg..."
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
-          Write-Host "Updating vcpkg to latest commit..."
+          Write-Host "Обновление vcpkg до последней версии..."
           cd C:/vcpkg
           git pull origin master
           cd ../
-          Write-Host "Bootstrapping vcpkg..."
+          Write-Host "Запуск bootstrap-vcpkg..."
           & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Bootstrap failed. Check logs."
+            Write-Host "Ошибка: Bootstrap завершился с ошибкой. Проверьте логи."
             exit 1
           }
         }
-        # Verify vcpkg.exe exists
+        # Проверка существования vcpkg.exe
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
         if (-not (Test-Path $vcpkgExe)) {
-          Write-Host "Error: vcpkg.exe not found at $vcpkgExe"
+          Write-Host "Ошибка: vcpkg.exe не найден по пути $vcpkgExe"
           exit 1
         }
         $env:Path = "C:/vcpkg;" + $env:Path
-        # Display vcpkg version
-        Write-Host "vcpkg version:"
+        # Вывод версии vcpkg
+        Write-Host "Версия vcpkg:"
         & $vcpkgExe --version
-        # Clean vcpkg cache
-        Write-Host "Cleaning vcpkg cache..."
+        # Очистка кэша vcpkg
+        Write-Host "Очистка кэша vcpkg..."
         & $vcpkgExe remove --outdated --recurse
-        # Clean buildtrees
-        Write-Host "Cleaning vcpkg buildtrees..."
+        # Полная очистка buildtrees
+        Write-Host "Очистка vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
+        Write-Host "Установка зависимостей vcpkg с триплетом x64-mingw-static..."
         & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build --debug --debug-env --x-build-concurrency=1 > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: vcpkg install failed. Check logs for details."
+          Write-Host "Ошибка: vcpkg install завершился с ошибкой. Проверьте логи для деталей."
           Get-Content vcpkg_install.log
           dir C:/vcpkg/installed/x64-mingw-static/lib
-          # Display OpenSSL build logs if they exist
-          Write-Host "OpenSSL build logs:"
+          # Вывод логов для отладки
+          Write-Host "Вывод логов vcpkg..."
           dir C:/vcpkg/buildtrees/openssl
           if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log) {
-            Write-Host "Contents of install-x64-mingw-static-rel-err.log:"
+            Write-Host "Содержимое install-x64-mingw-static-rel-err.log:"
             Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log
           }
           if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log) {
-            Write-Host "Contents of install-x64-mingw-static-rel-out.log:"
+            Write-Host "Содержимое install-x64-mingw-static-rel-out.log:"
             Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log
           }
           exit 1
         }
-        Write-Host "vcpkg installation completed"
+        Write-Host "Установка vcpkg завершена успешно"
       shell: powershell
 
-    - name: Upload vcpkg logs on failure
+    - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
       with:
@@ -193,61 +191,61 @@ jobs:
           }
         }
         if ($missing) {
-          Write-Host "Error: Missing libraries or headers: $missing"
-          Write-Host "Directory contents of ${libDir}:"
+          Write-Host "Ошибка: Отсутствуют библиотеки или заголовочные файлы: $missing"
+          Write-Host "Содержимое каталога ${libDir}:"
           dir ${libDir}
-          Write-Host "Directory contents of ${includeDir}:"
+          Write-Host "Содержимое каталога ${includeDir}:"
           dir ${includeDir}
           exit 1
         }
-        Write-Host "All vcpkg dependencies verified"
+        Write-Host "Все зависимости vcpkg проверены"
       shell: powershell
 
     - name: Verify Qt installation
       run: |
         $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         if (-not (Test-Path $qmakePath)) {
-          Write-Host "Error: qmake not found at $qmakePath"
+          Write-Host "Ошибка: qmake не найден по пути $qmakePath"
           exit 1
         }
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;" + $env:Path
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: qmake --version failed"
+          Write-Host "Ошибка: qmake --version завершился с ошибкой"
           exit 1
         }
-        Write-Host "Qt installation verified"
+        Write-Host "Установка Qt проверена"
       shell: powershell
 
     - name: Verify project structure
       run: |
         cd Stealer-DeadCode
         if (-not (Test-Path ui/DeadCode.pro)) {
-          Write-Host "Error: DeadCode.pro not found in ui/"
+          Write-Host "Ошибка: DeadCode.pro не найден в ui/"
           dir ui
           exit 1
         }
         if (-not (Test-Path src/main.cpp)) {
-          Write-Host "Error: main.cpp not found in src/"
+          Write-Host "Ошибка: main.cpp не найден в src/"
           dir src
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.ui)) {
-          Write-Host "Error: mainwindow.ui not found in ui/"
+          Write-Host "Ошибка: mainwindow.ui не найден в ui/"
           dir ui
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.cpp)) {
-          Write-Host "Error: mainwindow.cpp not found in ui/"
+          Write-Host "Ошибка: mainwindow.cpp не найден в ui/"
           dir ui
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.h)) {
-          Write-Host "Error: mainwindow.h not found in ui/"
+          Write-Host "Ошибка: mainwindow.h не найден в ui/"
           dir ui
           exit 1
         }
-        Write-Host "Project structure verified"
+        Write-Host "Структура проекта проверена"
       shell: powershell
 
     - name: Generate headers
@@ -273,36 +271,28 @@ jobs:
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-mingw-static/bin;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-mingw-static/lib;" + $env:LIB
-        # Clean previous build artifacts
-        if (Test-Path build) {
-          Remove-Item -Path build -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        New-Item -Path . -Name build -ItemType Directory -Force
-        # Generate Makefile with qmake
         & qmake -spec win32-g++ ui/DeadCode.pro -o Makefile
         if (-not (Test-Path Makefile)) {
-          Write-Host "Error: Makefile was not generated"
+          Write-Host "Ошибка: Makefile не был сгенерирован"
           exit 1
         }
-        # Build the project
         & mingw32-make -f Makefile.Release
-        if (-not (Test-Path build/DeadCode.exe)) {
-          Write-Host "Error: DeadCode.exe was not created"
-          dir build
+        if (-not (Test-Path ../build/DeadCode.exe)) {
+          Write-Host "Ошибка: DeadCode.exe не был создан"
+          dir ../build
           exit 1
         }
-        # Copy additional files to build directory
         if (Test-Path ui/icon.ico) {
-          Copy-Item ui/icon.ico build/icon.ico
-          Write-Host "Icon copied to build directory"
+          Copy-Item ui/icon.ico ../build/icon.ico
+          Write-Host "Иконка скопирована в каталог сборки"
         }
         if (Test-Path src/build_key.h) {
-          Copy-Item src/build_key.h build/build_key.h
-          Write-Host "build_key.h copied to build directory"
+          Copy-Item src/build_key.h ../build/build_key.h
+          Write-Host "build_key.h скопирован в каталог сборки"
         }
         if (Test-Path src/polymorphic_code.h) {
-          Copy-Item src/polymorphic_code.h build/polymorphic_code.h
-          Write-Host "polymorphic_code.h copied to build directory"
+          Copy-Item src/polymorphic_code.h ../build/polymorphic_code.h
+          Write-Host "polymorphic_code.h скопирован в каталог сборки"
         }
       shell: powershell
 
@@ -310,7 +300,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DeadCode.exe
-        path: Stealer-DeadCode/build/DeadCode.exe
+        path: Stealer-DeadCode/../build/DeadCode.exe
 
     - name: Cleanup
       if: always()
@@ -318,5 +308,4 @@ jobs:
         Remove-Item -Path "C:/vcpkg" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "C:/mingw64" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "Stealer-DeadCode" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
