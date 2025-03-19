@@ -1,0 +1,762 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>900</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>600</width>
+    <height>900</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Stealer-DeadCode</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1A0000, stop:1 #330000);
+    QTextEdit { font-size: 14px; padding: 5px; color: #FFFFFF; background-color: #2A0000; border: 2px solid #FF0000; border-radius: 5px; }
+    QGroupBox { border: 2px solid #FF0000; border-radius: 5px; padding: 10px; background-color: rgba(42, 0, 0, 0.9); color: #FFFFFF; }
+    QGroupBox::title { color: #FF0000; font-weight: bold; }
+    QPushButton { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FF0000, stop:1 #CC0000); color: #FFFFFF; border-radius: 5px; padding: 8px; font-weight: bold; }
+    QPushButton:hover { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #CC0000, stop:1 #990000); }
+    QCheckBox { color: #FFFFFF; font-size: 12px; }
+    QCheckBox::indicator { border: 1px solid #FF0000; background-color: #330000; width: 16px; height: 16px; }
+    QCheckBox::indicator:checked { background-color: #FF0000; }
+    QLineEdit { background-color: #330000; color: #FFFFFF; border: 2px solid #FF0000; border-radius: 5px; padding: 5px; }
+    QComboBox { background-color: #330000; color: #FFFFFF; border: 2px solid #FF0000; border-radius: 5px; padding: 5px; }
+    QComboBox::drop-down { border: none; }
+    QMenuBar { background-color: #2A0000; color: #FFFFFF; border-bottom: 2px solid #FF0000; }
+    QMenu { background-color: #2A0000; color: #FFFFFF; border: 1px solid #FF0000; border-radius: 3px; }
+    QMenu::item:selected { background-color: #FF0000; color: #FFFFFF; }
+    QStatusBar { background-color: #2A0000; color: #FFFFFF; border-top: 1px solid #FF0000; }
+    QLabel#logoLabel { border-bottom: 2px solid #FF0000; background-color: rgba(0, 0, 0, 0.7); text-shadow: 2px 2px 4px #000000; }
+    QLabel.sectionLabel { color: #FF0000; font-size: 14px; font-weight: bold; }
+   </string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QLabel" name="logoLabel">
+      <property name="text">
+       <string>STEALER-DEADCODE</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>150</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>150</height>
+       </size>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">color: #FF0000; font-size: 40px; font-weight: bold; border-bottom: 2px solid #FF0000; background-color: rgba(0, 0, 0, 0.7); text-shadow: 2px 2px 4px #000000;</string>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="modulesGroupBox">
+      <property name="title">
+       <string>Модули</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <item>
+        <widget class="QScrollArea" name="modulesScrollArea">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="scrollAreaWidgetContents">
+          <layout class="QVBoxLayout" name="verticalLayout_modules">
+           <!-- Секция: Кража игровых данных -->
+           <item>
+            <widget class="QLabel" name="gamingSectionLabel" native="true">
+             <property name="text">
+              <string>Кража игровых данных</string>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="steamCheckBox">
+             <property name="text">
+              <string>Кража данных Steam</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража данных Steam: учетные данные, сессии, конфигурационные файлы</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="steamMAFileCheckBox">
+             <property name="text">
+              <string>Кража MA-файлов Steam</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража MA-файлов Steam: файлы Steam Guard для двухфакторной аутентификации</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="epicCheckBox">
+             <property name="text">
+              <string>Кража данных Epic Games</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража данных Epic Games: учетные данные, сессии, кэш</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="robloxCheckBox">
+             <property name="text">
+              <string>Кража данных Roblox</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража данных Roblox: куки, токены, игровые данные</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="battlenetCheckBox">
+             <property name="text">
+              <string>Кража данных Battle.net</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража данных Battle.net: учетные данные, сессии, email</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="minecraftCheckBox">
+             <property name="text">
+              <string>Кража данных Minecraft</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража данных Minecraft: логи, сессии, токены доступа</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="gamingSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <!-- Секция: Кража данных мессенджеров -->
+           <item>
+            <widget class="QLabel" name="messengersSectionLabel" native="true">
+             <property name="text">
+              <string>Кража данных мессенджеров</string>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="discordCheckBox">
+             <property name="text">
+              <string>Кража токенов Discord</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража токенов Discord: токены авторизации, сессии, WebSocket данные</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="telegramCheckBox">
+             <property name="text">
+              <string>Кража данных Telegram</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража данных Telegram: история чатов, сессии</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="chatHistoryCheckBox">
+             <property name="text">
+              <string>История чатов</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража истории чатов: Discord, Telegram (сообщения, каналы)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="messengersSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <!-- Секция: Кража браузерных данных -->
+           <item>
+            <widget class="QLabel" name="browserSectionLabel" native="true">
+             <property name="text">
+              <string>Кража браузерных данных</string>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="cookiesCheckBox">
+             <property name="text">
+              <string>Кража куки браузеров</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража куки из браузеров: Chrome, Edge, Firefox, Opera, Yandex и др.</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="passwordsCheckBox">
+             <property name="text">
+              <string>Кража паролей браузеров</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража паролей из браузеров: Chrome, Edge, Firefox, Opera, Yandex и др.</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="browserSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <!-- Секция: Дополнительные функции -->
+           <item>
+            <widget class="QLabel" name="additionalSectionLabel" native="true">
+             <property name="text">
+              <string>Дополнительные функции</string>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="screenshotCheckBox">
+             <property name="text">
+              <string>Создание скриншота</string>
+             </property>
+             <property name="toolTip">
+              <string>Создание скриншота рабочего стола пользователя</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="fileGrabberCheckBox">
+             <property name="text">
+              <string>Граббер файлов</string>
+             </property>
+             <property name="toolTip">
+              <string>Сбор файлов: .txt, .docx, .pdf, .jpg, .png, .xlsx, .zip и др. (до 5 МБ)</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="systemInfoCheckBox">
+             <property name="text">
+              <string>Сбор системной информации</string>
+             </property>
+             <property name="toolTip">
+              <string>Сбор системной информации: имя ПК, пользователь, IP, ОС, процессор, память</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="socialEngineeringCheckBox">
+             <property name="text">
+              <string>Данные для социальной инженерии</string>
+             </property>
+             <property name="toolTip">
+              <string>Сбор данных для социальной инженерии: создание фейковых окон, сбор ввода</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="additionalSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <!-- Секция: Защита и скрытность -->
+           <item>
+            <widget class="QLabel" name="stealthSectionLabel" native="true">
+             <property name="text">
+              <string>Защита и скрытность</string>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="antiVMCheckBox">
+             <property name="text">
+              <string>Защита от виртуальных машин (Anti-VM)</string>
+             </property>
+             <property name="toolTip">
+              <string>Проверка на запуск в виртуальной машине и завершение работы</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="fakeErrorCheckBox">
+             <property name="text">
+              <string>Фейковая ошибка</string>
+             </property>
+             <property name="toolTip">
+              <string>Показывает фейковое сообщение об ошибке для маскировки</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="silentCheckBox">
+             <property name="text">
+              <string>Тихий режим (без уведомлений)</string>
+             </property>
+             <property name="toolTip">
+              <string>Запуск программы без отображения интерфейса и уведомлений</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="autoStartCheckBox">
+             <property name="text">
+              <string>Автозапуск</string>
+             </property>
+             <property name="toolTip">
+              <string>Добавление программы в автозапуск системы</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="persistCheckBox">
+             <property name="text">
+              <string>Персистентность</string>
+             </property>
+             <property name="toolTip">
+              <string>Обеспечение персистентности: программа сохраняется в системе после перезагрузки</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="verticalSpacer">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+             <property name="sizeType">
+              <enum>QSizePolicy::Expanding</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="settingsGroupBox">
+      <property name="title">
+       <string>Настройки</string>
+      </property>
+      <layout class="QFormLayout" name="formLayout">
+       <item row="0" column="0">
+        <widget class="QLabel" name="sendMethodLabel">
+         <property name="text">
+          <string>Метод отправки данных:</string>
+         </property>
+         <property name="toolTip">
+          <string>Выберите метод отправки собранных данных</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="sendMethodComboBox">
+         <item>
+          <property name="text">
+           <string>Telegram</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Discord</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Local File</string>
+          </property>
+         </item>
+         <property name="currentText">
+          <string>Local File</string>
+         </property>
+         <property name="toolTip">
+          <string>Telegram: отправка через бота, Discord: через вебхук, Local File: сохранение на диск</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="tokenLabel">
+         <property name="text">
+          <string>Токен:</string>
+         </property>
+         <property name="toolTip">
+          <string>Токен для Telegram бота или Discord вебхука</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLineEdit" name="tokenLineEdit">
+         <property name="placeholderText">
+          <string>Введите токен Telegram или Discord</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите токен бота Telegram или вебхука Discord</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="chatIdLabel">
+         <property name="text">
+          <string>Chat ID:</string>
+         </property>
+         <property name="toolTip">
+          <string>Chat ID для Telegram (для Discord оставьте пустым)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLineEdit" name="chatIdLineEdit">
+         <property name="placeholderText">
+          <string>Введите Chat ID (для Telegram)</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите Chat ID для Telegram (оставьте пустым для Discord)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="fileNameLabel">
+         <property name="text">
+          <string>Имя файла:</string>
+         </property>
+         <property name="toolTip">
+          <string>Имя выходного файла программы</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLineEdit" name="fileNameLineEdit">
+         <property name="text">
+          <string>DeadCode.exe</string>
+         </property>
+         <property name="placeholderText">
+          <string>Введите имя выходного файла</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите имя выходного файла (например, DeadCode.exe)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="encryptionKey1Label">
+         <property name="text">
+          <string>Ключ шифрования 1:</string>
+         </property>
+         <property name="toolTip">
+          <string>Первый ключ шифрования для защиты данных</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QLineEdit" name="encryptionKey1LineEdit">
+         <property name="placeholderText">
+          <string>Введите первый ключ шифрования (16 символов)</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите первый ключ шифрования (16 символов)</string>
+         </property>
+         <property name="maxLength">
+          <number>16</number>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="encryptionKey2Label">
+         <property name="text">
+          <string>Ключ шифрования 2:</string>
+         </property>
+         <property name="toolTip">
+          <string>Второй ключ шифрования для защиты данных</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QLineEdit" name="encryptionKey2LineEdit">
+         <property name="placeholderText">
+          <string>Введите второй ключ шифрования (16 символов)</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите второй ключ шифрования (16 символов)</string>
+         </property>
+         <property name="maxLength">
+          <number>16</number>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0">
+        <widget class="QLabel" name="encryptionSaltLabel">
+         <property name="text">
+          <string>Соль шифрования:</string>
+         </property>
+         <property name="toolTip">
+          <string>Соль для усиления шифрования</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="1">
+        <widget class="QLineEdit" name="encryptionSaltLineEdit">
+         <property name="placeholderText">
+          <string>Введите соль шифрования</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите соль для усиления шифрования</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="iconGroupBox">
+      <property name="title">
+       <string>Иконка</string>
+      </property>
+      <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="QLineEdit" name="iconPathLineEdit">
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+         <property name="placeholderText">
+          <string>Выберите файл иконки (.ico)</string>
+         </property>
+         <property name="toolTip">
+          <string>Путь к выбранному файлу иконки (.ico)</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="iconBrowseButton">
+         <property name="text">
+          <string>Обзор...</string>
+         </property>
+         <property name="toolTip">
+          <string>Открыть диалог для выбора файла иконки (.ico)</string>
+         </property>
+         <property name="icon">
+          <iconset theme="document-open"/>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QPushButton" name="buildButton">
+      <property name="text">
+       <string>Собрать</string>
+      </property>
+      <property name="toolTip">
+       <string>Запустить процесс сборки вредоносного билда с выбранными параметрами</string>
+      </property>
+      <property name="icon">
+       <iconset theme="system-run"/>
+      </property>
+      <property name="minimumSize">
+       <size>
+        <width>100</width>
+        <height>40</height>
+       </size>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="outputGroupBox">
+      <property name="title">
+       <string>Результаты</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <item>
+        <widget class="QTextEdit" name="textEdit">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>150</height>
+          </size>
+         </property>
+         <property name="readOnly">
+          <bool>true</bool>
+         </property>
+         <property name="toolTip">
+          <string>Лог выполнения: результаты сборки, ошибки и статус</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>600</width>
+     <height>21</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>Файл</string>
+    </property>
+    <addaction name="actionSaveConfig"/>
+    <addaction name="actionLoadConfig"/>
+    <addaction name="actionExportLogs"/>
+    <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>Справка</string>
+    </property>
+    <addaction name="actionAbout"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar">
+   <property name="sizeGripEnabled">
+    <bool>true</bool>
+   </property>
+  </widget>
+  <action name="actionSaveConfig">
+   <property name="text">
+    <string>Сохранить конфигурацию</string>
+   </property>
+   <property name="icon">
+    <iconset theme="document-save"/>
+   </property>
+   <property name="toolTip">
+    <string>Сохранить текущую конфигурацию в файл</string>
+   </property>
+  </action>
+  <action name="actionLoadConfig">
+   <property name="text">
+    <string>Загрузить конфигурацию</string>
+   </property>
+   <property name="icon">
+    <iconset theme="document-open"/>
+   </property>
+   <property name="toolTip">
+    <string>Загрузить конфигурацию из файла</string>
+   </property>
+  </action>
+  <action name="actionExportLogs">
+   <property name="text">
+    <string>Экспорт логов</string>
+   </property>
+   <property name="icon">
+    <iconset theme="document-export"/>
+   </property>
+   <property name="toolTip">
+    <string>Экспортировать лог выполнения в текстовый файл</string>
+   </property>
+  </action>
+  <action name="actionExit">
+   <property name="text">
+    <string>Выход</string>
+   </property>
+   <property name="icon">
+    <iconset theme="application-exit"/>
+   </property>
+   <property name="toolTip">
+    <string>Закрыть программу</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>О программе</string>
+   </property>
+   <property name="icon">
+    <iconset theme="help-about"/>
+   </property>
+   <property name="toolTip">
+    <string>Показать информацию о программе</string>
+   </property>
+  </action>
+ </widget>
+ <resources/>
+</ui>

