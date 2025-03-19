@@ -66,6 +66,19 @@ jobs:
         & $cmakePath --version
       shell: powershell
 
+    - name: Install Ninja
+      run: |
+        Write-Host "Installing Ninja..."
+        choco install ninja -y
+        $ninjaPath = "ninja"
+        if (-not (Get-Command $ninjaPath -ErrorAction SilentlyContinue)) {
+          Write-Host "Error: ninja not found in PATH"
+          exit 1
+        }
+        Write-Host "Ninja version:"
+        & $ninjaPath --version
+      shell: powershell
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
@@ -110,6 +123,9 @@ jobs:
         # Вывод версии vcpkg
         Write-Host "vcpkg version:"
         & $vcpkgExe --version
+        # Очистка кэша vcpkg
+        Write-Host "Cleaning vcpkg cache..."
+        & $vcpkgExe remove --outdated --recurse
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
         & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
