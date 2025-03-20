@@ -452,6 +452,76 @@
         </widget>
        </item>
        <item row="1" column="0">
+        <widget class="QLabel" name="buildMethodLabel">
+         <property name="text">
+          <string>Метод сборки:</string>
+         </property>
+         <property name="toolTip">
+          <string>Выберите метод сборки программы</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="buildMethodComboBox">
+         <item>
+          <property name="text">
+           <string>Local Build</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>GitHub Actions</string>
+          </property>
+         </item>
+         <property name="currentText">
+          <string>Local Build</string>
+         </property>
+         <property name="toolTip">
+          <string>Local Build: сборка на локальной машине, GitHub Actions: сборка через CI/CD</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="githubTokenLabel">
+         <property name="text">
+          <string>GitHub Токен:</string>
+         </property>
+         <property name="toolTip">
+          <string>Токен для доступа к GitHub API (для GitHub Actions)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLineEdit" name="githubTokenLineEdit">
+         <property name="placeholderText">
+          <string>Введите токен GitHub (для GitHub Actions)</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите токен GitHub для доступа к API (оставьте пустым для Local Build)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="githubRepoLabel">
+         <property name="text">
+          <string>GitHub Репозиторий:</string>
+         </property>
+         <property name="toolTip">
+          <string>Имя репозитория GitHub (для GitHub Actions)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLineEdit" name="githubRepoLineEdit">
+         <property name="placeholderText">
+          <string>Введите имя репозитория (для GitHub Actions)</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите имя репозитория GitHub (оставьте пустым для Local Build)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
         <widget class="QLabel" name="tokenLabel">
          <property name="text">
           <string>Токен:</string>
@@ -461,7 +531,7 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="1">
+       <item row="4" column="1">
         <widget class="QLineEdit" name="tokenLineEdit">
          <property name="placeholderText">
           <string>Введите токен Telegram или Discord</string>
@@ -471,7 +541,7 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="0">
+       <item row="5" column="0">
         <widget class="QLabel" name="chatIdLabel">
          <property name="text">
           <string>Chat ID:</string>
@@ -481,7 +551,7 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="1">
+       <item row="5" column="1">
         <widget class="QLineEdit" name="chatIdLineEdit">
          <property name="placeholderText">
           <string>Введите Chat ID (для Telegram)</string>
@@ -491,8 +561,28 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="fileNameLabel">
+       <item row="6" column="0">
+        <widget class="QLabel" name="discordWebhookLabel">
+         <property name="text">
+          <string>Discord Webhook:</string>
+         </property>
+         <property name="toolTip">
+          <string>Webhook URL для Discord (для Telegram оставьте пустым)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="1">
+        <widget class="QLineEdit" name="discordWebhookLineEdit">
+         <property name="placeholderText">
+          <string>Введите Webhook URL (для Discord)</string>
+         </property>
+         <property name="toolTip">
+          <string>Введите Webhook URL для Discord (оставьте пустым для Telegram)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="0">
+        <widget class="QLabel" name="filenameLabel">
          <property name="text">
           <string>Имя файла:</string>
          </property>
@@ -501,8 +591,8 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="1">
-        <widget class="QLineEdit" name="fileNameLineEdit">
+       <item row="7" column="1">
+        <widget class="QLineEdit" name="filenameLineEdit">
          <property name="text">
           <string>DeadCode.exe</string>
          </property>
@@ -514,7 +604,7 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="0">
+       <item row="8" column="0">
         <widget class="QLabel" name="encryptionKey1Label">
          <property name="text">
           <string>Ключ шифрования 1:</string>
@@ -524,7 +614,7 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="1">
+       <item row="8" column="1">
         <widget class="QLineEdit" name="encryptionKey1LineEdit">
          <property name="placeholderText">
           <string>Введите первый ключ шифрования (16 символов)</string>
@@ -537,7 +627,7 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="0">
+       <item row="9" column="0">
         <widget class="QLabel" name="encryptionKey2Label">
          <property name="text">
           <string>Ключ шифрования 2:</string>
@@ -547,7 +637,7 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="1">
+       <item row="9" column="1">
         <widget class="QLineEdit" name="encryptionKey2LineEdit">
          <property name="placeholderText">
           <string>Введите второй ключ шифрования (16 символов)</string>
@@ -560,7 +650,7 @@
          </property>
         </widget>
        </item>
-       <item row="6" column="0">
+       <item row="10" column="0">
         <widget class="QLabel" name="encryptionSaltLabel">
          <property name="text">
           <string>Соль шифрования:</string>
@@ -570,7 +660,7 @@
          </property>
         </widget>
        </item>
-       <item row="6" column="1">
+       <item row="10" column="1">
         <widget class="QLineEdit" name="encryptionSaltLineEdit">
          <property name="placeholderText">
           <string>Введите соль шифрования</string>

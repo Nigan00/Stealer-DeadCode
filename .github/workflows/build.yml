@@ -2,12 +2,6 @@ name: Build DeadCode
 
 on:
   workflow_dispatch: # Ручной запуск через GitHub UI
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
   build-windows:
@@ -37,23 +31,18 @@ jobs:
         & $cmakePath --version
       shell: powershell
 
-    - name: Install Perl
+    - name: Install MinGW
       run: |
-        Write-Host "Installing Perl..."
-        choco install strawberryperl -y
-        $perlPath = "perl"
-        if (-not (Get-Command $perlPath -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: perl not found in PATH"
+        Write-Host "Installing MinGW..."
+        choco install mingw -y
+        $mingwPath = "C:/ProgramData/chocolatey/bin/g++.exe"
+        if (-not (Test-Path $mingwPath)) {
+          Write-Host "Error: MinGW not installed correctly"
           exit 1
         }
-        Write-Host "Perl version:"
-        & $perlPath --version
+        Write-Host "MinGW version:"
+        & $mingwPath --version
       shell: powershell
-
-    - name: Set up MSVC
-      uses: ilammy/msvc-dev-cmd@v1
-      with:
-        arch: x64
 
     - name: Install Python dependencies for aqtinstall
       run: |
@@ -67,7 +56,7 @@ jobs:
       run: |
         Write-Host "Installing Qt 5.15.2 with aqtinstall..."
         New-Item -Path "C:/Qt" -ItemType Directory -Force
-        python -m aqt install-qt --outputdir C:/Qt windows desktop 5.15.2 win64_msvc2019_64 --autodesktop
+        python -m aqt install-qt --outputdir C:/Qt windows desktop 5.15.2 win64_mingw81 --autodesktop
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt with aqtinstall"
           exit 1
@@ -132,33 +121,16 @@ jobs:
         $env:Path = "C:/vcpkg;" + $env:Path
         Write-Host "vcpkg version after bootstrap:"
         & $vcpkgExe --version
-        Write-Host "Checking Perl before installation..."
-        $perlPath = (Get-Command perl -ErrorAction SilentlyContinue).Path
-        Write-Host "Perl path: $perlPath"
-        & perl --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Perl is not working correctly"
-          exit 1
-        }
         Write-Host "Clearing vcpkg cache..."
         & $vcpkgExe remove --outdated --recurse
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
           dir C:/vcpkg/installed/x64-windows-static/lib
           Write-Host "Printing vcpkg logs..."
-          dir C:/vcpkg/buildtrees/openssl
-          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log) {
-            Write-Host "Contents of install-x64-windows-static-rel-err.log:"
-            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log
-          }
-          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log) {
-            Write-Host "Contents of install-x64-windows-static-rel-out.log:"
-            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
-          }
           if (Test-Path vcpkg_install.log) {
             Write-Host "Contents of vcpkg_install.log:"
             Get-Content vcpkg_install.log
@@ -167,8 +139,6 @@ jobs:
         }
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
-      env:
-        VCPKG_PERL_LICENSE_ACCEPTED: 1
 
     - name: Upload vcpkg logs
       if: failure()
@@ -176,8 +146,6 @@ jobs:
       with:
         name: vcpkg-logs
         path: |
-          C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log
-          C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
           vcpkg_install.log
         if-no-files-found: warn
 
@@ -185,8 +153,8 @@ jobs:
       run: |
         $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
-        $libs = @("sqlite3", "zip", "zlib", "bz2", "libssl", "libcrypto")
-        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
+        $libs = @("sqlite3", "zip", "zlib", "bz2", "libcurl")
+        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h")
         $missing = @()
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib.lib")) {
@@ -204,8 +172,8 @@ jobs:
           dir ${libDir}
           Write-Host "Contents of directory ${includeDir}:"
           dir ${includeDir}
-          Write-Host "Contents of directory ${includeDir}/openssl:"
-          dir ${includeDir}/openssl
+          Write-Host "Contents of directory ${includeDir}/curl:"
+          dir ${includeDir}/curl
           exit 1
         }
         if (-not (Test-Path $libDir)) {
@@ -262,10 +230,9 @@ jobs:
           dir ui
           exit 1
         }
-        if (-not (Test-Path icon.rc)) {
-          Write-Host "Error: icon.rc not found in root directory"
-          dir .
-          exit 1
+        if (-not (Test-Path icon.ico)) {
+          Write-Host "Warning: icon.ico not found, creating a placeholder..."
+          New-Item -Path . -Name icon.ico -ItemType File -Force
         }
         Write-Host "Creating build directory if it doesn't exist..."
         New-Item -Path ../build -ItemType Directory -Force
@@ -304,26 +271,20 @@ jobs:
         cd Stealer-DeadCode
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;" + $env:Path
+        $env:Path = "$qtBinPath;C:/ProgramData/chocolatey/bin;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
         Write-Host "INCLUDE path: $env:INCLUDE"
         Write-Host "LIB path: $env:LIB"
         Write-Host "qmake path: $qmakePath"
-        Write-Host "Checking icon.rc and icon.ico..."
-        if (Test-Path icon.rc) {
-          Write-Host "icon.rc exists. Contents of icon.rc:"
-          Get-Content icon.rc
-        } else {
-          Write-Host "icon.rc not found!"
-        }
+        Write-Host "Checking icon.ico..."
         if (Test-Path icon.ico) {
           Write-Host "icon.ico exists."
         } else {
           Write-Host "icon.ico not found!"
         }
         Write-Host "Running qmake..."
-        & "$qmakePath" -spec win32-msvc "ui/DeadCode.pro" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
+        & "$qmakePath" "ui/DeadCode.pro" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
         $qmakeExitCode = $LASTEXITCODE
         if (Test-Path qmake_output.log) {
           Write-Host "Contents of qmake_output.log:"
@@ -337,15 +298,15 @@ jobs:
           Write-Host "Error: Makefile was not generated"
           exit 1
         }
-        Write-Host "Running nmake..."
-        & nmake -f Makefile.Release 2>&1 | Tee-Object -FilePath "nmake_output.log"
-        $nmakeExitCode = $LASTEXITCODE
-        if (Test-Path nmake_output.log) {
-          Write-Host "Contents of nmake_output.log:"
-          Get-Content nmake_output.log
+        Write-Host "Running mingw32-make..."
+        & mingw32-make -f Makefile 2>&1 | Tee-Object -FilePath "make_output.log"
+        $makeExitCode = $LASTEXITCODE
+        if (Test-Path make_output.log) {
+          Write-Host "Contents of make_output.log:"
+          Get-Content make_output.log
         }
-        if ($nmakeExitCode -ne 0) {
-          Write-Host "Error: nmake failed with exit code $nmakeExitCode."
+        if ($makeExitCode -ne 0) {
+          Write-Host "Error: mingw32-make failed with exit code $makeExitCode."
           exit 1
         }
         if (-not (Test-Path ../build/DeadCode.exe)) {
@@ -374,18 +335,23 @@ jobs:
         name: build-logs
         path: |
           Stealer-DeadCode/qmake_output.log
-          Stealer-DeadCode/nmake_output.log
+          Stealer-DeadCode/make_output.log
         if-no-files-found: warn
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: DeadCode.exe
-        path: Stealer-DeadCode/../build/DeadCode.exe
+        name: DeadCode-Build
+        path: |
+          Stealer-DeadCode/../build/DeadCode.exe
+          Stealer-DeadCode/../build/icon.ico
+          Stealer-DeadCode/../build/build_key.h
+          Stealer-DeadCode/../build/polymorphic_code.h
 
     - name: Cleanup
       if: always()
       run: |
         Remove-Item -Path "C:/vcpkg" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "Stealer-DeadCode/build" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell

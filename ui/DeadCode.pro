@@ -7,32 +7,33 @@ TARGET = DeadCode
 TEMPLATE = app
 
 # Исходные файлы (.cpp)
-SOURCES += $$PWD/../src/main.cpp \
-           $$PWD/mainwindow.cpp
+SOURCES += \
+    $$PWD/src/main.cpp \
+    $$PWD/ui/mainwindow.cpp
 
 # Заголовочные файлы (.h)
-HEADERS += $$PWD/mainwindow.h \
-           $$PWD/../src/build_key.h \
-           $$PWD/../src/polymorphic_code.h \
-           $$PWD/../src/junk_code.h
+HEADERS += \
+    $$PWD/ui/mainwindow.h \
+    $$PWD/src/build_key.h \
+    $$PWD/src/polymorphic_code.h \
+    $$PWD/src/junk_code.h
 
 # Файлы интерфейса (.ui)
-FORMS   += $$PWD/mainwindow.ui
+FORMS   += \
+    $$PWD/ui/mainwindow.ui
 
-# Файл ресурсов для иконки (временно закомментирован для отладки)
-# RC_FILE = $$PWD/../icon.rc
-# !exists($$RC_FILE) {
-#     error("Resource file icon.rc not found at $$RC_FILE")
-# }
+# Ресурсы (иконка)
+RC_ICONS = $$PWD/icon.ico
 
 # Пути для поиска заголовочных файлов
-INCLUDEPATH += $$PWD/../src \
-               $$PWD \
-               $$[QT_INSTALL_HEADERS] \
-               $$[QT_INSTALL_HEADERS]/QtWidgets \
-               $$[QT_INSTALL_HEADERS]/QtGui \
-               $$[QT_INSTALL_HEADERS]/QtNetwork \
-               $$[QT_INSTALL_HEADERS]/QtCore
+INCLUDEPATH += \
+    $$PWD/src \
+    $$PWD/ui \
+    $$[QT_INSTALL_HEADERS] \
+    $$[QT_INSTALL_HEADERS]/QtWidgets \
+    $$[QT_INSTALL_HEADERS]/QtGui \
+    $$[QT_INSTALL_HEADERS]/QtNetwork \
+    $$[QT_INSTALL_HEADERS]/QtCore
 
 # Настройка путей для библиотек (используем vcpkg)
 VCPKG_INSTALL_DIR = $$(VCPKG_INSTALL_DIR)
@@ -46,17 +47,19 @@ LIBS += -L$$VCPKG_INSTALL_DIR/lib \
         -lzip \
         -lz \
         -lbz2 \
-        -llibssl \
-        -llibcrypto \
         -lbcrypt \
+        -lcurl \
         -lws2_32 \
         -lwininet \
+        -lcrypt32 \
+        -lole32 \
+        -lshell32 \
         -lgdiplus \
         -liphlpapi \
-        -lcrypt32 \
-        -lurlmon \
-        -lole32 \
-        -lshell32
+        -lshlwapi \
+        -ltlhelp32 \
+        -lpsapi \
+        -luser32
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
@@ -68,7 +71,8 @@ QMAKE_CXXFLAGS += -O2 \
                   -DUNICODE \
                   -D_UNICODE \
                   -DWIN32 \
-                  -DQT_NO_DEBUG
+                  -DQT_NO_DEBUG \
+                  -D_CRT_SECURE_NO_WARNINGS
 
 # Флаги линковки
 QMAKE_LFLAGS += -DYNAMICBASE \
@@ -80,40 +84,44 @@ DEFINES += BUILD_DATE=\\\"$$system(date /t)\\\" \
            BUILD_VERSION=\\\"$$system(git rev-parse --short HEAD 2> nul || echo unknown)\\\"
 
 # Директории для выходных файлов
-DESTDIR = $$PWD/../build
+DESTDIR = $$PWD/build
 OBJECTS_DIR = $$PWD/release
 MOC_DIR = $$PWD/release
 UI_DIR = $$PWD/release
 
-# Очистка (удаляем исполняемый файл при очистке проекта)
-QMAKE_CLEAN += $$DESTDIR/DeadCode.exe
+# Очистка (удаляем исполняемый файл и временные заголовки при очистке проекта)
+QMAKE_CLEAN += \
+    $$DESTDIR/DeadCode.exe \
+    $$PWD/src/build_key.h \
+    $$PWD/src/polymorphic_code.h \
+    $$PWD/src/junk_code.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
     CONFIG(debug, debug|release) {
         # Для отладочной сборки
         QMAKE_CXXFLAGS += -g
-        LIBS += -lgdi32
     } else {
         # Для релизной сборки
-        QMAKE_LFLAGS += -static
+        # Убрали -static, так как Qt обычно динамический
     }
 }
 
 # Пользовательские шаги сборки для генерации заголовков
-PRE_TARGETDEPS += $$PWD/../src/build_key.h \
-                  $$PWD/../src/polymorphic_code.h \
-                  $$PWD/../src/junk_code.h
+PRE_TARGETDEPS += \
+    $$PWD/src/build_key.h \
+    $$PWD/src/polymorphic_code.h \
+    $$PWD/src/junk_code.h
 
 QMAKE_EXTRA_TARGETS += gen_headers
 gen_headers.commands = @echo "Headers are generated during runtime by mainwindow.cpp"
 # Создание пустых файлов, если они отсутствуют
-!exists($$PWD/../src/build_key.h) {
-    system(echo. > $$PWD/../src/build_key.h)
+!exists($$PWD/src/build_key.h) {
+    system(echo. > $$PWD/src/build_key.h)
 }
-!exists($$PWD/../src/polymorphic_code.h) {
-    system(echo. > $$PWD/../src/polymorphic_code.h)
+!exists($$PWD/src/polymorphic_code.h) {
+    system(echo. > $$PWD/src/polymorphic_code.h)
 }
-!exists($$PWD/../src/junk_code.h) {
-    system(echo. > $$PWD/../src/junk_code.h)
+!exists($$PWD/src/junk_code.h) {
+    system(echo. > $$PWD/src/junk_code.h)
 }
