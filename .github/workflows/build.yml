@@ -208,7 +208,11 @@ jobs:
           dir ${includeDir}/openssl
           exit 1
         }
-        Write-Host "Listing all .lib files in $libDir:"
+        if (-not (Test-Path $libDir)) {
+          Write-Host "Error: Directory $libDir does not exist"
+          exit 1
+        }
+        Write-Host "Listing all .lib files in $libDir"
         Get-ChildItem -Path $libDir -Filter *.lib
         Write-Host "All vcpkg dependencies verified"
       shell: powershell
