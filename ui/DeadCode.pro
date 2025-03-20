@@ -30,14 +30,25 @@ INCLUDEPATH += \
     $$PWD/src \
     $$PWD/ui
 
-# Настройка библиотек (используем vcpkg через переменные окружения)
-# Удаляем жестко прописанные пути, полагаемся на $env:INCLUDE и $env:LIB из build.yml
+# Библиотеки (vcpkg и системные Windows-библиотеки)
+# Пути к библиотекам задаются через переменную окружения LIB в build.yml
 LIBS += -lsqlite3 \
         -lzip \
         -lz \
         -lbz2 \
+        -lbcrypt \
         -lcurl \
-        -lws2_32
+        -lws2_32 \
+        -lwininet \
+        -lcrypt32 \
+        -lole32 \
+        -lshell32 \
+        -lgdiplus \
+        -liphlpapi \
+        -lshlwapi \
+        -ltlhelp32 \
+        -lpsapi \
+        -luser32
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
@@ -93,13 +104,3 @@ PRE_TARGETDEPS += \
 
 QMAKE_EXTRA_TARGETS += gen_headers
 gen_headers.commands = @echo "Headers are generated during runtime by mainwindow.cpp"
-# Создание пустых файлов, если они отсутствуют
-!exists($$PWD/src/build_key.h) {
-    system(echo. > $$PWD/src/build_key.h)
-}
-!exists($$PWD/src/polymorphic_code.h) {
-    system(echo. > $$PWD/src/polymorphic_code.h)
-}
-!exists($$PWD/src/junk_code.h) {
-    system(echo. > $$PWD/src/junk_code.h)
-}
