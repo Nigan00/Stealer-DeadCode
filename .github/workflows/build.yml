@@ -1,6 +1,7 @@
 # Обновлено: 2025 год
 # Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, изменен компилятор на MSVC, архитектура Qt изменена на win64_msvc2019_64.
 # Убрано действие jurplel/install-qt-action, добавлена ручная установка Qt через aqtinstall.
+# Добавлено принятие лицензии Perl через VCPKG_PERL_LICENSE_ACCEPTED, сброшена переменная VCPKG_ROOT.
 
 name: Build DeadCode
 
@@ -83,9 +84,7 @@ jobs:
     - name: Install Qt manually
       run: |
         Write-Host "Installing Qt 5.15.2 with aqtinstall..."
-        # Создаем директорию для Qt
         New-Item -Path "C:/Qt" -ItemType Directory -Force
-        # Устанавливаем Qt
         python -m aqt install-qt --outputdir C:/Qt windows desktop 5.15.2 win64_msvc2019_64 --autodesktop
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt with aqtinstall"
@@ -94,7 +93,7 @@ jobs:
         Write-Host "Qt installation completed"
       shell: powershell
       env:
-        AQTINSTALL_DEBUG: true  # Включаем отладку для aqtinstall
+        AQTINSTALL_DEBUG: true
 
     - name: Debug Qt installation
       run: |
@@ -177,6 +176,9 @@ jobs:
         }
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
+      env:
+        VCPKG_PERL_LICENSE_ACCEPTED: 1  # Принимаем лицензию Perl
+        VCPKG_ROOT: ""  # Сбрасываем VCPKG_ROOT, чтобы избежать предупреждений
 
     - name: Upload vcpkg logs
       if: failure()
