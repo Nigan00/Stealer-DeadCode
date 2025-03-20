@@ -2,6 +2,7 @@
 # Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, изменен компилятор на MSVC, архитектура Qt изменена на win64_msvc2019_64.
 # Убрано действие jurplel/install-qt-action, добавлена ручная установка Qt через aqtinstall.
 # Добавлено принятие лицензии Perl через VCPKG_PERL_LICENSE_ACCEPTED, сброшена переменная VCPKG_ROOT.
+# Добавлена отладка для vcpkg, изменена версия openssl на 3.3.2.
 
 name: Build DeadCode
 
@@ -124,6 +125,9 @@ jobs:
 
     - name: Install vcpkg and dependencies
       run: |
+        # Сбрасываем VCPKG_ROOT в начале шага
+        $env:VCPKG_ROOT = ""
+        Write-Host "VCPKG_ROOT after reset: $env:VCPKG_ROOT"
         if (-not (Test-Path C:/vcpkg)) {
           Write-Host "Cloning vcpkg..."
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
@@ -147,6 +151,8 @@ jobs:
         Write-Host "vcpkg version:"
         & $vcpkgExe --version
         Write-Host "Checking Perl before installation..."
+        $perlPath = (Get-Command perl -ErrorAction SilentlyContinue).Path
+        Write-Host "Perl path: $perlPath"
         & perl --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Perl is not working correctly"
@@ -157,10 +163,10 @@ jobs:
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build --debug --debug-env > vcpkg_install.log 2>&1
+        # Устанавливаем конкретную версию openssl
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl@3.3.2 --triplet x64-windows-static --clean-after-build --debug --debug-env --verbose
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
-          Get-Content vcpkg_install.log
           dir C:/vcpkg/installed/x64-windows-static/lib
           Write-Host "Printing vcpkg logs..."
           dir C:/vcpkg/buildtrees/openssl
@@ -177,8 +183,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
       env:
-        VCPKG_PERL_LICENSE_ACCEPTED: 1  # Принимаем лицензию Perl
-        VCPKG_ROOT: ""  # Сбрасываем VCPKG_ROOT, чтобы избежать предупреждений
+        VCPKG_PERL_LICENSE_ACCEPTED: 1
 
     - name: Upload vcpkg logs
       if: failure()
@@ -186,7 +191,6 @@ jobs:
       with:
         name: vcpkg-logs
         path: |
-          C:/vcpkg/vcpkg_install.log
           C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log
           C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
         if-no-files-found: warn
