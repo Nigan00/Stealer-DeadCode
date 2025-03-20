@@ -1,5 +1,6 @@
 # Обновлено: 2025 год
 # Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, изменен компилятор на MSVC, архитектура Qt изменена на win64_msvc2019_64.
+# Добавлена отладка для шага Install Qt, изменена версия действия на v3.
 
 name: Build DeadCode
 
@@ -72,19 +73,28 @@ jobs:
         arch: x64
 
     - name: Install Qt
-      uses: jurplel/install-qt-action@v4
+      uses: jurplel/install-qt-action@v3  # Изменено с v4 на v3
       with:
         version: '5.15.2'
         host: 'windows'
         target: 'desktop'
-        arch: 'win64_msvc2019_64' # Изменено на MSVC 2019
+        arch: 'win64_msvc2019_64'
         dir: 'C:/Qt'
         cache: false
+        # Добавляем отладку
+        debug: true
+      env:
+        AQTINSTALL_DEBUG: true  # Включаем отладку для aqtinstall
 
     - name: Debug Qt installation
       run: |
         Write-Host "Listing contents of C:/Qt:"
-        dir C:/Qt -Recurse
+        if (Test-Path C:/Qt) {
+          dir C:/Qt -Recurse
+        } else {
+          Write-Host "Directory C:/Qt does not exist!"
+          exit 1
+        }
         Write-Host "Checking for qmake.exe in C:/Qt/5.15.2:"
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         if ($qmakePath) {
