@@ -1,6 +1,6 @@
 # Обновлено: 2025 год
 # Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, изменен компилятор на MSVC, архитектура Qt изменена на win64_msvc2019_64.
-# Добавлена отладка для шага Install Qt, изменена версия действия на v3.
+# Убрано действие jurplel/install-qt-action, добавлена ручная установка Qt через aqtinstall.
 
 name: Build DeadCode
 
@@ -72,17 +72,27 @@ jobs:
       with:
         arch: x64
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v3  # Изменено с v4 на v3
-      with:
-        version: '5.15.2'
-        host: 'windows'
-        target: 'desktop'
-        arch: 'win64_msvc2019_64'
-        dir: 'C:/Qt'
-        cache: false
-        # Добавляем отладку
-        debug: true
+    - name: Install Python dependencies for aqtinstall
+      run: |
+        Write-Host "Installing Python dependencies for aqtinstall..."
+        python -m pip install setuptools wheel py7zr==0.20.*
+        python -m pip install aqtinstall==3.1.*
+        python -m aqt version
+      shell: powershell
+
+    - name: Install Qt manually
+      run: |
+        Write-Host "Installing Qt 5.15.2 with aqtinstall..."
+        # Создаем директорию для Qt
+        New-Item -Path "C:/Qt" -ItemType Directory -Force
+        # Устанавливаем Qt
+        python -m aqt install-qt --outputdir C:/Qt windows desktop 5.15.2 win64_msvc2019_64 --autodesktop
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Qt with aqtinstall"
+          exit 1
+        }
+        Write-Host "Qt installation completed"
+      shell: powershell
       env:
         AQTINSTALL_DEBUG: true  # Включаем отладку для aqtinstall
 
