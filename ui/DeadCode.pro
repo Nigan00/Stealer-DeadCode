@@ -1,28 +1,31 @@
+# Основные модули Qt, которые используются в проекте
 QT       += core gui network widgets
 
+# Имя целевого исполняемого файла
 TARGET = DeadCode
+# Тип проекта — приложение
 TEMPLATE = app
 
-# Исходные файлы
+# Исходные файлы (.cpp)
 SOURCES += $$PWD/../src/main.cpp \
            $$PWD/mainwindow.cpp
 
-# Заголовочные файлы
+# Заголовочные файлы (.h)
 HEADERS += $$PWD/mainwindow.h \
            $$PWD/../src/build_key.h \
            $$PWD/../src/polymorphic_code.h \
            $$PWD/../src/junk_code.h
 
-# Файлы интерфейса
+# Файлы интерфейса (.ui)
 FORMS   += $$PWD/mainwindow.ui
 
-# Файл ресурсов для иконки (icon.rc находится в корневой директории)
-RC_FILE = $$PWD/../icon.rc
-!exists($$RC_FILE) {
-    error("Resource file icon.rc not found at $$RC_FILE")
-}
+# Файл ресурсов для иконки (временно закомментирован для отладки)
+# RC_FILE = $$PWD/../icon.rc
+# !exists($$RC_FILE) {
+#     error("Resource file icon.rc not found at $$RC_FILE")
+# }
 
-# Пути для заголовочных файлов
+# Пути для поиска заголовочных файлов
 INCLUDEPATH += $$PWD/../src \
                $$PWD \
                $$[QT_INSTALL_HEADERS] \
@@ -31,7 +34,7 @@ INCLUDEPATH += $$PWD/../src \
                $$[QT_INSTALL_HEADERS]/QtNetwork \
                $$[QT_INSTALL_HEADERS]/QtCore
 
-# Пути для библиотек (используем динамическое определение VCPKG)
+# Настройка путей для библиотек (используем vcpkg)
 VCPKG_INSTALL_DIR = $$(VCPKG_INSTALL_DIR)
 isEmpty(VCPKG_INSTALL_DIR) {
     VCPKG_INSTALL_DIR = C:/vcpkg/installed/x64-windows-static
@@ -72,7 +75,7 @@ QMAKE_LFLAGS += -DYNAMICBASE \
                 -NXCOMPAT \
                 -SUBSYSTEM:WINDOWS
 
-# Определения для сборки
+# Определения для сборки (добавляем дату сборки и версию из git)
 DEFINES += BUILD_DATE=\\\"$$system(date /t)\\\" \
            BUILD_VERSION=\\\"$$system(git rev-parse --short HEAD 2> nul || echo unknown)\\\"
 
@@ -82,10 +85,10 @@ OBJECTS_DIR = $$PWD/release
 MOC_DIR = $$PWD/release
 UI_DIR = $$PWD/release
 
-# Очистка
+# Очистка (удаляем исполняемый файл при очистке проекта)
 QMAKE_CLEAN += $$DESTDIR/DeadCode.exe
 
-# Дополнительные проверки и зависимости
+# Дополнительные проверки и зависимости для Windows
 win32 {
     CONFIG(debug, debug|release) {
         # Для отладочной сборки

@@ -310,6 +310,19 @@ jobs:
         Write-Host "INCLUDE path: $env:INCLUDE"
         Write-Host "LIB path: $env:LIB"
         Write-Host "qmake path: $qmakePath"
+        Write-Host "Checking icon.rc and icon.ico..."
+        if (Test-Path icon.rc) {
+          Write-Host "icon.rc exists. Contents of icon.rc:"
+          Get-Content icon.rc
+        } else {
+          Write-Host "icon.rc not found!"
+        }
+        if (Test-Path icon.ico) {
+          Write-Host "icon.ico exists."
+        } else {
+          Write-Host "icon.ico not found!"
+        }
+        Write-Host "Running qmake..."
         & "$qmakePath" -spec win32-msvc "ui/DeadCode.pro" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
         $qmakeExitCode = $LASTEXITCODE
         if (Test-Path qmake_output.log) {
@@ -324,6 +337,7 @@ jobs:
           Write-Host "Error: Makefile was not generated"
           exit 1
         }
+        Write-Host "Running nmake..."
         & nmake -f Makefile.Release 2>&1 | Tee-Object -FilePath "nmake_output.log"
         $nmakeExitCode = $LASTEXITCODE
         if (Test-Path nmake_output.log) {
