@@ -2,8 +2,8 @@
 # Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, изменен компилятор на MSVC, архитектура Qt изменена на win64_msvc2019_64.
 # Убрано действие jurplel/install-qt-action, добавлена ручная установка Qt через aqtinstall.
 # Добавлено принятие лицензии Perl через VCPKG_PERL_LICENSE_ACCEPTED, сброшена переменная VCPKG_ROOT.
-# Добавлена отладка для vcpkg, изменена версия openssl на 3.3.2.
 # Убран флаг --verbose, так как он не поддерживается текущей версией vcpkg.
+# Убрано указание версии openssl@3.3.2, так как текущая версия vcpkg не поддерживает такой синтаксис.
 
 name: Build DeadCode
 
@@ -164,8 +164,8 @@ jobs:
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        # Устанавливаем конкретную версию openssl, убираем --verbose
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl@3.3.2 --triplet x64-windows-static --clean-after-build --debug --debug-env
+        # Убираем указание версии openssl@3.3.2
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build --debug --debug-env
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
           dir C:/vcpkg/installed/x64-windows-static/lib
