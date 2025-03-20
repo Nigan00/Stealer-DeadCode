@@ -1,5 +1,5 @@
 # Обновлено: 2025 год
-# Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, обновлен MinGW до версии 12.2.0, добавлена настройка VCPKG_CONCURRENCY для избежания проблем с длиной командной строки.
+# Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, изменен компилятор на MSVC, архитектура Qt изменена на win64_msvc2019_64.
 
 name: Build DeadCode
 
@@ -22,35 +22,6 @@ jobs:
       with:
         path: Stealer-DeadCode
         fetch-depth: 0
-
-    - name: Set up MinGW
-      uses: egor-tensin/setup-mingw@v2
-      with:
-        platform: x64
-        static: true
-        version: '12.2.0' # Обновлено с 8.1.0 до 12.2.0 для лучшей совместимости с OpenSSL
-
-    - name: Verify MinGW installation
-      run: |
-        $mingwBinPath = "C:/mingw64/bin"
-        if (-not (Test-Path $mingwBinPath)) {
-          Write-Host "Error: MinGW bin directory not found at $mingwBinPath"
-          exit 1
-        }
-        $env:Path = "$mingwBinPath;" + $env:Path
-        if (-not (Get-Command "g++" -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: g++ not found in PATH"
-          exit 1
-        }
-        Write-Host "g++ version:"
-        & g++ --version
-        if (-not (Get-Command "make" -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: make not found in PATH"
-          exit 1
-        }
-        Write-Host "make version:"
-        & make --version
-      shell: powershell
 
     - name: Install CMake
       uses: lukka/get-cmake@latest
@@ -95,15 +66,20 @@ jobs:
         & $perlPath --version
       shell: powershell
 
+    - name: Set up MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
         version: '5.15.2'
         host: 'windows'
         target: 'desktop'
-        arch: 'win64_mingw' # Изменено с win64_mingw81 на win64_mingw для большей гибкости
+        arch: 'win64_msvc2019_64' # Изменено на MSVC 2019
         dir: 'C:/Qt'
-        cache: false  # Отключено кэширование для чистой установки
+        cache: false
 
     - name: Debug Qt installation
       run: |
@@ -143,7 +119,6 @@ jobs:
             exit 1
           }
         }
-        # Проверка наличия vcpkg.exe
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
         if (-not (Test-Path $vcpkgExe)) {
           Write-Host "Error: vcpkg.exe not found at $vcpkgExe"
@@ -162,23 +137,21 @@ jobs:
         & $vcpkgExe remove --outdated --recurse
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
-        # Установка ограничения на параллельные задачи для избежания проблем с длиной командной строки
-        $env:VCPKG_CONCURRENCY = "1"
-        Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build --debug --debug-env > vcpkg_install.log 2>&1
+        Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build --debug --debug-env > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
           Get-Content vcpkg_install.log
-          dir C:/vcpkg/installed/x64-mingw-static/lib
+          dir C:/vcpkg/installed/x64-windows-static/lib
           Write-Host "Printing vcpkg logs..."
           dir C:/vcpkg/buildtrees/openssl
-          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log) {
-            Write-Host "Contents of install-x64-mingw-static-rel-err.log:"
-            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log
+          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log) {
+            Write-Host "Contents of install-x64-windows-static-rel-err.log:"
+            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log
           }
-          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log) {
-            Write-Host "Contents of install-x64-mingw-static-rel-out.log:"
-            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log
+          if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log) {
+            Write-Host "Contents of install-x64-windows-static-rel-out.log:"
+            Get-Content C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
           }
           exit 1
         }
@@ -192,20 +165,20 @@ jobs:
         name: vcpkg-logs
         path: |
           C:/vcpkg/vcpkg_install.log
-          C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log
-          C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-out.log
+          C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log
+          C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
         if-no-files-found: warn
 
     - name: Verify vcpkg installation
       run: |
-        $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
-        $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
+        $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
+        $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
         $libs = @("sqlite3", "zip", "zlib", "bz2", "ssl", "crypto")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
-          if (-not (Test-Path "$libDir/lib$lib.a")) {
-            $missing += "lib$lib.a"
+          if (-not (Test-Path "$libDir/$lib.lib")) { # MSVC использует .lib, а не .a
+            $missing += "$lib.lib"
           }
         }
         foreach ($header in $headers) {
@@ -232,7 +205,7 @@ jobs:
           exit 1
         }
         $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;C:/Qt/Tools/mingw/bin;C:/mingw64/bin;" + $env:Path
+        $env:Path = "$qtBinPath;" + $env:Path
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake --version failed"
@@ -294,15 +267,15 @@ jobs:
         cd Stealer-DeadCode
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;C:/Qt/Tools/mingw/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-mingw-static/bin;" + $env:Path
-        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-static/include;" + $env:INCLUDE
-        $env:LIB = "C:/vcpkg/installed/x64-mingw-static/lib;" + $env:LIB
-        & $qmakePath -spec win32-g++ ui/DeadCode.pro -o Makefile
+        $env:Path = "$qtBinPath;" + $env:Path
+        $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
+        $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
+        & $qmakePath -spec win32-msvc ui/DeadCode.pro -o Makefile
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"
           exit 1
         }
-        & mingw32-make -f Makefile.Release
+        & nmake -f Makefile.Release
         if (-not (Test-Path ../build/DeadCode.exe)) {
           Write-Host "Error: DeadCode.exe was not created"
           dir ../build
@@ -333,5 +306,4 @@ jobs:
       run: |
         Remove-Item -Path "C:/vcpkg" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:/mingw64" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
