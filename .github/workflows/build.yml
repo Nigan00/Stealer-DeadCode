@@ -4,7 +4,7 @@
 # Добавлено принятие лицензии Perl через VCPKG_PERL_LICENSE_ACCEPTED, сброшена переменная VCPKG_ROOT.
 # Убран флаг --verbose, так как он не поддерживается текущей версией vcpkg.
 # Убрано указание версии openssl@3.3.2, так как текущая версия vcpkg не поддерживает такой синтаксис.
-# Обновлен vcpkg до последней версии, добавлен флаг --verbose для отладки.
+# Обновлен vcpkg до последней версии, добавлено перенаправление вывода для отладки.
 
 name: Build DeadCode
 
@@ -151,7 +151,7 @@ jobs:
           exit 1
         }
         $env:Path = "C:/vcpkg;" + $env:Path
-        Write-Host "vcpkg version:"
+        Write-Host "vcpkg version after bootstrap:"
         & $vcpkgExe --version
         Write-Host "Checking Perl before installation..."
         $perlPath = (Get-Command perl -ErrorAction SilentlyContinue).Path
@@ -166,8 +166,8 @@ jobs:
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        # Добавляем --verbose для отладки
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build --verbose 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        # Убрали --verbose, используем перенаправление вывода для отладки
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
           dir C:/vcpkg/installed/x64-windows-static/lib
