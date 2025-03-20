@@ -1,7 +1,10 @@
+# Обновлено: 2025 год
+# Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, обновлен MinGW до версии 12.2.0, добавлена настройка VCPKG_CONCURRENCY для избежания проблем с длиной командной строки.
+
 name: Build DeadCode
 
 on:
-  workflow_dispatch: # Manual trigger via GitHub UI
+  workflow_dispatch: # Ручной запуск через GitHub UI
   push:
     branches:
       - main
@@ -25,7 +28,7 @@ jobs:
       with:
         platform: x64
         static: true
-        version: '8.1.0'
+        version: '12.2.0' # Обновлено с 8.1.0 до 12.2.0 для лучшей совместимости с OpenSSL
 
     - name: Verify MinGW installation
       run: |
@@ -98,19 +101,21 @@ jobs:
         version: '5.15.2'
         host: 'windows'
         target: 'desktop'
-        arch: 'win64_mingw81'
+        arch: 'win64_mingw' # Изменено с win64_mingw81 на win64_mingw для большей гибкости
         dir: 'C:/Qt'
-        cache: false  # Temporarily disable caching to force reinstall
+        cache: false  # Отключено кэширование для чистой установки
 
     - name: Debug Qt installation
       run: |
         Write-Host "Listing contents of C:/Qt:"
         dir C:/Qt -Recurse
-        Write-Host "Checking for qmake.exe in C:/Qt/5.15.2/mingw81_64/bin:"
-        if (Test-Path C:/Qt/5.15.2/mingw81_64/bin/qmake.exe) {
-          Write-Host "qmake.exe found!"
+        Write-Host "Checking for qmake.exe in C:/Qt/5.15.2:"
+        $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if ($qmakePath) {
+          Write-Host "qmake.exe found at $qmakePath!"
         } else {
-          Write-Host "qmake.exe not found in C:/Qt/5.15.2/mingw81_64/bin"
+          Write-Host "qmake.exe not found in C:/Qt/5.15.2"
+          exit 1
         }
       shell: powershell
 
@@ -138,36 +143,33 @@ jobs:
             exit 1
           }
         }
-        # Verify vcpkg.exe exists
+        # Проверка наличия vcpkg.exe
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
         if (-not (Test-Path $vcpkgExe)) {
           Write-Host "Error: vcpkg.exe not found at $vcpkgExe"
           exit 1
         }
         $env:Path = "C:/vcpkg;" + $env:Path
-        # Print vcpkg version
         Write-Host "vcpkg version:"
         & $vcpkgExe --version
-        # Verify Perl
         Write-Host "Checking Perl before installation..."
         & perl --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Perl is not working correctly"
           exit 1
         }
-        # Clear vcpkg cache
         Write-Host "Clearing vcpkg cache..."
         & $vcpkgExe remove --outdated --recurse
-        # Fully clear buildtrees
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
+        # Установка ограничения на параллельные задачи для избежания проблем с длиной командной строки
+        $env:VCPKG_CONCURRENCY = "1"
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
         & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-mingw-static --clean-after-build --debug --debug-env > vcpkg_install.log 2>&1
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
           Get-Content vcpkg_install.log
           dir C:/vcpkg/installed/x64-mingw-static/lib
-          # Print logs for debugging
           Write-Host "Printing vcpkg logs..."
           dir C:/vcpkg/buildtrees/openssl
           if (Test-Path C:/vcpkg/buildtrees/openssl/install-x64-mingw-static-rel-err.log) {
@@ -224,12 +226,13 @@ jobs:
 
     - name: Verify Qt installation
       run: |
-        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
-        if (-not (Test-Path $qmakePath)) {
-          Write-Host "Error: qmake not found at $qmakePath"
+        $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if (-not $qmakePath) {
+          Write-Host "Error: qmake not found in C:/Qt/5.15.2"
           exit 1
         }
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;" + $env:Path
+        $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
+        $env:Path = "$qtBinPath;C:/Qt/Tools/mingw/bin;C:/mingw64/bin;" + $env:Path
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake --version failed"
@@ -289,10 +292,12 @@ jobs:
     - name: Configure and build
       run: |
         cd Stealer-DeadCode
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-mingw-static/bin;" + $env:Path
+        $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
+        $env:Path = "$qtBinPath;C:/Qt/Tools/mingw/bin;C:/mingw64/bin;C:/vcpkg/installed/x64-mingw-static/bin;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-mingw-static/lib;" + $env:LIB
-        & qmake -spec win32-g++ ui/DeadCode.pro -o Makefile
+        & $qmakePath -spec win32-g++ ui/DeadCode.pro -o Makefile
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"
           exit 1
