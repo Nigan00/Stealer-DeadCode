@@ -4,20 +4,23 @@ TARGET = DeadCode
 TEMPLATE = app
 
 # Исходные файлы
-SOURCES += ../src/main.cpp \
-           mainwindow.cpp
+SOURCES += $$PWD/../src/main.cpp \
+           $$PWD/mainwindow.cpp
 
 # Заголовочные файлы
-HEADERS += mainwindow.h \
-           ../src/build_key.h \
-           ../src/polymorphic_code.h \
-           ../src/junk_code.h
+HEADERS += $$PWD/mainwindow.h \
+           $$PWD/../src/build_key.h \
+           $$PWD/../src/polymorphic_code.h \
+           $$PWD/../src/junk_code.h
 
 # Файлы интерфейса
-FORMS   += mainwindow.ui
+FORMS   += $$PWD/mainwindow.ui
 
-# Файл ресурсов для иконки
-RC_FILE = icon.rc
+# Файл ресурсов для иконки (icon.rc находится в корневой директории)
+RC_FILE = $$PWD/../icon.rc
+!exists($$RC_FILE) {
+    error("Resource file icon.rc not found at $$RC_FILE")
+}
 
 # Пути для заголовочных файлов
 INCLUDEPATH += $$PWD/../src \
@@ -74,10 +77,10 @@ DEFINES += BUILD_DATE=\\\"$$system(date /t)\\\" \
            BUILD_VERSION=\\\"$$system(git rev-parse --short HEAD 2> nul || echo unknown)\\\"
 
 # Директории для выходных файлов
-DESTDIR = ../build
-OBJECTS_DIR = release
-MOC_DIR = release
-UI_DIR = release
+DESTDIR = $$PWD/../build
+OBJECTS_DIR = $$PWD/release
+MOC_DIR = $$PWD/release
+UI_DIR = $$PWD/release
 
 # Очистка
 QMAKE_CLEAN += $$DESTDIR/DeadCode.exe

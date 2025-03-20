@@ -262,6 +262,11 @@ jobs:
           dir ui
           exit 1
         }
+        if (-not (Test-Path icon.rc)) {
+          Write-Host "Error: icon.rc not found in root directory"
+          dir .
+          exit 1
+        }
         Write-Host "Creating build directory if it doesn't exist..."
         New-Item -Path ../build -ItemType Directory -Force
         Write-Host "Verifying write access to build directory..."
@@ -306,29 +311,27 @@ jobs:
         Write-Host "LIB path: $env:LIB"
         Write-Host "qmake path: $qmakePath"
         & "$qmakePath" -spec win32-msvc "ui/DeadCode.pro" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: qmake failed. Check the logs for details."
-          if (Test-Path qmake_output.log) {
-            Write-Host "Contents of qmake_output.log:"
-            Get-Content qmake_output.log
-          }
+        $qmakeExitCode = $LASTEXITCODE
+        if (Test-Path qmake_output.log) {
+          Write-Host "Contents of qmake_output.log:"
+          Get-Content qmake_output.log
+        }
+        if ($qmakeExitCode -ne 0) {
+          Write-Host "Error: qmake failed with exit code $qmakeExitCode."
           exit 1
         }
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"
-          if (Test-Path qmake_output.log) {
-            Write-Host "Contents of qmake_output.log:"
-            Get-Content qmake_output.log
-          }
           exit 1
         }
         & nmake -f Makefile.Release 2>&1 | Tee-Object -FilePath "nmake_output.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: nmake failed. Check the logs for details."
-          if (Test-Path nmake_output.log) {
-            Write-Host "Contents of nmake_output.log:"
-            Get-Content nmake_output.log
-          }
+        $nmakeExitCode = $LASTEXITCODE
+        if (Test-Path nmake_output.log) {
+          Write-Host "Contents of nmake_output.log:"
+          Get-Content nmake_output.log
+        }
+        if ($nmakeExitCode -ne 0) {
+          Write-Host "Error: nmake failed with exit code $nmakeExitCode."
           exit 1
         }
         if (-not (Test-Path ../build/DeadCode.exe)) {
@@ -336,8 +339,8 @@ jobs:
           dir ../build
           exit 1
         }
-        if (Test-Path ui/icon.ico) {
-          Copy-Item ui/icon.ico ../build/icon.ico
+        if (Test-Path icon.ico) {
+          Copy-Item icon.ico ../build/icon.ico
           Write-Host "Icon copied to build directory"
         }
         if (Test-Path src/build_key.h) {
