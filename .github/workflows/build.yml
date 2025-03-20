@@ -2,6 +2,12 @@ name: Build DeadCode
 
 on:
   workflow_dispatch: # Ручной запуск через GitHub UI
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build-windows:
