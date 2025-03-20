@@ -31,7 +31,7 @@ INCLUDEPATH += $$PWD/../src \
 # Пути для библиотек (используем динамическое определение VCPKG)
 VCPKG_INSTALL_DIR = $$(VCPKG_INSTALL_DIR)
 isEmpty(VCPKG_INSTALL_DIR) {
-    VCPKG_INSTALL_DIR = C:/vcpkg/installed/x64-mingw-static
+    VCPKG_INSTALL_DIR = C:/vcpkg/installed/x64-windows-static
     message("VCPKG_INSTALL_DIR not set, using default: $$VCPKG_INSTALL_DIR")
 }
 INCLUDEPATH += $$VCPKG_INSTALL_DIR/include
@@ -40,8 +40,8 @@ LIBS += -L$$VCPKG_INSTALL_DIR/lib \
         -lzip \
         -lz \
         -lbz2 \
-        -lssl \
-        -lcrypto \
+        -llibssl \
+        -llibcrypto \
         -lbcrypt \
         -lws2_32 \
         -lwininet \
@@ -59,20 +59,15 @@ QMAKE_CXXFLAGS += -O2 \
                   -Wextra \
                   -Werror=return-type \
                   -fexceptions \
-                  -mthreads \
                   -DUNICODE \
                   -D_UNICODE \
                   -DWIN32 \
-                  -DMINGW_HAS_SECURE_API=1 \
                   -DQT_NO_DEBUG
 
 # Флаги линковки
-QMAKE_LFLAGS += -static-libgcc \
-                -static-libstdc++ \
-                -Wl,-s \
-                -Wl,--dynamicbase \
-                -Wl,--nxcompat \
-                -Wl,-subsystem,windows
+QMAKE_LFLAGS += -DYNAMICBASE \
+                -NXCOMPAT \
+                -SUBSYSTEM:WINDOWS
 
 # Определения для сборки
 DEFINES += BUILD_DATE=\\\"$$system(date /t)\\\" \

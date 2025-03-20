@@ -1,15 +1,3 @@
-# Обновлено: 2025 год
-# Исправлены ошибки сборки vcpkg для openssl:x64-mingw-static, изменен компилятор на MSVC, архитектура Qt изменена на win64_msvc2019_64.
-# Убрано действие jurplel/install-qt-action, добавлена ручная установка Qt через aqtinstall.
-# Добавлено принятие лицензии Perl через VCPKG_PERL_LICENSE_ACCEPTED, сброшена переменная VCPKG_ROOT.
-# Убран флаг --verbose, так как он не поддерживается текущей версией vcpkg.
-# Убрано указание версии openssl@3.3.2, так как текущая версия vcpkg не поддерживает такой синтаксис.
-# Обновлен vcpkg до последней версии, добавлено перенаправление вывода для отладки.
-# Добавлен флаг --debug и отдельная установка openssl для отладки.
-# Исправлены имена библиотек OpenSSL в проверке (libssl.lib и libcrypto.lib вместо ssl.lib и crypto.lib).
-# Добавлено перенаправление вывода nmake для отладки ошибок компиляции.
-# Исправлен вызов qmake для корректной обработки пути и аргументов.
-
 name: Build DeadCode
 
 on:
@@ -47,19 +35,6 @@ jobs:
         }
         Write-Host "CMake version:"
         & $cmakePath --version
-      shell: powershell
-
-    - name: Install Ninja
-      run: |
-        Write-Host "Installing Ninja..."
-        choco install ninja -y
-        $ninjaPath = "ninja"
-        if (-not (Get-Command $ninjaPath -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: ninja not found in PATH"
-          exit 1
-        }
-        Write-Host "Ninja version:"
-        & $ninjaPath --version
       shell: powershell
 
     - name: Install Perl
@@ -214,7 +189,7 @@ jobs:
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
-          if (-not (Test-Path "$libDir/$lib.lib")) { # MSVC использует .lib, а не .a
+          if (-not (Test-Path "$libDir/$lib.lib")) {
             $missing += "$lib.lib"
           }
         }
@@ -233,6 +208,8 @@ jobs:
           dir ${includeDir}/openssl
           exit 1
         }
+        Write-Host "Listing all .lib files in $libDir:"
+        Get-ChildItem -Path $libDir -Filter *.lib
         Write-Host "All vcpkg dependencies verified"
       shell: powershell
 
@@ -279,6 +256,18 @@ jobs:
         if (-not (Test-Path ui/mainwindow.h)) {
           Write-Host "Error: mainwindow.h not found in ui/"
           dir ui
+          exit 1
+        }
+        Write-Host "Creating build directory if it doesn't exist..."
+        New-Item -Path ../build -ItemType Directory -Force
+        Write-Host "Verifying write access to build directory..."
+        $testFile = "../build/test_write.txt"
+        try {
+          Set-Content -Path $testFile -Value "Test write access"
+          Remove-Item -Path $testFile
+          Write-Host "Write access to build directory verified"
+        } catch {
+          Write-Host "Error: No write access to build directory"
           exit 1
         }
         Write-Host "Project structure verified"
@@ -329,7 +318,7 @@ jobs:
           }
           exit 1
         }
-        & nmake -f Makefile.Release /VERBOSE 2>&1 | Tee-Object -FilePath "nmake_output.log"
+        & nmake -f Makefile.Release 2>&1 | Tee-Object -FilePath "nmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: nmake failed. Check the logs for details."
           if (Test-Path nmake_output.log) {
