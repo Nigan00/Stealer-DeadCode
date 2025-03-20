@@ -195,6 +195,9 @@ jobs:
     - name: Verify project structure
       run: |
         cd Stealer-DeadCode
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host "Listing contents of project root:"
+        dir .
         if (-not (Test-Path ui/DeadCode.pro)) {
           Write-Host "Error: DeadCode.pro not found in ui/"
           dir ui
@@ -328,10 +331,10 @@ jobs:
       with:
         name: DeadCode-Build
         path: |
-          Stealer-DeadCode/../build/DeadCode.exe
-          Stealer-DeadCode/../build/icon.ico
-          Stealer-DeadCode/../build/build_key.h
-          Stealer-DeadCode/../build/polymorphic_code.h
+          Stealer-DeadCode/build/DeadCode.exe
+          Stealer-DeadCode/build/icon.ico
+          Stealer-DeadCode/build/build_key.h
+          Stealer-DeadCode/build/polymorphic_code.h
 
     - name: Cleanup
       if: always()
