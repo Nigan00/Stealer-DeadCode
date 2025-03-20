@@ -8,6 +8,7 @@
 # Добавлен флаг --debug и отдельная установка openssl для отладки.
 # Исправлены имена библиотек OpenSSL в проверке (libssl.lib и libcrypto.lib вместо ssl.lib и crypto.lib).
 # Добавлено перенаправление вывода nmake для отладки ошибок компиляции.
+# Исправлен вызов qmake для корректной обработки пути и аргументов.
 
 name: Build DeadCode
 
@@ -310,7 +311,16 @@ jobs:
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
         Write-Host "INCLUDE path: $env:INCLUDE"
         Write-Host "LIB path: $env:LIB"
-        & $qmakePath -spec win32-msvc ui/DeadCode.pro -o Makefile 2>&1 | Tee-Object -FilePath "qmake_output.log"
+        Write-Host "qmake path: $qmakePath"
+        & "$qmakePath" -spec win32-msvc "ui/DeadCode.pro" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: qmake failed. Check the logs for details."
+          if (Test-Path qmake_output.log) {
+            Write-Host "Contents of qmake_output.log:"
+            Get-Content qmake_output.log
+          }
+          exit 1
+        }
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"
           if (Test-Path qmake_output.log) {
