@@ -1,13 +1,10 @@
 name: Build DeadCode
 
 on:
-  workflow_dispatch: # Ручной запуск через GitHub UI
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
+  workflow_dispatch: # Ручной запуск через GitHub UI
 
 jobs:
   build-windows:
@@ -41,9 +38,13 @@ jobs:
       run: |
         Write-Host "Installing MinGW..."
         choco install mingw -y
-        $mingwPath = "C:/ProgramData/chocolatey/bin/g++.exe"
+        Write-Host "Refreshing environment variables..."
+        refreshenv
+        $mingwPath = "C:/ProgramData/mingw64/mingw64/bin/g++.exe"
         if (-not (Test-Path $mingwPath)) {
           Write-Host "Error: MinGW not installed correctly"
+          Write-Host "Listing contents of C:/ProgramData/mingw64/mingw64/bin:"
+          dir "C:/ProgramData/mingw64/mingw64/bin"
           exit 1
         }
         Write-Host "MinGW version:"
@@ -277,7 +278,7 @@ jobs:
         cd Stealer-DeadCode
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;C:/ProgramData/chocolatey/bin;" + $env:Path
+        $env:Path = "$qtBinPath;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
         Write-Host "INCLUDE path: $env:INCLUDE"
