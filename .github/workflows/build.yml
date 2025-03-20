@@ -17,23 +17,6 @@ jobs:
         path: Stealer-DeadCode
         fetch-depth: 0
 
-    - name: Install CMake
-      uses: lukka/get-cmake@latest
-      with:
-        cmakeVersion: '3.28.0'
-      continue-on-error: false
-
-    - name: Verify CMake installation
-      run: |
-        $cmakePath = "cmake"
-        if (-not (Get-Command $cmakePath -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: cmake not found in PATH"
-          exit 1
-        }
-        Write-Host "CMake version:"
-        & $cmakePath --version
-      shell: powershell
-
     - name: Install MinGW
       run: |
         Write-Host "Installing MinGW..."
@@ -256,23 +239,6 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    - name: Generate headers
-      run: |
-        cd Stealer-DeadCode
-        if (-not (Test-Path src/build_key.h)) {
-          New-Item -Path src -Name build_key.h -ItemType File -Force
-          Add-Content src/build_key.h ""
-        }
-        if (-not (Test-Path src/polymorphic_code.h)) {
-          New-Item -Path src -Name polymorphic_code.h -ItemType File -Force
-          Add-Content src/polymorphic_code.h ""
-        }
-        if (-not (Test-Path src/junk_code.h)) {
-          New-Item -Path src -Name junk_code.h -ItemType File -Force
-          Add-Content src/junk_code.h ""
-        }
-      shell: powershell
-
     - name: Configure and build
       run: |
         cd Stealer-DeadCode
@@ -284,6 +250,18 @@ jobs:
         Write-Host "INCLUDE path: $env:INCLUDE"
         Write-Host "LIB path: $env:LIB"
         Write-Host "qmake path: $qmakePath"
+        Write-Host "Checking if include path exists..."
+        if (-not (Test-Path "C:/vcpkg/installed/x64-windows-static/include")) {
+          Write-Host "Error: Include path C:/vcpkg/installed/x64-windows-static/include does not exist"
+          dir "C:/vcpkg/installed/x64-windows-static" -Recurse
+          exit 1
+        }
+        Write-Host "Checking if lib path exists..."
+        if (-not (Test-Path "C:/vcpkg/installed/x64-windows-static/lib")) {
+          Write-Host "Error: Lib path C:/vcpkg/installed/x64-windows-static/lib does not exist"
+          dir "C:/vcpkg/installed/x64-windows-static" -Recurse
+          exit 1
+        }
         Write-Host "Checking icon.ico..."
         if (Test-Path icon.ico) {
           Write-Host "icon.ico exists."

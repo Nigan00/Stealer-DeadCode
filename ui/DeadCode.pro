@@ -25,41 +25,19 @@ FORMS   += \
 # Ресурсы (иконка)
 RC_ICONS = $$PWD/icon.ico
 
-# Пути для поиска заголовочных файлов
+# Пути для поиска заголовочных файлов (только проектные директории)
 INCLUDEPATH += \
     $$PWD/src \
-    $$PWD/ui \
-    $$[QT_INSTALL_HEADERS] \
-    $$[QT_INSTALL_HEADERS]/QtWidgets \
-    $$[QT_INSTALL_HEADERS]/QtGui \
-    $$[QT_INSTALL_HEADERS]/QtNetwork \
-    $$[QT_INSTALL_HEADERS]/QtCore
+    $$PWD/ui
 
-# Настройка путей для библиотек (используем vcpkg)
-VCPKG_INSTALL_DIR = $$(VCPKG_INSTALL_DIR)
-isEmpty(VCPKG_INSTALL_DIR) {
-    VCPKG_INSTALL_DIR = C:/vcpkg/installed/x64-windows-static
-    message("VCPKG_INSTALL_DIR not set, using default: $$VCPKG_INSTALL_DIR")
-}
-INCLUDEPATH += $$VCPKG_INSTALL_DIR/include
-LIBS += -L$$VCPKG_INSTALL_DIR/lib \
-        -lsqlite3 \
+# Настройка библиотек (используем vcpkg через переменные окружения)
+# Удаляем жестко прописанные пути, полагаемся на $env:INCLUDE и $env:LIB из build.yml
+LIBS += -lsqlite3 \
         -lzip \
         -lz \
         -lbz2 \
-        -lbcrypt \
         -lcurl \
-        -lws2_32 \
-        -lwininet \
-        -lcrypt32 \
-        -lole32 \
-        -lshell32 \
-        -lgdiplus \
-        -liphlpapi \
-        -lshlwapi \
-        -ltlhelp32 \
-        -lpsapi \
-        -luser32
+        -lws2_32
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
