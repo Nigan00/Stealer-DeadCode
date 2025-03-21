@@ -55,7 +55,7 @@ jobs:
         arch: 'win64_mingw81'
         dir: 'C:/Qt'
         install-deps: 'true'
-        cache: 'false' # Отключаем кэширование временно
+        cache: 'false' # Отключаем Кэширование временно
         setup-python: 'false' # Python уже настроен
         aqtversion: '==3.1.*'
       env:
