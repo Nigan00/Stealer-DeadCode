@@ -404,13 +404,21 @@ jobs:
     - name: Check PowerShell version
       run: |
         $PSVersionTable.PSVersion
-      shell: powershell
+      shell: pwsh
 
     - name: Configure and build
       run: |
         cd D:\a\Stealer-DeadCode\Stealer-DeadCode
-        powershell -File configure_and_build.ps1
-      shell: powershell
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host "Listing contents of current directory:"
+        dir .
+        if (-not (Test-Path configure_and_build.ps1)) {
+          Write-Host "Error: configure_and_build.ps1 not found in $(Get-Location)"
+          exit 1
+        }
+        Write-Host "configure_and_build.ps1 found, executing..."
+        pwsh -File configure_and_build.ps1
+      shell: pwsh
 
     - name: Upload build logs
       if: failure()
