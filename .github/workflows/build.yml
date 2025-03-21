@@ -116,7 +116,7 @@ jobs:
         Write-Host "Clearing vcpkg buildtrees..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl bcrypt --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
           dir C:/vcpkg/installed/x64-windows-static/lib
@@ -143,8 +143,8 @@ jobs:
       run: |
         $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
-        $libs = @("sqlite3", "zip", "zlib", "bz2", "libcurl", "bcrypt")
-        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "bcrypt.h")
+        $libs = @("sqlite3", "zip", "zlib", "bz2", "libcurl")
+        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h")
         $missing = @()
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib.lib")) {
