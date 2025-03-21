@@ -393,6 +393,8 @@ jobs:
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
         $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
+
+        # Проверка наличия qmake
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
           $qmakePath = (Get-ChildItem -Path C:/Qt -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -403,6 +405,8 @@ jobs:
           }
           Write-Host "Found qmake.exe at $qmakePath"
         }
+
+        # Проверка наличия mingw32-make
         if (-not (Test-Path $makePath)) {
           Write-Host "Error: mingw32-make.exe not found at $makePath. Searching for mingw32-make.exe..."
           $makePath = (Get-ChildItem -Path C:/Qt -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -413,6 +417,8 @@ jobs:
           }
           Write-Host "Found mingw32-make.exe at $makePath"
         }
+
+        # Проверка наличия g++
         if (-not (Test-Path $gppPath)) {
           Write-Host "Error: g++.exe not found at $gppPath. Searching for g++.exe..."
           $gppPath = (Get-ChildItem -Path C:/Qt -Filter g++.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -423,15 +429,27 @@ jobs:
           }
           Write-Host "Found g++.exe at $gppPath"
         }
-        $env:Path = [System.IO.Path]::GetDirectoryName($qmakePath) + ";" + $env:Path
+
+        # Очистка PATH от потенциальных конфликтов
+        $qtBinPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin"
+        $env:Path = $qtBinPath + ";" + [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
+        # Удаляем из PATH директории, которые могут содержать другие компиляторы
+        $pathsToRemove = @("C:\mingw64\bin", "C:\Program Files (x86)\mingw-w64")
+        foreach ($path in $pathsToRemove) {
+          $env:Path = $env:Path -replace [regex]::Escape($path + ";"), ""
+        }
+        Write-Host "Updated PATH: $env:Path"
+
+        # Установка переменных окружения для vcpkg
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
-        Write-Host "PATH: $env:Path"
         Write-Host "INCLUDE path: $env:INCLUDE"
         Write-Host "LIB path: $env:LIB"
         Write-Host "qmake path: $qmakePath"
         Write-Host "mingw32-make path: $makePath"
         Write-Host "g++ path: $gppPath"
+
+        # Проверка существования путей vcpkg
         Write-Host "Checking if include path exists..."
         if (-not (Test-Path "C:/vcpkg/installed/x64-windows-static/include")) {
           Write-Host "Error: Include path C:/vcpkg/installed/x64-windows-static/include does not exist"
@@ -444,18 +462,46 @@ jobs:
           dir "C:/vcpkg/installed/x64-windows-static" -Recurse
           exit 1
         }
+
+        # Проверка содержимого директории Qt bin
         Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64/bin/..."
         dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+
+        # Тестирование g++ напрямую
         Write-Host "Testing g++ directly..."
         & $gppPath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ --version failed"
           exit 1
         }
+
+        # Проверка доступных mkspecs
         Write-Host "Listing available mkspecs..."
         dir "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs"
-        Write-Host "Running qmake with explicit spec..."
-        & "$qmakePath" "ui/DeadCode.pro" -spec win32-g++ -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
+
+        # Проверка содержимого qmake.conf в win32-g++
+        Write-Host "Checking contents of mkspecs/win32-g++/qmake.conf..."
+        $mkspecPath = "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/qmake.conf"
+        if (Test-Path $mkspecPath) {
+          Write-Host "Contents of $mkspecPath:"
+          Get-Content $mkspecPath
+        } else {
+          Write-Host "Error: mkspecs/win32-g++/qmake.conf not found"
+          exit 1
+        }
+
+        # Попытка найти g++ через where
+        Write-Host "Searching for g++ in PATH..."
+        $foundGpp = (where.exe g++ 2>&1)
+        if ($LASTEXITCODE -eq 0) {
+          Write-Host "Found g++ in PATH: $foundGpp"
+        } else {
+          Write-Host "g++ not found in PATH using where.exe"
+        }
+
+        # Запуск qmake с явным указанием компилятора
+        Write-Host "Running qmake with explicit spec and QMAKE_CXX..."
+        & "$qmakePath" "ui/DeadCode.pro" -spec win32-g++ "QMAKE_CXX=$gppPath" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
         $qmakeExitCode = $LASTEXITCODE
         if (Test-Path qmake_output.log) {
           Write-Host "Contents of qmake_output.log:"
@@ -463,6 +509,33 @@ jobs:
         }
         if ($qmakeExitCode -ne 0) {
           Write-Host "Error: qmake failed with exit code $qmakeExitCode."
+          # Дополнительная диагностика: попытка сгенерировать минимальный проект
+          Write-Host "Creating a minimal test project to diagnose qmake..."
+          New-Item -Path "test.pro" -ItemType File -Force
+          Set-Content -Path "test.pro" -Value "SOURCES += main.cpp"
+          New-Item -Path "main.cpp" -ItemType File -Force
+          Set-Content -Path "main.cpp" -Value "int main() { return 0; }"
+          Write-Host "Running qmake on minimal test project..."
+          & "$qmakePath" "test.pro" -spec win32-g++ "QMAKE_CXX=$gppPath" -o "Makefile.test" 2>&1 | Tee-Object -FilePath "qmake_test_output.log"
+          $qmakeTestExitCode = $LASTEXITCODE
+          if (Test-Path qmake_test_output.log) {
+            Write-Host "Contents of qmake_test_output.log:"
+            Get-Content qmake_test_output.log
+          }
+          if ($qmakeTestExitCode -ne 0) {
+            Write-Host "Error: qmake failed on minimal test project with exit code $qmakeTestExitCode."
+            exit 1
+          }
+          Write-Host "Running mingw32-make on minimal test project..."
+          & "$makePath" -f Makefile.test 2>&1 | Tee-Object -FilePath "make_test_output.log"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: mingw32-make failed on minimal test project."
+            if (Test-Path make_test_output.log) {
+              Write-Host "Contents of make_test_output.log:"
+              Get-Content make_test_output.log
+            }
+            exit 1
+          }
           exit 1
         }
         if (-not (Test-Path Makefile)) {
@@ -470,6 +543,8 @@ jobs:
           dir .
           exit 1
         }
+
+        # Запуск mingw32-make
         Write-Host "Running mingw32-make..."
         & "$makePath" -f Makefile 2>&1 | Tee-Object -FilePath "make_output.log"
         $makeExitCode = $LASTEXITCODE
@@ -498,6 +573,8 @@ jobs:
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
           Stealer-DeadCode/uic_output.log
+          Stealer-DeadCode/qmake_test_output.log
+          Stealer-DeadCode/make_test_output.log
         if-no-files-found: warn
 
     - name: Upload artifact
