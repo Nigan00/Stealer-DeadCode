@@ -71,11 +71,28 @@ jobs:
             Write-Host "Error: Failed to install MinGW with aqtinstall"
             exit 1
           }
+          Write-Host "Listing contents of C:/Qt/Tools/mingw810_64/bin/..."
+          dir "C:/Qt/Tools/mingw810_64/bin/"
+          if (-not (Test-Path "C:/Qt/Tools/mingw810_64/bin/g++.exe")) {
+            Write-Host "Error: g++.exe not found in C:/Qt/Tools/mingw810_64/bin/"
+            exit 1
+          }
           Write-Host "Copying MinGW binaries to Qt bin directory..."
           Copy-Item -Path "C:/Qt/Tools/mingw810_64/bin/*" -Destination "C:/Qt/Qt/5.15.2/mingw81_64/bin/" -Force
+          if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe")) {
+            Write-Host "Error: g++.exe not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/ after copying"
+            dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+            exit 1
+          }
         } else {
-          Write-Host "mingw32-make.exe already exists, skipping MinGW installation."
+          Write-Host "mingw32-make.exe already exists, checking for g++..."
+          if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe")) {
+            Write-Host "Error: g++.exe not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+            dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+            exit 1
+          }
         }
+        Write-Host "MinGW installation completed and verified"
       shell: powershell
 
     - name: Debug Qt installation
@@ -97,6 +114,7 @@ jobs:
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/uic.exe"
         $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
+        $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
           $qmakePath = (Get-ChildItem -Path C:/Qt -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -127,11 +145,22 @@ jobs:
           }
           Write-Host "Found mingw32-make.exe at $makePath"
         }
+        if (-not (Test-Path $gppPath)) {
+          Write-Host "Error: g++.exe not found at $gppPath. Searching for g++.exe..."
+          $gppPath = (Get-ChildItem -Path C:/Qt -Filter g++.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $gppPath) {
+            Write-Host "Error: g++.exe not found in C:/Qt"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+          Write-Host "Found g++.exe at $gppPath"
+        }
         $env:Path = [System.IO.Path]::GetDirectoryName($qmakePath) + ";" + $env:Path
         Write-Host "PATH: $env:Path"
         Write-Host "qmake path: $qmakePath"
         Write-Host "uic path: $uicPath"
         Write-Host "mingw32-make path: $makePath"
+        Write-Host "g++ path: $gppPath"
         Write-Host "Verifying qmake..."
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
@@ -142,6 +171,12 @@ jobs:
         & $makePath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make --version failed"
+          exit 1
+        }
+        Write-Host "Verifying g++..."
+        & $gppPath --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: g++ --version failed"
           exit 1
         }
         Write-Host "Qt and MinGW installation completed and verified"
@@ -340,6 +375,7 @@ jobs:
         cd Stealer-DeadCode
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
+        $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
           $qmakePath = (Get-ChildItem -Path C:/Qt -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -360,6 +396,16 @@ jobs:
           }
           Write-Host "Found mingw32-make.exe at $makePath"
         }
+        if (-not (Test-Path $gppPath)) {
+          Write-Host "Error: g++.exe not found at $gppPath. Searching for g++.exe..."
+          $gppPath = (Get-ChildItem -Path C:/Qt -Filter g++.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $gppPath) {
+            Write-Host "Error: g++.exe not found in C:/Qt"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+          Write-Host "Found g++.exe at $gppPath"
+        }
         $env:Path = [System.IO.Path]::GetDirectoryName($qmakePath) + ";" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
@@ -368,6 +414,7 @@ jobs:
         Write-Host "LIB path: $env:LIB"
         Write-Host "qmake path: $qmakePath"
         Write-Host "mingw32-make path: $makePath"
+        Write-Host "g++ path: $gppPath"
         Write-Host "Checking if include path exists..."
         if (-not (Test-Path "C:/vcpkg/installed/x64-windows-static/include")) {
           Write-Host "Error: Include path C:/vcpkg/installed/x64-windows-static/include does not exist"
