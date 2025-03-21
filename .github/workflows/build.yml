@@ -417,6 +417,11 @@ jobs:
           exit 1
         }
         Write-Host "configure_and_build.ps1 found, executing..."
+        Write-Host "Verifying ui directory exists before running script..."
+        if (-not (Test-Path ui)) {
+          Write-Host "Error: ui directory not found in $(Get-Location)"
+          exit 1
+        }
         pwsh -File configure_and_build.ps1
       shell: pwsh
 
