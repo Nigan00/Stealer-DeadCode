@@ -4,7 +4,11 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Ручной запуск через GitHub UI
+  workflow_dispatch:
+    inputs:
+      cache-buster:
+        description: 'Cache buster'
+        default: '1'
 
 jobs:
   build-windows:
@@ -55,7 +59,7 @@ jobs:
         arch: 'win64_mingw81'
         dir: 'C:/Qt'
         install-deps: 'true'
-        cache: 'false' # Отключаем Кэширование временно
+        cache: 'false' # Отключаем кэширование временно
         setup-python: 'false' # Python уже настроен
         aqtversion: '==3.1.*'
       env:
