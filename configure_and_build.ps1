@@ -16,6 +16,7 @@ foreach ($dll in $requiredDlls) {
 $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
 $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
 $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
+$gccPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe"
 $proFile = "DeadCode.pro"
 
 # Проверка текущей директории
@@ -44,6 +45,28 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Создание кастомного mkspec
+Write-Host "Creating custom mkspec..."
+$customMkspecDir = "$(Get-Location)/custom-mkspec/win32-g++"
+if (-not (Test-Path $customMkspecDir)) {
+    New-Item -ItemType Directory -Path $customMkspecDir -Force
+}
+Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/*" -Destination $customMkspecDir -Recurse -Force
+
+# Модификация qmake.conf в кастомном mkspec
+$qmakeConfPath = "$customMkspecDir/qmake.conf"
+$qmakeConfContent = Get-Content $qmakeConfPath -Raw
+$qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CXX\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_CXX = $gppPath"
+$qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CC\s*=\s*\$\${CROSS_COMPILE}gcc', "QMAKE_CC = $gccPath"
+$qmakeConfContent = $qmakeConfContent -replace 'QMAKE_LINK\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_LINK = $gppPath"
+$qmakeConfContent = $qmakeConfContent -replace 'QMAKE_LINK_C\s*=\s*\$\${CROSS_COMPILE}gcc', "QMAKE_LINK_C = $gccPath"
+Set-Content -Path $qmakeConfPath -Value $qmakeConfContent
+Write-Host "Custom mkspec created at $customMkspecDir"
+
+# Вывод содержимого qmake.conf для отладки
+Write-Host "Contents of custom qmake.conf:"
+Get-Content $qmakeConfPath
+
 # Проверка mkspec, используемого qmake
 Write-Host "Default mkspec used by qmake:"
 & $qmakePath -query QMAKE_SPEC
@@ -60,9 +83,9 @@ Write-Host "Рабочая директория после перехода в u
 Write-Host "qmake version:"
 & $qmakePath --version
 
-# Запуск qmake с отладочным режимом
+# Запуск qmake с отладочным режимом и кастомным mkspec
 Write-Host "Running qmake in debug mode to see compiler detection..."
-& $qmakePath -d -spec win32-g++ "QMAKE_CXX=C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe" "QMAKE_CC=C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe" $proFile 2>&1 | Tee-Object -FilePath "qmake_debug_output.log"
+& $qmakePath -d -spec $customMkspecDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_debug_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: qmake debug run failed"
     if (Test-Path qmake_debug_output.log) {
@@ -71,9 +94,9 @@ if ($LASTEXITCODE -ne 0) {
     }
 }
 
-# Запуск qmake с явным указанием mkspec и QMAKE_CXX
-Write-Host "Running qmake with explicit mkspec..."
-& $qmakePath -spec win32-g++ "QMAKE_CXX=C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe" "QMAKE_CC=C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe" $proFile 2>&1 | Tee-Object -FilePath "qmake_output.log"
+# Запуск qmake с кастомным mkspec
+Write-Host "Running qmake with custom mkspec..."
+& $qmakePath -spec $customMkspecDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: qmake failed"
     if (Test-Path qmake_output.log) {
