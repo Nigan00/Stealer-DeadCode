@@ -434,7 +434,7 @@ jobs:
         $qtBinPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin"
         $env:Path = $qtBinPath + ";" + [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
         # Удаляем из PATH директории, которые могут содержать другие компиляторы
-        $pathsToRemove = @("C:\mingw64\bin", "C:\Program Files (x86)\mingw-w64")
+        $pathsToRemove = @("C:\mingw64\bin", "C:\Program Files (x86)\mingw-w64", "C:\Strawberry\c\bin")
         foreach ($path in $pathsToRemove) {
           $env:Path = $env:Path -replace [regex]::Escape($path + ";"), ""
         }
@@ -479,19 +479,30 @@ jobs:
         Write-Host "Listing available mkspecs..."
         dir "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs"
 
-        # Проверка содержимого qmake.conf в win32-g++
-        Write-Host "Checking contents of mkspecs/win32-g++/qmake.conf..."
+        # Модификация qmake.conf для явного указания пути к g++
+        Write-Host "Modifying qmake.conf to explicitly set QMAKE_CXX..."
         $mkspecPath = "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/qmake.conf"
         if (Test-Path $mkspecPath) {
-          Write-Host "Contents of ${mkspecPath}:"
+          $qmakeConfContent = Get-Content $mkspecPath -Raw
+          $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CXX\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_CXX = $gppPath"
+          Set-Content -Path $mkspecPath -Value $qmakeConfContent -Force
+          Write-Host "Updated contents of ${mkspecPath}:"
           Get-Content $mkspecPath
         } else {
           Write-Host "Error: mkspecs/win32-g++/qmake.conf not found"
           exit 1
         }
 
-        # Попытка найти g++ через where
-        Write-Host "Searching for g++ in PATH..."
+        # Дополнительная проверка: какой g++ будет использоваться
+        Write-Host "Checking which g++ qmake will use..."
+        & $qmakePath -query QMAKE_CXX
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to query QMAKE_CXX from qmake"
+          exit 1
+        }
+
+        # Попытка найти g++ через where после очистки PATH
+        Write-Host "Searching for g++ in PATH after cleanup..."
         $foundGpp = (where.exe g++ 2>&1)
         if ($LASTEXITCODE -eq 0) {
           Write-Host "Found g++ in PATH: $foundGpp"
@@ -499,9 +510,9 @@ jobs:
           Write-Host "g++ not found in PATH using where.exe"
         }
 
-        # Запуск qmake с явным указанием компилятора
-        Write-Host "Running qmake with explicit spec and QMAKE_CXX..."
-        & "$qmakePath" "ui/DeadCode.pro" -spec win32-g++ "QMAKE_CXX=$gppPath" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
+        # Запуск qmake с явным указанием спецификации
+        Write-Host "Running qmake with explicit spec..."
+        & "$qmakePath" "ui/DeadCode.pro" -spec win32-g++ -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
         $qmakeExitCode = $LASTEXITCODE
         if (Test-Path qmake_output.log) {
           Write-Host "Contents of qmake_output.log:"
@@ -516,7 +527,7 @@ jobs:
           New-Item -Path "main.cpp" -ItemType File -Force
           Set-Content -Path "main.cpp" -Value "int main() { return 0; }"
           Write-Host "Running qmake on minimal test project..."
-          & "$qmakePath" "test.pro" -spec win32-g++ "QMAKE_CXX=$gppPath" -o "Makefile.test" 2>&1 | Tee-Object -FilePath "qmake_test_output.log"
+          & "$qmakePath" "test.pro" -spec win32-g++ -o "Makefile.test" 2>&1 | Tee-Object -FilePath "qmake_test_output.log"
           $qmakeTestExitCode = $LASTEXITCODE
           if (Test-Path qmake_test_output.log) {
             Write-Host "Contents of qmake_test_output.log:"
