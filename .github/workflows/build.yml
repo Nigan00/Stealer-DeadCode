@@ -286,6 +286,13 @@ jobs:
           Write-Host "Error: Makefile was not generated"
           exit 1
         }
+        Write-Host "Checking if ui_mainwindow.h was generated..."
+        if (-not (Test-Path ../release/ui_mainwindow.h)) {
+          Write-Host "Error: ui_mainwindow.h was not generated in ../release"
+          dir ../release
+          exit 1
+        }
+        Write-Host "ui_mainwindow.h found in ../release"
         Write-Host "Running mingw32-make..."
         & mingw32-make -f Makefile 2>&1 | Tee-Object -FilePath "make_output.log"
         $makeExitCode = $LASTEXITCODE
