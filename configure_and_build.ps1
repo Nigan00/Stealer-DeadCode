@@ -47,21 +47,31 @@ if ($LASTEXITCODE -ne 0) {
 
 # Создание кастомного mkspec
 Write-Host "Creating custom mkspec..."
-$customMkspecDir = "$(Get-Location)/custom-mkspec/win32-g++"
-if (-not (Test-Path $customMkspecDir)) {
-    New-Item -ItemType Directory -Path $customMkspecDir -Force
+$customMkspecDir = "$(Get-Location)/custom-mkspec"
+$customWin32GppDir = "$customMkspecDir/win32-g++"
+$customCommonDir = "$customMkspecDir/common"
+
+# Создаём директории для кастомного mkspec
+if (-not (Test-Path $customWin32GppDir)) {
+    New-Item -ItemType Directory -Path $customWin32GppDir -Force
 }
-Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/*" -Destination $customMkspecDir -Recurse -Force
+if (-not (Test-Path $customCommonDir)) {
+    New-Item -ItemType Directory -Path $customCommonDir -Force
+}
+
+# Копируем win32-g++ и common
+Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/*" -Destination $customWin32GppDir -Recurse -Force
+Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/common/*" -Destination $customCommonDir -Recurse -Force
 
 # Модификация qmake.conf в кастомном mkspec
-$qmakeConfPath = "$customMkspecDir/qmake.conf"
+$qmakeConfPath = "$customWin32GppDir/qmake.conf"
 $qmakeConfContent = Get-Content $qmakeConfPath -Raw
 $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CXX\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_CXX = $gppPath"
 $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CC\s*=\s*\$\${CROSS_COMPILE}gcc', "QMAKE_CC = $gccPath"
 $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_LINK\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_LINK = $gppPath"
 $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_LINK_C\s*=\s*\$\${CROSS_COMPILE}gcc', "QMAKE_LINK_C = $gccPath"
 Set-Content -Path $qmakeConfPath -Value $qmakeConfContent
-Write-Host "Custom mkspec created at $customMkspecDir"
+Write-Host "Custom mkspec created at $customWin32GppDir"
 
 # Вывод содержимого qmake.conf для отладки
 Write-Host "Contents of custom qmake.conf:"
@@ -85,7 +95,7 @@ Write-Host "qmake version:"
 
 # Запуск qmake с отладочным режимом и кастомным mkspec
 Write-Host "Running qmake in debug mode to see compiler detection..."
-& $qmakePath -d -spec $customMkspecDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_debug_output.log"
+& $qmakePath -d -spec $customWin32GppDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_debug_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: qmake debug run failed"
     if (Test-Path qmake_debug_output.log) {
@@ -96,7 +106,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Запуск qmake с кастомным mkspec
 Write-Host "Running qmake with custom mkspec..."
-& $qmakePath -spec $customMkspecDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_output.log"
+& $qmakePath -spec $customWin32GppDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: qmake failed"
     if (Test-Path qmake_output.log) {
