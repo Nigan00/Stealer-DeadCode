@@ -418,7 +418,7 @@ jobs:
         Write-Host "Checking mkspec configuration..."
         $mkspecPath = "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/qmake.conf"
         if (Test-Path $mkspecPath) {
-          Write-Host "Contents of $mkspecPath:"
+          Write-Host "Contents of ${mkspecPath}:"
           Get-Content $mkspecPath
         } else {
           Write-Host "Error: mkspec file not found at $mkspecPath"
