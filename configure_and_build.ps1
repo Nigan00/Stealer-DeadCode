@@ -97,14 +97,46 @@ Write-Host "qmake version:"
 Write-Host "Contents of DeadCode.pro:"
 Get-Content $proFile
 
-# Запуск qmake с кастомным mkspec (без отладочного режима)
+# Создаём временную директорию для qmake
+$tempDir = "D:\a\Stealer-DeadCode\Stealer-DeadCode\Stealer-DeadCode\temp"
+if (-not (Test-Path $tempDir)) {
+    New-Item -ItemType Directory -Path $tempDir -Force
+}
+Write-Host "Temporary directory for qmake: $tempDir"
+$env:TEMP = $tempDir
+$env:TMP = $tempDir
+
+# Тестовая компиляция для отладки
+Write-Host "Running a test compilation to verify g++..."
+$testCppFile = "$tempDir/test.cpp"
+$testExeFile = "$tempDir/test.exe"
+Set-Content -Path $testCppFile -Value @"
+#include <iostream>
+int main() {
+    std::cout << "Test compilation successful" << std::endl;
+    return 0;
+}
+"@
+Write-Host "Compiling $testCppFile..."
+& $gppPath -o $testExeFile $testCppFile 2>&1 | Tee-Object -FilePath "test_compile.log"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: Test compilation failed"
+    if (Test-Path "test_compile.log") {
+        Write-Host "Contents of test_compile.log:"
+        Get-Content "test_compile.log"
+    }
+    exit 1
+}
+Write-Host "Test compilation successful"
+
+# Запуск qmake с кастомным mkspec
 Write-Host "Running qmake with custom mkspec..."
-& $qmakePath -spec $customWin32GppDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_output.log"
+& $qmakePath -spec $customWin32GppDir $proFile 2>&1 | Tee-Object -FilePath "qmake_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: qmake failed"
-    if (Test-Path qmake_output.log) {
+    if (Test-Path "qmake_output.log") {
         Write-Host "Contents of qmake_output.log:"
-        Get-Content qmake_output.log
+        Get-Content "qmake_output.log"
     }
     exit 1
 }
@@ -118,9 +150,9 @@ Write-Host "Running mingw32-make..."
 & $makePath 2>&1 | Tee-Object -FilePath "make_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: mingw32-make failed"
-    if (Test-Path make_output.log) {
+    if (Test-Path "make_output.log") {
         Write-Host "Contents of make_output.log:"
-        Get-Content make_output.log
+        Get-Content "make_output.log"
     }
     exit 1
 }
