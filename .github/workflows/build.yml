@@ -292,6 +292,16 @@ jobs:
         Write-Host "All vcpkg dependencies verified"
       shell: powershell
 
+    - name: Debug project structure
+      run: |
+        Write-Host "Listing contents of project root:"
+        dir D:\a\Stealer-DeadCode\Stealer-DeadCode
+        Write-Host "Listing contents of ui directory (if exists):"
+        dir D:\a\Stealer-DeadCode\Stealer-DeadCode\ui -ErrorAction SilentlyContinue
+        Write-Host "Listing contents of src directory (if exists):"
+        dir D:\a\Stealer-DeadCode\Stealer-DeadCode\src -ErrorAction SilentlyContinue
+      shell: powershell
+
     - name: Verify project structure
       run: |
         cd Stealer-DeadCode
@@ -300,27 +310,27 @@ jobs:
         dir .
         if (-not (Test-Path ui/DeadCode.pro)) {
           Write-Host "Error: DeadCode.pro not found in ui/"
-          dir ui
+          dir ui -ErrorAction SilentlyContinue
           exit 1
         }
         if (-not (Test-Path src/main.cpp)) {
           Write-Host "Error: main.cpp not found in src/"
-          dir src
+          dir src -ErrorAction SilentlyContinue
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.ui)) {
           Write-Host "Error: mainwindow.ui not found in ui/"
-          dir ui
+          dir ui -ErrorAction SilentlyContinue
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.cpp)) {
           Write-Host "Error: mainwindow.cpp not found in ui/"
-          dir ui
+          dir ui -ErrorAction SilentlyContinue
           exit 1
         }
         if (-not (Test-Path ui/mainwindow.h)) {
           Write-Host "Error: mainwindow.h not found in ui/"
-          dir ui
+          dir ui -ErrorAction SilentlyContinue
           exit 1
         }
         if (-not (Test-Path icon.ico)) {
@@ -393,6 +403,17 @@ jobs:
         cd D:\a\Stealer-DeadCode\Stealer-DeadCode
         Write-Host "Текущая директория: $(Get-Location)"
 
+        # Логирование содержимого корневой директории для отладки
+        Write-Host "Содержимое корневой директории:"
+        Get-ChildItem -Path . | ForEach-Object { Write-Host $_.Name }
+
+        # Проверка наличия директории ui
+        if (-not (Test-Path "ui")) {
+            Write-Host "Ошибка: Директория 'ui' не найдена в корне проекта."
+            Write-Host "Пожалуйста, убедитесь, что директория 'ui' существует и содержит файл DeadCode.pro."
+            exit 1
+        }
+
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
         $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
@@ -406,9 +427,9 @@ jobs:
         Write-Host "Checking g++ dependencies..."
         $requiredDlls = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
         foreach ($dll in $requiredDlls) {
-          if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/$dll")) {
-            Write-Host "Error: $dll not found"; exit 1
-          }
+            if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/$dll")) {
+                Write-Host "Error: $dll not found"; exit 1
+            }
         }
 
         # Настройка PATH
@@ -428,9 +449,9 @@ jobs:
         Write-Host "Running qmake..."
         & "$qmakePath" "DeadCode.pro" -spec win32-g++ -nocache -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: qmake failed"
-          Get-Content "qmake_output.log"
-          exit 1
+            Write-Host "Error: qmake failed"
+            Get-Content "qmake_output.log"
+            exit 1
         }
 
         # Проверка Makefile
@@ -440,9 +461,9 @@ jobs:
         Write-Host "Running mingw32-make..."
         & "$makePath" -f Makefile 2>&1 | Tee-Object -FilePath "make_output.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: mingw32-make failed"
-          Get-Content "make_output.log"
-          exit 1
+            Write-Host "Error: mingw32-make failed"
+            Get-Content "make_output.log"
+            exit 1
         }
 
         # Проверка результата
