@@ -29,11 +29,11 @@ RC_ICONS = icon.ico
 INCLUDEPATH += \
     src \
     ui \
-    $$[VCPKG_ROOT]/installed/x64-windows-static/include \
-    release
+    C:/vcpkg/installed/x64-windows-static/include \
+    ../release
 
 # Библиотеки (vcpkg и системные Windows-библиотеки)
-LIBS += -L$$[VCPKG_ROOT]/installed/x64-windows-static/lib \
+LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lsqlite3 \
         -lzip \
         -lz \
@@ -73,10 +73,10 @@ DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
            BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
 # Директории для выходных файлов
-DESTDIR = build
-OBJECTS_DIR = release
-MOC_DIR = release
-UI_DIR = release
+DESTDIR = ../build
+OBJECTS_DIR = ../release
+MOC_DIR = ../release
+UI_DIR = ../release
 
 # Очистка (удаляем исполняемый файл и промежуточные файлы)
 QMAKE_CLEAN += \
@@ -105,11 +105,11 @@ PRE_TARGETDEPS += \
 
 # Создание пустых файлов, если они отсутствуют (кроссплатформенный способ)
 !exists(src/build_key.h) {
-    system(touch src/build_key.h)
+    system(powershell -Command "New-Item -Path src/build_key.h -ItemType File -Force")
 }
 !exists(src/polymorphic_code.h) {
-    system(touch src/polymorphic_code.h)
+    system(powershell -Command "New-Item -Path src/polymorphic_code.h -ItemType File -Force")
 }
 !exists(src/junk_code.h) {
-    system(touch src/junk_code.h)
+    system(powershell -Command "New-Item -Path src/junk_code.h -ItemType File -Force")
 }

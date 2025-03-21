@@ -48,13 +48,26 @@ jobs:
           exit 1
         }
         $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;" + $env:Path
+        $env:Path = "$qtBinPath;C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
+        Write-Host "Verifying qmake..."
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake --version failed"
           exit 1
         }
-        Write-Host "Qt installation completed and verified"
+        Write-Host "Verifying mingw32-make..."
+        $makePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if (-not $makePath) {
+          Write-Host "Error: mingw32-make.exe not found in C:/Qt/5.15.2"
+          dir C:/Qt/5.15.2 -Recurse
+          exit 1
+        }
+        & $makePath --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: mingw32-make --version failed"
+          exit 1
+        }
+        Write-Host "Qt and MinGW installation completed and verified"
       shell: powershell
       env:
         AQTINSTALL_DEBUG: true
@@ -189,6 +202,8 @@ jobs:
         }
         Write-Host "Creating build directory if it doesn't exist..."
         New-Item -Path ../build -ItemType Directory -Force
+        Write-Host "Creating release directory if it doesn't exist..."
+        New-Item -Path ../release -ItemType Directory -Force
         Write-Host "Verifying write access to build directory..."
         $testFile = "../build/test_write.txt"
         try {
@@ -197,6 +212,16 @@ jobs:
           Write-Host "Write access to build directory verified"
         } catch {
           Write-Host "Error: No write access to build directory"
+          exit 1
+        }
+        Write-Host "Verifying write access to release directory..."
+        $testFile = "../release/test_write.txt"
+        try {
+          Set-Content -Path $testFile -Value "Test write access"
+          Remove-Item -Path $testFile
+          Write-Host "Write access to release directory verified"
+        } catch {
+          Write-Host "Error: No write access to release directory"
           exit 1
         }
         Write-Host "Project structure verified"
@@ -209,8 +234,10 @@ jobs:
         $uicPath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         if (-not $uicPath) {
           Write-Host "Error: uic.exe not found in C:/Qt/5.15.2"
+          dir C:/Qt/5.15.2 -Recurse
           exit 1
         }
+        Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
         & $uicPath ui/mainwindow.ui -o ../release/ui_mainwindow.h 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mainwindow.ui is invalid. Check the logs for details."
@@ -222,22 +249,27 @@ jobs:
         }
         if (-not (Test-Path ../release/ui_mainwindow.h)) {
           Write-Host "Error: ui_mainwindow.h was not generated"
+          dir ../release
           exit 1
         }
-        Write-Host "mainwindow.ui is valid and ui_mainwindow.h generated"
+        Write-Host "mainwindow.ui is valid and ui_mainwindow.h generated successfully"
       shell: powershell
 
     - name: Configure and build
       run: |
         cd Stealer-DeadCode
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        $makePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
+        $mingwBinPath = [System.IO.Path]::GetDirectoryName($makePath)
+        $env:Path = "$qtBinPath;$mingwBinPath;C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
+        Write-Host "PATH: $env:Path"
         Write-Host "INCLUDE path: $env:INCLUDE"
         Write-Host "LIB path: $env:LIB"
         Write-Host "qmake path: $qmakePath"
+        Write-Host "mingw32-make path: $makePath"
         Write-Host "Checking if include path exists..."
         if (-not (Test-Path "C:/vcpkg/installed/x64-windows-static/include")) {
           Write-Host "Error: Include path C:/vcpkg/installed/x64-windows-static/include does not exist"
@@ -263,10 +295,11 @@ jobs:
         }
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"
+          dir .
           exit 1
         }
         Write-Host "Running mingw32-make..."
-        & mingw32-make -f Makefile 2>&1 | Tee-Object -FilePath "make_output.log"
+        & "$makePath" -f Makefile 2>&1 | Tee-Object -FilePath "make_output.log"
         $makeExitCode = $LASTEXITCODE
         if (Test-Path make_output.log) {
           Write-Host "Contents of make_output.log:"
@@ -301,6 +334,7 @@ jobs:
         name: DeadCode-Build
         path: |
           Stealer-DeadCode/build/DeadCode.exe
+        if-no-files-found: error
 
     - name: Cleanup
       if: always()
