@@ -89,7 +89,7 @@ jobs:
             exit 1
           }
         } else {
-          Write-Host "mingw32-make.exe already exists, checking for g++..."
+          Write-Host "mingw32-make  Write-Host "mingw32-make.exe already exists, checking for g++..."
           if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe")) {
             Write-Host "Error: g++.exe not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
             dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
@@ -408,7 +408,7 @@ jobs:
 
     - name: Configure and build
       run: |
-        cd D:\a\Stealer-DeadCode\Stealer-DeadCode
+        cd D:\a\Stealer-DeadCode\Stealer-DeadCode\Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         Write-Host "Listing contents of current directory:"
         dir .
