@@ -17,23 +17,21 @@ jobs:
         path: Stealer-DeadCode
         fetch-depth: 0
 
-    - name: Install Python dependencies for aqtinstall
-      run: |
-        Write-Host "Installing Python dependencies for aqtinstall..."
-        python -m pip install setuptools wheel py7zr==0.20.*
-        python -m pip install aqtinstall==3.1.*
-        python -m aqt version
-      shell: powershell
-
     - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '5.15.2'
+        target: 'desktop'
+        arch: 'win64_mingw81'
+        dir: 'C:/Qt'
+        install-deps: 'true'
+        cache: 'true'
+        cache-key-prefix: 'qt-5.15.2-win64_mingw81'
+      env:
+        AQTINSTALL_DEBUG: true
+
+    - name: Verify Qt installation
       run: |
-        Write-Host "Installing Qt 5.15.2 with aqtinstall..."
-        New-Item -Path "C:/Qt" -ItemType Directory -Force
-        python -m aqt install-qt --outputdir C:/Qt windows desktop 5.15.2 win64_mingw81 --autodesktop
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Qt with aqtinstall"
-          exit 1
-        }
         Write-Host "Verifying Qt installation..."
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         if (-not $qmakePath) {
@@ -47,8 +45,19 @@ jobs:
           dir C:/Qt/5.15.2 -Recurse
           exit 1
         }
+        $makePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if (-not $makePath) {
+          Write-Host "Error: mingw32-make.exe not found in C:/Qt/5.15.2"
+          dir C:/Qt/5.15.2 -Recurse
+          exit 1
+        }
         $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
+        $mingwBinPath = [System.IO.Path]::GetDirectoryName($makePath)
+        $env:Path = "$qtBinPath;$mingwBinPath;C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
+        Write-Host "PATH: $env:Path"
+        Write-Host "qmake path: $qmakePath"
+        Write-Host "uic path: $uicPath"
+        Write-Host "mingw32-make path: $makePath"
         Write-Host "Verifying qmake..."
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
@@ -56,12 +65,6 @@ jobs:
           exit 1
         }
         Write-Host "Verifying mingw32-make..."
-        $makePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-        if (-not $makePath) {
-          Write-Host "Error: mingw32-make.exe not found in C:/Qt/5.15.2"
-          dir C:/Qt/5.15.2 -Recurse
-          exit 1
-        }
         & $makePath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make --version failed"
@@ -69,8 +72,6 @@ jobs:
         }
         Write-Host "Qt and MinGW installation completed and verified"
       shell: powershell
-      env:
-        AQTINSTALL_DEBUG: true
 
     - name: Cache vcpkg
       uses: actions/cache@v4
