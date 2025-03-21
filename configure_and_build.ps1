@@ -63,6 +63,10 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Проверка текущего mkspec
+Write-Host "Default mkspec used by qmake:"
+& $qmakePath -query QMAKE_SPEC
+
 # Переход в директорию ui
 cd "$projectRoot\ui"
 Write-Host "Рабочая директория после перехода в ui: $(Get-Location)"
@@ -71,9 +75,9 @@ Write-Host "Рабочая директория после перехода в u
 Write-Host "qmake version:"
 & $qmakePath --version
 
-# Запуск qmake без -spec
-Write-Host "Running qmake..."
-& "$qmakePath" "DeadCode.pro" -nocache -o "Makefile" 2>&1 | Tee-Object -FilePath "$projectRoot\qmake_output.log"
+# Запуск qmake с явным указанием mkspec и компилятора
+Write-Host "Running qmake with explicit mkspec and compiler..."
+& "$qmakePath" "DeadCode.pro" -spec win32-g++ "QMAKE_CXX=$gppPath" -nocache -o "Makefile" 2>&1 | Tee-Object -FilePath "$projectRoot\qmake_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: qmake failed"
     Get-Content "$projectRoot\qmake_output.log"
