@@ -179,6 +179,23 @@ jobs:
           Write-Host "Error: g++ --version failed"
           exit 1
         }
+        Write-Host "Checking for g++ dependencies..."
+        $requiredDlls = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
+        foreach ($dll in $requiredDlls) {
+          if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/$dll")) {
+            Write-Host "Warning: $dll not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+            $dllPath = (Get-ChildItem -Path "C:/Qt" -Filter $dll -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+            if ($dllPath) {
+              Write-Host "Found $dll at $dllPath, copying to C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+              Copy-Item -Path $dllPath -Destination "C:/Qt/Qt/5.15.2/mingw81_64/bin/" -Force
+            } else {
+              Write-Host "Error: $dll not found in C:/Qt"
+              exit 1
+            }
+          } else {
+            Write-Host "$dll found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+          }
+        }
         Write-Host "Qt and MinGW installation completed and verified"
       shell: powershell
 
@@ -427,8 +444,18 @@ jobs:
           dir "C:/vcpkg/installed/x64-windows-static" -Recurse
           exit 1
         }
-        Write-Host "Running qmake..."
-        & "$qmakePath" "ui/DeadCode.pro" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
+        Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64/bin/..."
+        dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+        Write-Host "Testing g++ directly..."
+        & $gppPath --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: g++ --version failed"
+          exit 1
+        }
+        Write-Host "Listing available mkspecs..."
+        dir "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs"
+        Write-Host "Running qmake with explicit spec..."
+        & "$qmakePath" "ui/DeadCode.pro" -spec win32-g++ -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
         $qmakeExitCode = $LASTEXITCODE
         if (Test-Path qmake_output.log) {
           Write-Host "Contents of qmake_output.log:"
