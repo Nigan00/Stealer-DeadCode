@@ -70,7 +70,7 @@ jobs:
         Write-Host "Installing MinGW manually..."
         if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe")) {
           Write-Host "mingw32-make.exe not found, installing MinGW..."
-          python -m aqt install-tool -O C:/Qt windows desktop tools_mingw qt.tools.win64_mingw810
+          python -m aqt install-tool -O C:/Qt windows desktop tools_mingw qt.tools.win64_mingw81
           if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to install MinGW with aqtinstall"
             exit 1

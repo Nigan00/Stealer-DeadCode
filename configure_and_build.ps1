@@ -55,6 +55,14 @@ $qtBinPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin"
 $env:Path = $qtBinPath + ";" + $env:Path
 Write-Host "PATH: $env:Path"
 
+# Дополнительная проверка g++ перед запуском qmake
+Write-Host "Verifying g++ is accessible..."
+& $gppPath --version
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: g++ --version failed"
+    exit 1
+}
+
 # Переход в директорию ui
 cd "$projectRoot\ui"
 Write-Host "Рабочая директория после перехода в ui: $(Get-Location)"
@@ -63,9 +71,9 @@ Write-Host "Рабочая директория после перехода в u
 Write-Host "qmake version:"
 & $qmakePath --version
 
-# Запуск qmake с флагом -nocache
+# Запуск qmake без -spec
 Write-Host "Running qmake..."
-& "$qmakePath" "DeadCode.pro" -spec win32-g++ -nocache -o "Makefile" 2>&1 | Tee-Object -FilePath "$projectRoot\qmake_output.log"
+& "$qmakePath" "DeadCode.pro" -nocache -o "Makefile" 2>&1 | Tee-Object -FilePath "$projectRoot\qmake_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: qmake failed"
     Get-Content "$projectRoot\qmake_output.log"
