@@ -67,13 +67,10 @@ QMAKE_LFLAGS += -DYNAMICBASE \
                 -SUBSYSTEM:WINDOWS
 
 # Определения для сборки (добавляем дату сборки и версию из git)
-# Используем дату в формате ISO (кроссплатформенный способ)
 BUILD_DATE = $$system(date /T) # Для Windows в GitHub Actions
-# Если date /T не работает, можно использовать QMAKE
 isEmpty(BUILD_DATE) {
     BUILD_DATE = $$system(echo %DATE%)
 }
-# Получаем версию из git, с запасным вариантом
 BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul)
 isEmpty(BUILD_VERSION) {
     BUILD_VERSION = "unknown"
@@ -112,7 +109,7 @@ PRE_TARGETDEPS += \
     ../src/polymorphic_code.h \
     ../src/junk_code.h
 
-# Создание пустых файлов, если они отсутствуют (кроссплатформенный способ через Qt)
+# Создание пустых файлов, если они отсутствуют
 !exists(../src/build_key.h) {
     system(echo. > ../src/build_key.h)
 }

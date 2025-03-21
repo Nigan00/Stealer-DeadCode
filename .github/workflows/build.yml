@@ -389,7 +389,10 @@ jobs:
 
     - name: Configure and build
       run: |
-        cd Stealer-DeadCode
+        # Переход в корень проекта
+        cd D:\a\Stealer-DeadCode\Stealer-DeadCode
+        Write-Host "Текущая директория: $(Get-Location)"
+
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
         $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
@@ -410,11 +413,11 @@ jobs:
 
         # Настройка PATH
         $qtBinPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin"
-        $env:Path = $qtBinPath + ";" + [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
+        $env:Path = $qtBinPath + ";" + $env:Path
         Write-Host "PATH: $env:Path"
 
-        # Переход в директорию Qt bin
-        cd "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+        # Переход в директорию ui
+        cd ui
         Write-Host "Working directory: $(Get-Location)"
 
         # Проверка версии qmake
@@ -423,7 +426,7 @@ jobs:
 
         # Запуск qmake с флагом -nocache
         Write-Host "Running qmake..."
-        & "$qmakePath" "../../Stealer-DeadCode/ui/DeadCode.pro" -spec win32-g++ -nocache -o "../../Stealer-DeadCode/Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
+        & "$qmakePath" "DeadCode.pro" -spec win32-g++ -nocache -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           Get-Content "qmake_output.log"
@@ -431,7 +434,6 @@ jobs:
         }
 
         # Проверка Makefile
-        cd "../../Stealer-DeadCode"
         if (-not (Test-Path Makefile)) { Write-Host "Error: Makefile not generated"; exit 1 }
 
         # Запуск mingw32-make
@@ -444,7 +446,7 @@ jobs:
         }
 
         # Проверка результата
-        if (-not (Test-Path build/DeadCode.exe)) { Write-Host "Error: DeadCode.exe not created"; exit 1 }
+        if (-not (Test-Path ../build/DeadCode.exe)) { Write-Host "Error: DeadCode.exe not created"; exit 1 }
         Write-Host "Build completed successfully"
       shell: powershell
 
