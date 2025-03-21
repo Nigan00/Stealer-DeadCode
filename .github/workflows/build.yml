@@ -401,10 +401,10 @@ jobs:
         Write-Host "mainwindow.ui is valid and ui_mainwindow.h generated successfully"
       shell: powershell
 
-    - name: Setup PowerShell
-      uses: actions/setup-powershell@v1
-      with:
-        powershell-version: '7.4' # Используем последнюю версию PowerShell
+    - name: Check PowerShell version
+      run: |
+        $PSVersionTable.PSVersion
+      shell: powershell
 
     - name: Configure and build
       run: |
