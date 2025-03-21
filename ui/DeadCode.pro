@@ -1,5 +1,5 @@
 # Основные модули Qt, которые используются в проекте
-QT       += core gui network widgets
+QT += core gui network widgets
 
 # Имя целевого исполняемого файла
 TARGET = DeadCode
@@ -19,25 +19,29 @@ HEADERS += \
     $$PWD/../src/junk_code.h
 
 # Файлы интерфейса (.ui)
-FORMS   += \
+FORMS += \
     $$PWD/mainwindow.ui
 
 # Ресурсы (иконка)
 RC_ICONS = $$PWD/../icon.ico
 
-# Пути для поиска заголовочных файлов (только проектные директории)
+# Пути для поиска заголовочных файлов
 INCLUDEPATH += \
     $$PWD/../src \
-    $$PWD
+    $$PWD \
+    C:/vcpkg/installed/x64-windows-static/include
 
 # Библиотеки (vcpkg и системные Windows-библиотеки)
-# Пути к библиотекам задаются через переменную окружения LIB в build.yml
-LIBS += -lsqlite3 \
+LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
+        -lsqlite3 \
         -lzip \
         -lz \
         -lbz2 \
         -lcurl \
-        -lws2_32
+        -lbcrypt \
+        -lws2_32 \
+        -lshlwapi \
+        -lpsapi
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
@@ -58,8 +62,11 @@ QMAKE_LFLAGS += -DYNAMICBASE \
                 -SUBSYSTEM:WINDOWS
 
 # Определения для сборки (добавляем дату сборки и версию из git)
-DEFINES += BUILD_DATE=\\\"$$system(date /t)\\\" \
-           BUILD_VERSION=\\\"$$system(git rev-parse --short HEAD 2> nul || echo unknown)\\\"
+# Исправляем формат даты, чтобы избежать пробелов
+BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyyMMdd'")
+BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul || echo unknown)
+DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
+           BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
 # Директории для выходных файлов
 DESTDIR = $$PWD/../build
@@ -67,12 +74,9 @@ OBJECTS_DIR = $$PWD/../release
 MOC_DIR = $$PWD/../release
 UI_DIR = $$PWD/../release
 
-# Очистка (удаляем исполняемый файл и временные заголовки при очистке проекта)
+# Очистка (удаляем только исполняемый файл, оставляем заголовки)
 QMAKE_CLEAN += \
-    $$DESTDIR/DeadCode.exe \
-    $$PWD/../src/build_key.h \
-    $$PWD/../src/polymorphic_code.h \
-    $$PWD/../src/junk_code.h
+    $$DESTDIR/DeadCode.exe
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
@@ -81,7 +85,8 @@ win32 {
         QMAKE_CXXFLAGS += -g
     } else {
         # Для релизной сборки
-        # Убрали -static, так как Qt обычно динамический
+        QMAKE_CXXFLAGS += -O2
+        QMAKE_LFLAGS += -O2
     }
 }
 
@@ -91,15 +96,14 @@ PRE_TARGETDEPS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h
 
-QMAKE_EXTRA_TARGETS += gen_headers
-gen_headers.commands = @echo "Headers are generated during runtime by mainwindow.cpp"
+# Удаляем цель gen_headers, так как генерация выполняется в mainwindow.cpp
 # Создание пустых файлов, если они отсутствуют
 !exists($$PWD/../src/build_key.h) {
-    system(echo. > $$PWD/../src/build_key.h)
+    system(powershell -Command "New-Item -Path $$PWD/../src/build_key.h -ItemType File -Force")
 }
 !exists($$PWD/../src/polymorphic_code.h) {
-    system(echo. > $$PWD/../src/polymorphic_code.h)
+    system(powershell -Command "New-Item -Path $$PWD/../src/polymorphic_code.h -ItemType File -Force")
 }
 !exists($$PWD/../src/junk_code.h) {
-    system(echo. > $$PWD/../src/junk_code.h)
+    system(powershell -Command "New-Item -Path $$PWD/../src/junk_code.h -ItemType File -Force")
 }
