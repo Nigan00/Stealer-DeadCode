@@ -17,6 +17,30 @@ jobs:
         path: Stealer-DeadCode
         fetch-depth: 0
 
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install Python dependencies for aqtinstall
+      run: |
+        Write-Host "Installing Python dependencies for aqtinstall..."
+        python -m pip install setuptools wheel py7zr==0.20.*
+        python -m pip install aqtinstall==3.1.*
+        python -m aqt version
+      shell: powershell
+
+    - name: Check available Qt modules
+      run: |
+        Write-Host "Checking available Qt versions and architectures..."
+        python -m aqt list-qt windows desktop
+        Write-Host "Checking available architectures for Qt 5.15.2..."
+        python -m aqt list-qt windows desktop --arch 5.15.2
+        Write-Host "Checking available modules for Qt 5.15.2 with win64_mingw81..."
+        python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
+      shell: powershell
+      continue-on-error: true
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
@@ -25,14 +49,14 @@ jobs:
         arch: 'win64_mingw81'
         dir: 'C:/Qt'
         install-deps: 'true'
-        cache: 'false' # Отключаем кэширование, чтобы исключить проблемы с поврежденным кэшем
+        cache: 'false'
         cache-key-prefix: 'qt-5.15.2-win64_mingw81'
-        setup-python: 'true' # Убедимся, что Python настроен для aqtinstall
-        aqtversion: '==3.1.*' # Указываем версию aqtinstall
-        modules: 'qtbase qttools' # Указываем минимально необходимые модули
+        setup-python: 'false' # Python уже настроен
+        aqtversion: '==3.1.*'
+        # Убираем modules, чтобы установить базовую версию Qt
       env:
         AQTINSTALL_DEBUG: true
-      continue-on-error: true # Продолжаем выполнение, чтобы увидеть логи
+      continue-on-error: true
 
     - name: Verify Qt installation
       run: |
