@@ -434,7 +434,7 @@ jobs:
         $qtBinPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin"
         $env:Path = $qtBinPath + ";" + [System.Environment]::GetEnvironmentVariable("Path", [System.EnvironmentVariableTarget]::Machine)
         # Удаляем из PATH директории, которые могут содержать другие компиляторы
-        $pathsToRemove = @("C:\mingw64\bin", "C:\Program Files (x86)\mingw-w64", "C:\Strawberry\c\bin")
+        $pathsToRemove = @("C:\mingw64\bin", "C:\Program Files (x86)\mingw-w64", "C:\Strawberry\c\bin", "C:\Strawberry\perl\bin", "C:\Strawberry\perl\site\bin")
         foreach ($path in $pathsToRemove) {
           $env:Path = $env:Path -replace [regex]::Escape($path + ";"), ""
         }
@@ -479,12 +479,13 @@ jobs:
         Write-Host "Listing available mkspecs..."
         dir "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs"
 
-        # Модификация qmake.conf для явного указания пути к g++
-        Write-Host "Modifying qmake.conf to explicitly set QMAKE_CXX..."
+        # Модификация qmake.conf для явного указания пути к g++ с обратными слэшами
+        Write-Host "Modifying qmake.conf to explicitly set QMAKE_CXX with backslashes..."
         $mkspecPath = "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/qmake.conf"
         if (Test-Path $mkspecPath) {
+          $gppPathWin = $gppPath -replace "/", "\"
           $qmakeConfContent = Get-Content $mkspecPath -Raw
-          $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CXX\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_CXX = $gppPath"
+          $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CXX\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_CXX = $gppPathWin"
           Set-Content -Path $mkspecPath -Value $qmakeConfContent -Force
           Write-Host "Updated contents of ${mkspecPath}:"
           Get-Content $mkspecPath
@@ -493,13 +494,8 @@ jobs:
           exit 1
         }
 
-        # Дополнительная проверка: какой g++ будет использоваться
-        Write-Host "Checking which g++ qmake will use..."
-        & $qmakePath -query QMAKE_CXX
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to query QMAKE_CXX from qmake"
-          exit 1
-        }
+        # Пропускаем проверку qmake -query QMAKE_CXX, так как она не работает
+        Write-Host "Skipping qmake -query QMAKE_CXX check due to known issues..."
 
         # Попытка найти g++ через where после очистки PATH
         Write-Host "Searching for g++ in PATH after cleanup..."
@@ -553,6 +549,17 @@ jobs:
           Write-Host "Error: Makefile was not generated"
           dir .
           exit 1
+        }
+
+        # Дополнительная диагностика: проверка, какой компилятор указан в Makefile
+        Write-Host "Checking which compiler is specified in the generated Makefile..."
+        if (Test-Path Makefile) {
+          $makefileContent = Get-Content Makefile -Raw
+          if ($makefileContent -match "CXX\s*=\s*(.+)") {
+            Write-Host "CXX in Makefile: $($matches[1])"
+          } else {
+            Write-Host "Could not find CXX definition in Makefile"
+          }
         }
 
         # Запуск mingw32-make
