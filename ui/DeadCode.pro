@@ -1,3 +1,7 @@
+# Явно указываем компилятор
+QMAKE_CXX = C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe
+QMAKE_CC = C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe
+
 # Основные модули Qt, которые используются в проекте
 QT += core gui network widgets
 
@@ -62,14 +66,15 @@ QMAKE_CXXFLAGS += -O2 \
                   -D_CRT_SECURE_NO_WARNINGS
 
 # Флаги линковки
-QMAKE_LFLAGS += -DYNAMICBASE \
+QMAKE_LFLAGS += -static \
+                -DYNAMICBASE \
                 -NXCOMPAT \
                 -SUBSYSTEM:WINDOWS
 
 # Определения для сборки (добавляем дату сборки и версию из git)
-BUILD_DATE = $$system(date /T) # Для Windows в GitHub Actions
+BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'")
 isEmpty(BUILD_DATE) {
-    BUILD_DATE = $$system(echo %DATE%)
+    BUILD_DATE = "unknown"
 }
 BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul)
 isEmpty(BUILD_VERSION) {

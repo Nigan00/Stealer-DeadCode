@@ -413,6 +413,19 @@ jobs:
         $PSVersionTable.PSVersion
       shell: pwsh
 
+    - name: Debug mkspec configuration
+      run: |
+        Write-Host "Checking mkspec configuration..."
+        $mkspecPath = "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/qmake.conf"
+        if (Test-Path $mkspecPath) {
+          Write-Host "Contents of $mkspecPath:"
+          Get-Content $mkspecPath
+        } else {
+          Write-Host "Error: mkspec file not found at $mkspecPath"
+          exit 1
+        }
+      shell: powershell
+
     - name: Configure and build
       run: |
         cd D:\a\Stealer-DeadCode\Stealer-DeadCode\Stealer-DeadCode
@@ -429,6 +442,8 @@ jobs:
           Write-Host "Error: ui directory not found in $(Get-Location)"
           exit 1
         }
+        Write-Host "Current PATH before running configure_and_build.ps1:"
+        Write-Host $env:Path
         pwsh -File configure_and_build.ps1
       shell: pwsh
 
