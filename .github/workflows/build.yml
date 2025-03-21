@@ -41,6 +41,12 @@ jobs:
       shell: powershell
       continue-on-error: true
 
+    - name: Check disk space
+      run: |
+        Write-Host "Checking available disk space..."
+        Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
+      shell: powershell
+
     - name: Install Qt
       uses: jurplel/install-qt-action@v3
       with:
@@ -49,12 +55,28 @@ jobs:
         arch: 'win64_mingw81'
         dir: 'C:/Qt'
         install-deps: 'true'
-        cache: 'false'
-        cache-key-prefix: 'qt-5.15.2-win64_mingw81'
+        cache: 'false' # Отключаем кэширование временно
         setup-python: 'false' # Python уже настроен
         aqtversion: '==3.1.*'
       env:
         AQTINSTALL_DEBUG: true
+
+    - name: Install MinGW manually
+      run: |
+        Write-Host "Installing MinGW manually..."
+        if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe")) {
+          Write-Host "mingw32-make.exe not found, installing MinGW..."
+          python -m aqt install-tool -O C:/Qt windows desktop tools_mingw qt.tools.win64_mingw810
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to install MinGW with aqtinstall"
+            exit 1
+          }
+          Write-Host "Copying MinGW binaries to Qt bin directory..."
+          Copy-Item -Path "C:/Qt/Tools/mingw810_64/bin/*" -Destination "C:/Qt/Qt/5.15.2/mingw81_64/bin/" -Force
+        } else {
+          Write-Host "mingw32-make.exe already exists, skipping MinGW installation."
+        }
+      shell: powershell
 
     - name: Debug Qt installation
       run: |
