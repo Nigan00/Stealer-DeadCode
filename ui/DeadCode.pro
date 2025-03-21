@@ -8,27 +8,27 @@ TEMPLATE = app
 
 # Исходные файлы (.cpp)
 SOURCES += \
-    src/main.cpp \
-    ui/mainwindow.cpp
+    ../src/main.cpp \
+    mainwindow.cpp
 
 # Заголовочные файлы (.h)
 HEADERS += \
-    ui/mainwindow.h \
-    src/build_key.h \
-    src/polymorphic_code.h \
-    src/junk_code.h
+    mainwindow.h \
+    ../src/build_key.h \
+    ../src/polymorphic_code.h \
+    ../src/junk_code.h
 
 # Файлы интерфейса (.ui)
 FORMS += \
-    ui/mainwindow.ui
+    mainwindow.ui
 
 # Ресурсы (иконка)
-RC_ICONS = icon.ico
+RC_ICONS = ../icon.ico
 
 # Пути для поиска заголовочных файлов
 INCLUDEPATH += \
-    src \
-    ui \
+    ../src \
+    . \
     C:/vcpkg/installed/x64-windows-static/include \
     ../release
 
@@ -67,12 +67,21 @@ QMAKE_LFLAGS += -DYNAMICBASE \
                 -SUBSYSTEM:WINDOWS
 
 # Определения для сборки (добавляем дату сборки и версию из git)
-BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyyMMdd'")
-BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul || echo unknown)
+# Используем дату в формате ISO (кроссплатформенный способ)
+BUILD_DATE = $$system(date /T) # Для Windows в GitHub Actions
+# Если date /T не работает, можно использовать QMAKE
+isEmpty(BUILD_DATE) {
+    BUILD_DATE = $$system(echo %DATE%)
+}
+# Получаем версию из git, с запасным вариантом
+BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul)
+isEmpty(BUILD_VERSION) {
+    BUILD_VERSION = "unknown"
+}
 DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
            BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
-# Директории для выходных файлов
+# Директории для выходных файлов (относительные пути внутри проекта)
 DESTDIR = ../build
 OBJECTS_DIR = ../release
 MOC_DIR = ../release
@@ -80,10 +89,10 @@ UI_DIR = ../release
 
 # Очистка (удаляем исполняемый файл и промежуточные файлы)
 QMAKE_CLEAN += \
-    $$DESTDIR/DeadCode.exe \
-    $$OBJECTS_DIR/*.o \
-    $$MOC_DIR/*.cpp \
-    $$UI_DIR/*.h
+    ../build/DeadCode.exe \
+    ../release/*.o \
+    ../release/*.cpp \
+    ../release/*.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
@@ -99,17 +108,17 @@ win32 {
 
 # Пользовательские шаги сборки для генерации заголовков
 PRE_TARGETDEPS += \
-    src/build_key.h \
-    src/polymorphic_code.h \
-    src/junk_code.h
+    ../src/build_key.h \
+    ../src/polymorphic_code.h \
+    ../src/junk_code.h
 
-# Создание пустых файлов, если они отсутствуют (кроссплатформенный способ)
-!exists(src/build_key.h) {
-    system(powershell -Command "New-Item -Path src/build_key.h -ItemType File -Force")
+# Создание пустых файлов, если они отсутствуют (кроссплатформенный способ через Qt)
+!exists(../src/build_key.h) {
+    system(echo. > ../src/build_key.h)
 }
-!exists(src/polymorphic_code.h) {
-    system(powershell -Command "New-Item -Path src/polymorphic_code.h -ItemType File -Force")
+!exists(../src/polymorphic_code.h) {
+    system(echo. > ../src/polymorphic_code.h)
 }
-!exists(src/junk_code.h) {
-    system(powershell -Command "New-Item -Path src/junk_code.h -ItemType File -Force")
+!exists(../src/junk_code.h) {
+    system(echo. > ../src/junk_code.h)
 }
