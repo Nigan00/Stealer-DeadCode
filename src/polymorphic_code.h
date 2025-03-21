@@ -8,34 +8,21 @@
 #include <chrono>
 #include <thread>
 
-// Добавляем пространство имен std
-namespace std {
-    using string = ::std::string;
-    using stringstream = ::std::stringstream;
-    using random_device = ::std::random_device;
-    using mt19937 = ::std::mt19937;
-    using uniform_int_distribution = ::std::uniform_int_distribution<>;
-    using this_thread = ::std::this_thread;
-    using chrono = ::std::chrono;
-}
-
-using namespace std;
-
 // Функция для генерации случайного числа
 inline int getRandomNumber(int min, int max) {
-    static random_device rd;
-    static mt19937 gen(rd());
-    uniform_int_distribution<> dis(min, max);
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(min, max);
     return dis(gen);
 }
 
 // Генерация случайной строки
-inline string generateRandomString(size_t length) {
+inline std::string generateRandomString(size_t length) {
     static const char alphanum[] =
         "0123456789"
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         "abcdefghijklmnopqrstuvwxyz";
-    string result;
+    std::string result;
     result.reserve(length);
     for (size_t i = 0; i < length; ++i) {
         result += alphanum[getRandomNumber(0, sizeof(alphanum) - 2)];
@@ -44,89 +31,90 @@ inline string generateRandomString(size_t length) {
 }
 
 // Генерация случайного имени функции для полиморфизма
-inline string generateRandomFuncName() {
+inline std::string generateRandomFuncName() {
     static const char* prefixes[] = {"polyFunc", "obfFunc", "cryptFunc", "hideFunc", "maskFunc"};
-    stringstream ss;
+    std::stringstream ss;
     ss << prefixes[getRandomNumber(0, 4)] << "_"
        << getRandomNumber(10000, 99999) << "_"
-       << getRandomNumber(10000, 99999);
+ потуж:       << getRandomNumber(10000, 99999);
     return ss.str();
 }
 
 namespace Polymorphic {
 
-    inline void polyFunc_89234_45678() {
-        volatile int dummy_12345_98765 = getRandomNumber(1000, 10000);
-        string noise = generateRandomString(getRandomNumber(5, 15));
-        dummy_12345_98765 ^= noise.length();
+    // Функции с динамическими именами (имитация полиморфизма)
+    inline void polymorphicFunction1() {
+        volatile int dummy = getRandomNumber(1000, 10000);
+        std::string noise = generateRandomString(getRandomNumber(5, 15));
+        dummy ^= noise.length();
         for (int i = 0; i < getRandomNumber(5, 15); i++) {
-            if (dummy_12345_98765 % 2 == 0) {
-                dummy_12345_98765 = (dummy_12345_98765 << getRandomNumber(1, 3)) ^ getRandomNumber(1, 255);
+            if (dummy % 2 == 0) {
+                dummy = (dummy << getRandomNumber(1, 3)) ^ getRandomNumber(1, 255);
             } else {
-                dummy_12345_98765 = (dummy_12345_98765 >> getRandomNumber(1, 2)) + noise[i % noise.length()];
+                dummy = (dummy >> getRandomNumber(1, 2)) + noise[i % noise.length()];
             }
         }
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 10)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 10)));
     }
 
-    inline void polyFunc_34567_12345() {
-        volatile int dummy_98765_43210 = getRandomNumber(5000, 15000);
-        string noise = generateRandomString(getRandomNumber(8, 20));
-        volatile int dummy_11111_22222 = dummy_98765_43210 ^ noise.length();
+    inline void polymorphicFunction2() {
+        volatile int dummy = getRandomNumber(5000, 15000);
+        std::string noise = generateRandomString(getRandomNumber(8, 20));
+        volatile int temp = dummy ^ noise.length();
         for (int j = 0; j < getRandomNumber(3, 12); j++) {
-            dummy_11111_22222 += (noise[j % noise.length()] * getRandomNumber(1, 4));
-            if (dummy_11111_22222 > 10000) {
-                dummy_11111_22222 -= getRandomNumber(100, 500);
+            temp += (noise[j % noise.length()] * getRandomNumber(1, 4));
+            if (temp > 10000) {
+                temp -= getRandomNumber(100, 500);
             }
         }
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 5)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 5)));
     }
 
-    inline void polyFunc_67890_98765() {
-        volatile int dummy_33333_44444 = getRandomNumber(2000, 8000);
-        string noise = generateRandomString(getRandomNumber(10, 25));
-        volatile int dummy_55555_66666 = dummy_33333_44444 ^ getRandomNumber(1, 127);
+    inline void polymorphicFunction3() {
+        volatile int dummy = getRandomNumber(2000, 8000);
+        std::string noise = generateRandomString(getRandomNumber(10, 25));
+        volatile int temp = dummy ^ getRandomNumber(1, 127);
         for (int k = 0; k < getRandomNumber(2, 18); k++) {
-            dummy_55555_66666 = (dummy_55555_66666 << getRandomNumber(1, 3)) ^ noise[k % noise.length()];
-            if (dummy_55555_66666 % 3 == 0) {
-                dummy_55555_66666 -= getRandomNumber(10, 50);
+            temp = (temp << getRandomNumber(1, 3)) ^ noise[k % noise.length()];
+            if (temp % 3 == 0) {
+                temp -= getRandomNumber(10, 50);
             }
         }
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 8)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 8)));
     }
 
-    inline void polyFunc_23456_78901() {
-        volatile int dummy_77777_88888 = getRandomNumber(3000, 12000);
-        string noise = generateRandomString(getRandomNumber(5, 10));
-        volatile int dummy_99999_00000 = dummy_77777_88888 * getRandomNumber(2, 6);
+    inline void polymorphicFunction4() {
+        volatile int dummy = getRandomNumber(3000, 12000);
+        std::string noise = generateRandomString(getRandomNumber(5, 10));
+        volatile int temp = dummy * getRandomNumber(2, 6);
         for (int m = 0; m < getRandomNumber(4, 20); m++) {
-            dummy_99999_00000 = (dummy_99999_00000 >> getRandomNumber(1, 2)) ^ noise[m % noise.length()];
-            if (dummy_99999_00000 < 5000) {
-                dummy_99999_00000 += getRandomNumber(100, 300);
+            temp = (temp >> getRandomNumber(1, 2)) ^ noise[m % noise.length()];
+            if (temp < 5000) {
+                temp += getRandomNumber(100, 300);
             }
         }
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 7)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 7)));
     }
 
-    inline void polyFunc_90123_56789() {
-        volatile int dummy_12121_34343 = getRandomNumber(4000, 10000);
-        string noise = generateRandomString(getRandomNumber(12, 30));
-        volatile int dummy_56565_78787 = dummy_12121_34343 ^ getRandomNumber(10, 80);
+    inline void polymorphicFunction5() {
+        volatile int dummy = getRandomNumber(4000, 10000);
+        std::string noise = generateRandomString(getRandomNumber(12, 30));
+        volatile int temp = dummy ^ getRandomNumber(10, 80);
         for (int n = 0; n < getRandomNumber(1, 25); n++) {
-            dummy_56565_78787 = (dummy_56565_78787 * getRandomNumber(1, 5)) ^ noise[n % noise.length()];
-            if (dummy_56565_78787 % 2 == 1) {
-                dummy_56565_78787 -= getRandomNumber(50, 150);
+            temp = (temp * getRandomNumber(1, 5)) ^ noise[n % noise.length()];
+            if (temp % 2 == 1) {
+                temp -= getRandomNumber(50, 150);
             }
         }
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 6)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 6)));
     }
 
     inline void executePolymorphicCode() {
-        polyFunc_89234_45678();
-        polyFunc_34567_12345();
-        polyFunc_67890_98765();
-        polyFunc_23456_78901();
-        polyFunc_90123_56789();
+        polymorphicFunction1();
+        polymorphicFunction2();
+        polymorphicFunction3();
+        polymorphicFunction4();
+        polymorphicFunction5();
     }
 
 } // namespace Polymorphic

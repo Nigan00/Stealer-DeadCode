@@ -4,23 +4,31 @@
 #include <string>
 #include <vector>
 #include <random>
-#include <cstring>
 #include <algorithm>
 #include <chrono>
 #include <thread>
-#include "polymorphic_code.h" // Для использования getRandomNumber и generateRandomString
 
-// Добавляем пространство имен std
-namespace std {
-    using string = ::std::string;
-    using vector = ::std::vector;
-    using random_device = ::std::random_device;
-    using mt19937 = ::std::mt19937;
-    using this_thread = ::std::this_thread;
-    using chrono = ::std::chrono;
+// Функция для генерации случайного числа
+inline int getRandomNumber(int min, int max) {
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(min, max);
+    return dis(gen);
 }
 
-using namespace std;
+// Генерация случайной строки
+inline std::string generateRandomString(size_t length) {
+    static const char alphanum[] =
+        "0123456789"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz";
+    std::string result;
+    result.reserve(length);
+    for (size_t i = 0; i < length; ++i) {
+        result += alphanum[getRandomNumber(0, sizeof(alphanum) - 2)];
+    }
+    return result;
+}
 
 namespace JunkCode {
 
@@ -36,33 +44,33 @@ namespace JunkCode {
                 c -= getRandomNumber(0, 10) + (c >> getRandomNumber(1, 3));
             }
         }
-        string dummy = generateRandomString(getRandomNumber(10, 60));
-        vector<char> buffer(dummy.begin(), dummy.end());
-        reverse(buffer.begin(), buffer.end());
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 10)));
+        std::string dummy = generateRandomString(getRandomNumber(10, 60));
+        std::vector<char> buffer(dummy.begin(), dummy.end());
+        std::reverse(buffer.begin(), buffer.end());
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 10)));
     }
 
     inline void junkFunc2() {
-        string str1 = generateRandomString(25);
-        string str2 = generateRandomString(35);
-        string concat = str1 + str2;
+        std::string str1 = generateRandomString(25);
+        std::string str2 = generateRandomString(35);
+        std::string concat = str1 + str2;
         for (size_t i = 0; i < concat.size(); i++) {
             concat[i] ^= getRandomNumber(0, 127);
             if (concat[i] % 2 == 0) {
                 concat[i] += getRandomNumber(1, 10);
             }
         }
-        vector<int> numbers(getRandomNumber(15, 60));
+        std::vector<int> numbers(getRandomNumber(15, 60));
         for (auto& num : numbers) {
             num = getRandomNumber(-1500, 1500);
             num *= getRandomNumber(1, 6);
             num ^= getRandomNumber(0, 255);
         }
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 8)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 8)));
     }
 
     inline void junkFunc3() {
-        char* buffer = new char[2048];
+        std::vector<char> buffer(2048);
         for (int i = 0; i < 2048; i++) {
             buffer[i] = static_cast<char>(getRandomNumber(0, 255));
         }
@@ -76,14 +84,15 @@ namespace JunkCode {
                 sum += getRandomNumber(1, 10);
             }
         }
-        delete[] buffer;
-        string dummy = generateRandomString(getRandomNumber(8, 30));
-        vector<char> vec(dummy.begin(), dummy.end());
-        sort(vec.begin(), vec.end());
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 7)));
+        std::string dummy = generateRandomString(getRandomNumber(8, 30));
+        std::vector<char> vec(dummy.begin(), dummy.end());
+        std::sort(vec.begin(), vec.end());
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 7)));
     }
 
     inline void junkFunc4() {
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
         volatile int counter = getRandomNumber(200, 1500);
         while (counter > 0) {
             counter -= getRandomNumber(1, 15);
@@ -97,10 +106,10 @@ namespace JunkCode {
                 }
             }
         }
-        string dummy = generateRandomString(getRandomNumber(12, 45));
-        vector<char> vec(dummy.begin(), dummy.end());
-        shuffle(vec.begin(), vec.end(), mt19937(random_device()()));
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 6)));
+        std::string dummy = generateRandomString(getRandomNumber(12, 45));
+        std::vector<char> vec(dummy.begin(), dummy.end());
+        std::shuffle(vec.begin(), vec.end(), gen);
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 6)));
     }
 
     inline void junkFunc5() {
@@ -117,12 +126,12 @@ namespace JunkCode {
                 z *= getRandomNumber(1, 3);
             }
         }
-        string dummy = generateRandomString(getRandomNumber(10, 40));
-        vector<int> dummyVec(getRandomNumber(8, 25), 0);
+        std::string dummy = generateRandomString(getRandomNumber(10, 40));
+        std::vector<int> dummyVec(getRandomNumber(8, 25), 0);
         for (auto& val : dummyVec) {
             val = getRandomNumber(-500, 500);
         }
-        this_thread::sleep_for(chrono::milliseconds(getRandomNumber(1, 5)));
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 5)));
     }
 
     inline void executeJunkCode() {

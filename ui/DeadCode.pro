@@ -8,33 +8,32 @@ TEMPLATE = app
 
 # Исходные файлы (.cpp)
 SOURCES += \
-    $$PWD/../src/main.cpp \
-    $$PWD/mainwindow.cpp
+    src/main.cpp \
+    ui/mainwindow.cpp
 
 # Заголовочные файлы (.h)
 HEADERS += \
-    $$PWD/mainwindow.h \
-    $$PWD/../src/build_key.h \
-    $$PWD/../src/polymorphic_code.h \
-    $$PWD/../src/junk_code.h
+    ui/mainwindow.h \
+    src/build_key.h \
+    src/polymorphic_code.h \
+    src/junk_code.h
 
 # Файлы интерфейса (.ui)
 FORMS += \
-    $$PWD/ui/mainwindow.ui
+    ui/mainwindow.ui
 
 # Ресурсы (иконка)
-RC_ICONS = $$PWD/../icon.ico
+RC_ICONS = icon.ico
 
 # Пути для поиска заголовочных файлов
 INCLUDEPATH += \
-    $$PWD/../src \
-    $$PWD \
-    $$PWD/ui \
-    C:/vcpkg/installed/x64-windows-static/include \
-    $$PWD/../release
+    src \
+    ui \
+    $$[VCPKG_ROOT]/installed/x64-windows-static/include \
+    release
 
 # Библиотеки (vcpkg и системные Windows-библиотеки)
-LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
+LIBS += -L$$[VCPKG_ROOT]/installed/x64-windows-static/lib \
         -lsqlite3 \
         -lzip \
         -lz \
@@ -45,15 +44,16 @@ LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lgdiplus \
         -liphlpapi \
         -lpsapi \
-        -lshlwapi
+        -lshlwapi \
+        -lcrypt32 \
+        -lgdi32
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
-                  -std=gnu++17 \
+                  -std=c++17 \
                   -Wall \
                   -Wextra \
                   -Werror=return-type \
-                  -Wno-error \
                   -fexceptions \
                   -DUNICODE \
                   -D_UNICODE \
@@ -73,14 +73,17 @@ DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
            BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
 # Директории для выходных файлов
-DESTDIR = $$PWD/../build
-OBJECTS_DIR = $$PWD/../release
-MOC_DIR = $$PWD/../release
-UI_DIR = $$PWD/../release
+DESTDIR = build
+OBJECTS_DIR = release
+MOC_DIR = release
+UI_DIR = release
 
-# Очистка (удаляем только исполняемый файл)
+# Очистка (удаляем исполняемый файл и промежуточные файлы)
 QMAKE_CLEAN += \
-    $$DESTDIR/DeadCode.exe
+    $$DESTDIR/DeadCode.exe \
+    $$OBJECTS_DIR/*.o \
+    $$MOC_DIR/*.cpp \
+    $$UI_DIR/*.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
@@ -96,17 +99,17 @@ win32 {
 
 # Пользовательские шаги сборки для генерации заголовков
 PRE_TARGETDEPS += \
-    $$PWD/../src/build_key.h \
-    $$PWD/../src/polymorphic_code.h \
-    $$PWD/../src/junk_code.h
+    src/build_key.h \
+    src/polymorphic_code.h \
+    src/junk_code.h
 
-# Создание пустых файлов, если они отсутствуют
-!exists($$PWD/../src/build_key.h) {
-    system(powershell -Command "New-Item -Path $$PWD/../src/build_key.h -ItemType File -Force")
+# Создание пустых файлов, если они отсутствуют (кроссплатформенный способ)
+!exists(src/build_key.h) {
+    system(touch src/build_key.h)
 }
-!exists($$PWD/../src/polymorphic_code.h) {
-    system(powershell -Command "New-Item -Path $$PWD/../src/polymorphic_code.h -ItemType File -Force")
+!exists(src/polymorphic_code.h) {
+    system(touch src/polymorphic_code.h)
 }
-!exists($$PWD/../src/junk_code.h) {
-    system(powershell -Command "New-Item -Path $$PWD/../src/junk_code.h -ItemType File -Force")
+!exists(src/junk_code.h) {
+    system(touch src/junk_code.h)
 }

@@ -17,23 +17,6 @@ jobs:
         path: Stealer-DeadCode
         fetch-depth: 0
 
-    - name: Install MinGW
-      run: |
-        Write-Host "Installing MinGW..."
-        choco install mingw -y
-        Write-Host "Refreshing environment variables..."
-        refreshenv
-        $mingwPath = "C:/ProgramData/mingw64/mingw64/bin/g++.exe"
-        if (-not (Test-Path $mingwPath)) {
-          Write-Host "Error: MinGW not installed correctly"
-          Write-Host "Listing contents of C:/ProgramData/mingw64/mingw64/bin:"
-          dir "C:/ProgramData/mingw64/mingw64/bin"
-          exit 1
-        }
-        Write-Host "MinGW version:"
-        & $mingwPath --version
-      shell: powershell
-
     - name: Install Python dependencies for aqtinstall
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
@@ -42,7 +25,7 @@ jobs:
         python -m aqt version
       shell: powershell
 
-    - name: Install Qt manually
+    - name: Install Qt
       run: |
         Write-Host "Installing Qt 5.15.2 with aqtinstall..."
         New-Item -Path "C:/Qt" -ItemType Directory -Force
@@ -51,38 +34,30 @@ jobs:
           Write-Host "Error: Failed to install Qt with aqtinstall"
           exit 1
         }
-        Write-Host "Qt installation completed"
-      shell: powershell
-      env:
-        AQTINSTALL_DEBUG: true
-
-    - name: Debug Qt installation
-      run: |
-        Write-Host "Listing contents of C:/Qt:"
-        if (Test-Path C:/Qt) {
-          dir C:/Qt -Recurse
-        } else {
-          Write-Host "Directory C:/Qt does not exist!"
-          exit 1
-        }
-        Write-Host "Checking for qmake.exe in C:/Qt/5.15.2:"
+        Write-Host "Verifying Qt installation..."
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-        if ($qmakePath) {
-          Write-Host "qmake.exe found at $qmakePath!"
-        } else {
-          Write-Host "qmake.exe not found in C:/Qt/5.15.2"
+        if (-not $qmakePath) {
+          Write-Host "Error: qmake not found in C:/Qt/5.15.2"
+          dir C:/Qt/5.15.2 -Recurse
           exit 1
         }
-        Write-Host "Checking for uic.exe in C:/Qt/5.15.2:"
         $uicPath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-        if ($uicPath) {
-          Write-Host "uic.exe found at $uicPath!"
-        } else {
+        if (-not $uicPath) {
           Write-Host "Error: uic.exe not found in C:/Qt/5.15.2"
           dir C:/Qt/5.15.2 -Recurse
           exit 1
         }
+        $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
+        $env:Path = "$qtBinPath;" + $env:Path
+        & $qmakePath --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: qmake --version failed"
+          exit 1
+        }
+        Write-Host "Qt installation completed and verified"
       shell: powershell
+      env:
+        AQTINSTALL_DEBUG: true
 
     - name: Cache vcpkg
       uses: actions/cache@v4
@@ -94,9 +69,6 @@ jobs:
 
     - name: Install vcpkg and dependencies
       run: |
-        # Сбрасываем VCPKG_ROOT в начале шага
-        $env:VCPKG_ROOT = ""
-        Write-Host "VCPKG_ROOT after reset: $env:VCPKG_ROOT"
         if (-not (Test-Path C:/vcpkg)) {
           Write-Host "Cloning vcpkg..."
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
@@ -120,10 +92,6 @@ jobs:
         $env:Path = "C:/vcpkg;" + $env:Path
         Write-Host "vcpkg version after bootstrap:"
         & $vcpkgExe --version
-        Write-Host "Clearing vcpkg cache..."
-        & $vcpkgExe remove --outdated --recurse
-        Write-Host "Clearing vcpkg buildtrees..."
-        Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
         & $vcpkgExe install sqlite3 libzip zlib bzip2 curl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
@@ -184,23 +152,6 @@ jobs:
         Write-Host "All vcpkg dependencies verified"
       shell: powershell
 
-    - name: Verify Qt installation
-      run: |
-        $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-        if (-not $qmakePath) {
-          Write-Host "Error: qmake not found in C:/Qt/5.15.2"
-          exit 1
-        }
-        $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;" + $env:Path
-        & $qmakePath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: qmake --version failed"
-          exit 1
-        }
-        Write-Host "Qt installation verified"
-      shell: powershell
-
     - name: Verify project structure
       run: |
         cd Stealer-DeadCode
@@ -251,16 +202,16 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    - name: Verify mainwindow.ui
+    - name: Verify and generate UI files
       run: |
         cd Stealer-DeadCode
-        Write-Host "Checking mainwindow.ui for validity..."
+        Write-Host "Checking mainwindow.ui for validity and generating ui_mainwindow.h..."
         $uicPath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         if (-not $uicPath) {
           Write-Host "Error: uic.exe not found in C:/Qt/5.15.2"
           exit 1
         }
-        & $uicPath ui/mainwindow.ui -o test_ui_mainwindow.h 2>&1 | Tee-Object -FilePath "uic_output.log"
+        & $uicPath ui/mainwindow.ui -o ../release/ui_mainwindow.h 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mainwindow.ui is invalid. Check the logs for details."
           if (Test-Path uic_output.log) {
@@ -269,8 +220,11 @@ jobs:
           }
           exit 1
         }
-        Remove-Item -Path test_ui_mainwindow.h -Force -ErrorAction SilentlyContinue
-        Write-Host "mainwindow.ui is valid"
+        if (-not (Test-Path ../release/ui_mainwindow.h)) {
+          Write-Host "Error: ui_mainwindow.h was not generated"
+          exit 1
+        }
+        Write-Host "mainwindow.ui is valid and ui_mainwindow.h generated"
       shell: powershell
 
     - name: Configure and build
@@ -278,7 +232,7 @@ jobs:
         cd Stealer-DeadCode
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         $qtBinPath = [System.IO.Path]::GetDirectoryName($qmakePath)
-        $env:Path = "$qtBinPath;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
+        $env:Path = "$qtBinPath;C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
         Write-Host "INCLUDE path: $env:INCLUDE"
@@ -296,12 +250,6 @@ jobs:
           dir "C:/vcpkg/installed/x64-windows-static" -Recurse
           exit 1
         }
-        Write-Host "Checking icon.ico..."
-        if (Test-Path icon.ico) {
-          Write-Host "icon.ico exists."
-        } else {
-          Write-Host "icon.ico not found!"
-        }
         Write-Host "Running qmake..."
         & "$qmakePath" "ui/DeadCode.pro" -o "Makefile" 2>&1 | Tee-Object -FilePath "qmake_output.log"
         $qmakeExitCode = $LASTEXITCODE
@@ -317,13 +265,6 @@ jobs:
           Write-Host "Error: Makefile was not generated"
           exit 1
         }
-        Write-Host "Checking if ui_mainwindow.h was generated..."
-        if (-not (Test-Path ../release/ui_mainwindow.h)) {
-          Write-Host "Error: ui_mainwindow.h was not generated in ../release"
-          dir ../release
-          exit 1
-        }
-        Write-Host "ui_mainwindow.h found in ../release"
         Write-Host "Running mingw32-make..."
         & mingw32-make -f Makefile 2>&1 | Tee-Object -FilePath "make_output.log"
         $makeExitCode = $LASTEXITCODE
@@ -340,22 +281,7 @@ jobs:
           dir ../build
           exit 1
         }
-        if (Test-Path icon.ico) {
-          Copy-Item icon.ico ../build/icon.ico
-          Write-Host "Icon copied to build directory"
-        }
-        if (Test-Path src/build_key.h) {
-          Copy-Item src/build_key.h ../build/build_key.h
-          Write-Host "build_key.h copied to build directory"
-        }
-        if (Test-Path src/polymorphic_code.h) {
-          Copy-Item src/polymorphic_code.h ../build/polymorphic_code.h
-          Write-Host "polymorphic_code.h copied to build directory"
-        }
-        if (Test-Path src/junk_code.h) {
-          Copy-Item src/junk_code.h ../build/junk_code.h
-          Write-Host "junk_code.h copied to build directory"
-        }
+        Write-Host "Build completed successfully"
       shell: powershell
 
     - name: Upload build logs
@@ -375,15 +301,10 @@ jobs:
         name: DeadCode-Build
         path: |
           Stealer-DeadCode/build/DeadCode.exe
-          Stealer-DeadCode/build/icon.ico
-          Stealer-DeadCode/build/build_key.h
-          Stealer-DeadCode/build/polymorphic_code.h
-          Stealer-DeadCode/build/junk_code.h
 
     - name: Cleanup
       if: always()
       run: |
-        Remove-Item -Path "C:/vcpkg" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "Stealer-DeadCode/build" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "Stealer-DeadCode/release" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
