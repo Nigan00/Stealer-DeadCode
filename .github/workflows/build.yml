@@ -55,32 +55,57 @@ jobs:
         aqtversion: '==3.1.*'
       env:
         AQTINSTALL_DEBUG: true
+
+    - name: Debug Qt installation
+      run: |
+        Write-Host "Listing contents of C:/Qt..."
+        dir C:/Qt -Recurse
+        Write-Host "Listing contents of C:/Qt/Qt..."
+        dir C:/Qt/Qt -Recurse
+        Write-Host "Listing contents of C:/Qt/Qt/5.15.2..."
+        dir C:/Qt/Qt/5.15.2 -Recurse
+        Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64/bin..."
+        dir C:/Qt/Qt/5.15.2/mingw81_64/bin -Recurse
+      shell: powershell
       continue-on-error: true
 
     - name: Verify Qt installation
       run: |
-        Write-Host "Listing contents of C:/Qt..."
-        dir C:/Qt -Recurse
         Write-Host "Verifying Qt installation..."
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/uic.exe"
         $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
         if (-not (Test-Path $qmakePath)) {
-          Write-Host "Error: qmake.exe not found at $qmakePath"
-          dir C:/Qt/Qt/5.15.2 -Recurse
-          exit 1
+          Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
+          $qmakePath = (Get-ChildItem -Path C:/Qt -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $qmakePath) {
+            Write-Host "Error: qmake.exe not found in C:/Qt"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+          Write-Host "Found qmake.exe at $qmakePath"
         }
         if (-not (Test-Path $uicPath)) {
-          Write-Host "Error: uic.exe not found at $uicPath"
-          dir C:/Qt/Qt/5.15.2 -Recurse
-          exit 1
+          Write-Host "Error: uic.exe not found at $uicPath. Searching for uic.exe..."
+          $uicPath = (Get-ChildItem -Path C:/Qt -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $uicPath) {
+            Write-Host "Error: uic.exe not found in C:/Qt"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+          Write-Host "Found uic.exe at $uicPath"
         }
         if (-not (Test-Path $makePath)) {
-          Write-Host "Error: mingw32-make.exe not found at $makePath"
-          dir C:/Qt/Qt/5.15.2 -Recurse
-          exit 1
+          Write-Host "Error: mingw32-make.exe not found at $makePath. Searching for mingw32-make.exe..."
+          $makePath = (Get-ChildItem -Path C:/Qt -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $makePath) {
+            Write-Host "Error: mingw32-make.exe not found in C:/Qt"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+          Write-Host "Found mingw32-make.exe at $makePath"
         }
-        $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;" + $env:Path
+        $env:Path = [System.IO.Path]::GetDirectoryName($qmakePath) + ";" + $env:Path
         Write-Host "PATH: $env:Path"
         Write-Host "qmake path: $qmakePath"
         Write-Host "uic path: $uicPath"
@@ -261,9 +286,14 @@ jobs:
         Write-Host "Checking mainwindow.ui for validity and generating ui_mainwindow.h..."
         $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/uic.exe"
         if (-not (Test-Path $uicPath)) {
-          Write-Host "Error: uic.exe not found at $uicPath"
-          dir C:/Qt/Qt/5.15.2 -Recurse
-          exit 1
+          Write-Host "Error: uic.exe not found at $uicPath. Searching for uic.exe..."
+          $uicPath = (Get-ChildItem -Path C:/Qt -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $uicPath) {
+            Write-Host "Error: uic.exe not found in C:/Qt"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+          Write-Host "Found uic.exe at $uicPath"
         }
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
         & $uicPath ui/mainwindow.ui -o release/ui_mainwindow.h 2>&1 | Tee-Object -FilePath "uic_output.log"
@@ -288,7 +318,27 @@ jobs:
         cd Stealer-DeadCode
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
-        $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;" + $env:Path
+        if (-not (Test-Path $qmakePath)) {
+          Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
+          $qmakePath = (Get-ChildItem -Path C:/Qt -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $qmakePath) {
+            Write-Host "Error: qmake.exe not found in C:/Qt"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+          Write-Host "Found qmake.exe at $qmakePath"
+        }
+        if (-not (Test-Path $makePath)) {
+          Write-Host "Error: mingw32-make.exe not found at $makePath. Searching for mingw32-make.exe..."
+          $makePath = (Get-ChildItem -Path C:/Qt -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $makePath) {
+            Write-Host "Error: mingw32-make.exe not found in C:/Qt"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+          Write-Host "Found mingw32-make.exe at $makePath"
+        }
+        $env:Path = [System.IO.Path]::GetDirectoryName($qmakePath) + ";" + $env:Path
         $env:INCLUDE = "C:/vcpkg/installed/x64-windows-static/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-windows-static/lib;" + $env:LIB
         Write-Host "PATH: $env:Path"
