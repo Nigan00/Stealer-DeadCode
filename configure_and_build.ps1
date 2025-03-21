@@ -93,18 +93,11 @@ Write-Host "Рабочая директория после перехода в u
 Write-Host "qmake version:"
 & $qmakePath --version
 
-# Запуск qmake с отладочным режимом и кастомным mkspec
-Write-Host "Running qmake in debug mode to see compiler detection..."
-& $qmakePath -d -spec $customWin32GppDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_debug_output.log"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: qmake debug run failed"
-    if (Test-Path qmake_debug_output.log) {
-        Write-Host "Contents of qmake_debug_output.log:"
-        Get-Content qmake_debug_output.log
-    }
-}
+# Вывод содержимого DeadCode.pro
+Write-Host "Contents of DeadCode.pro:"
+Get-Content $proFile
 
-# Запуск qmake с кастомным mkspec
+# Запуск qmake с кастомным mkspec (без отладочного режима)
 Write-Host "Running qmake with custom mkspec..."
 & $qmakePath -spec $customWin32GppDir "QMAKE_CXX=$gppPath" "QMAKE_CC=$gccPath" $proFile 2>&1 | Tee-Object -FilePath "qmake_output.log"
 if ($LASTEXITCODE -ne 0) {
