@@ -35,6 +35,15 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Дополнительная проверка g++ с использованием пути, переданного в QMAKE_CXX
+Write-Host "Verifying g++ with the path specified in QMAKE_CXX..."
+$testGppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
+& $testGppPath --version
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: g++ at $testGppPath is not accessible"
+    exit 1
+}
+
 # Проверка mkspec, используемого qmake
 Write-Host "Default mkspec used by qmake:"
 & $qmakePath -query QMAKE_SPEC
@@ -50,6 +59,17 @@ Write-Host "Рабочая директория после перехода в u
 # Проверка версии qmake
 Write-Host "qmake version:"
 & $qmakePath --version
+
+# Запуск qmake с отладочным режимом
+Write-Host "Running qmake in debug mode to see compiler detection..."
+& $qmakePath -d -spec win32-g++ "QMAKE_CXX=C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe" "QMAKE_CC=C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe" $proFile 2>&1 | Tee-Object -FilePath "qmake_debug_output.log"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: qmake debug run failed"
+    if (Test-Path qmake_debug_output.log) {
+        Write-Host "Contents of qmake_debug_output.log:"
+        Get-Content qmake_debug_output.log
+    }
+}
 
 # Запуск qmake с явным указанием mkspec и QMAKE_CXX
 Write-Host "Running qmake with explicit mkspec..."
