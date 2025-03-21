@@ -35,15 +35,6 @@
 #include <thread>
 #include <memoryapi.h>
 #include <bcrypt.h>
-#pragma comment(lib, "bcrypt.lib")
-#pragma comment(lib, "ws2_32.lib")
-#pragma comment(lib, "gdiplus.lib")
-#pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "wininet.lib")
-#pragma comment(lib, "psapi.lib")
-#pragma comment(lib, "shlwapi.lib")
-#pragma comment(lib, "crypt32.lib")
-#pragma comment(lib, "urlmon.lib")
 
 #include "../ui/ui_mainwindow.h"
 #include "build_key.h"

