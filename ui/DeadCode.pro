@@ -20,7 +20,7 @@ HEADERS += \
 
 # Файлы интерфейса (.ui)
 FORMS += \
-    $$PWD/mainwindow.ui
+    $$PWD/ui/mainwindow.ui
 
 # Ресурсы (иконка)
 RC_ICONS = $$PWD/../icon.ico
@@ -29,7 +29,9 @@ RC_ICONS = $$PWD/../icon.ico
 INCLUDEPATH += \
     $$PWD/../src \
     $$PWD \
-    C:/vcpkg/installed/x64-windows-static/include
+    $$PWD/ui \
+    C:/vcpkg/installed/x64-windows-static/include \
+    $$PWD/../release
 
 # Библиотеки (vcpkg и системные Windows-библиотеки)
 LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \

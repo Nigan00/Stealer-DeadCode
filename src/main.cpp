@@ -36,7 +36,7 @@
 #include <memoryapi.h>
 #include <bcrypt.h>
 
-#include "../ui/ui_mainwindow.h"
+#include "ui_mainwindow.h" // Используем INCLUDEPATH для поиска в ../release
 #include "build_key.h"
 #include "polymorphic_code.h"
 #include "junk_code.h"

