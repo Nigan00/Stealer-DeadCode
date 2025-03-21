@@ -25,13 +25,19 @@ jobs:
         arch: 'win64_mingw81'
         dir: 'C:/Qt'
         install-deps: 'true'
-        cache: 'true'
+        cache: 'false' # Отключаем кэширование, чтобы исключить проблемы с поврежденным кэшем
         cache-key-prefix: 'qt-5.15.2-win64_mingw81'
+        setup-python: 'true' # Убедимся, что Python настроен для aqtinstall
+        aqtversion: '==3.1.*' # Указываем версию aqtinstall
+        modules: 'qtbase qttools' # Указываем минимально необходимые модули
       env:
         AQTINSTALL_DEBUG: true
+      continue-on-error: true # Продолжаем выполнение, чтобы увидеть логи
 
     - name: Verify Qt installation
       run: |
+        Write-Host "Listing contents of C:/Qt..."
+        dir C:/Qt -Recurse
         Write-Host "Verifying Qt installation..."
         $qmakePath = (Get-ChildItem -Path C:/Qt/5.15.2 -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
         if (-not $qmakePath) {
