@@ -106,25 +106,6 @@ jobs:
         Write-Host "MinGW installation completed and verified"
       shell: powershell
 
-    - name: Install MinGW-w64 manually
-      run: |
-        Write-Host "Downloading MinGW-w64..."
-        $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/8.1.0-rt_v6-rev0/x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z"
-        $mingwArchive = "C:/mingw-w64.7z"
-        Invoke-WebRequest -Uri $mingwUrl -OutFile $mingwArchive
-        Write-Host "Extracting MinGW-w64..."
-        7z x $mingwArchive -oC:/ -y
-        Write-Host "Copying MinGW-w64 binaries to Qt bin directory..."
-        Copy-Item -Path "C:/mingw64/bin/*" -Destination "C:/Qt/Qt/5.15.2/mingw81_64/bin/" -Force
-        Write-Host "Verifying MinGW-w64 installation..."
-        if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe")) {
-          Write-Host "Error: g++.exe not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-          dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-          exit 1
-        }
-        Write-Host "MinGW-w64 installation completed"
-      shell: powershell
-
     - name: Debug Qt installation
       run: |
         Write-Host "Listing contents of C:/Qt..."
