@@ -12,6 +12,18 @@ foreach ($dll in $requiredDlls) {
     }
 }
 
+# Проверка утилит MinGW
+Write-Host "Checking MinGW utilities..."
+$requiredUtils = @("gcc.exe", "as.exe", "ld.exe", "ar.exe")
+foreach ($util in $requiredUtils) {
+    if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/$util")) {
+        Write-Host "Error: $util not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+        exit 1
+    } else {
+        Write-Host "$util found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+    }
+}
+
 # Установка путей
 $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
 $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
@@ -97,19 +109,18 @@ Write-Host "qmake version:"
 Write-Host "Contents of DeadCode.pro:"
 Get-Content $proFile
 
-# Создаём временную директорию для qmake
-$tempDir = "D:\a\Stealer-DeadCode\Stealer-DeadCode\Stealer-DeadCode\temp"
-if (-not (Test-Path $tempDir)) {
-    New-Item -ItemType Directory -Path $tempDir -Force
-}
-Write-Host "Temporary directory for qmake: $tempDir"
-$env:TEMP = $tempDir
-$env:TMP = $tempDir
+# Проверка текущих значений TEMP и TMP
+Write-Host "Current TEMP: $env:TEMP"
+Write-Host "Current TMP: $env:TMP"
 
-# Тестовая компиляция для отладки
+# Тестовая компиляция для отладки (без изменения TEMP/TMP)
 Write-Host "Running a test compilation to verify g++..."
-$testCppFile = "$tempDir/test.cpp"
-$testExeFile = "$tempDir/test.exe"
+$testDir = "test_temp"
+if (-not (Test-Path $testDir)) {
+    New-Item -ItemType Directory -Path $testDir -Force
+}
+$testCppFile = "$testDir/test.cpp"
+$testExeFile = "$testDir/test.exe"
 Set-Content -Path $testCppFile -Value @"
 #include <iostream>
 int main() {
