@@ -67,45 +67,6 @@ jobs:
       env:
         AQTINSTALL_DEBUG: true
 
-    - name: Install MinGW manually
-      run: |
-        Write-Host "Installing MinGW manually..."
-        if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe")) {
-          Write-Host "mingw32-make.exe not found, installing MinGW..."
-          Write-Host "Listing available MinGW tools..."
-          python -m aqt list-tool windows desktop tools_mingw
-          $mingwVariant = "qt.tools.win64_mingw810"
-          $mingwDir = "mingw810_64"
-          Write-Host "Installing MinGW variant: $mingwVariant..."
-          python -m aqt install-tool -O C:/Qt windows desktop tools_mingw $mingwVariant
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install MinGW with aqtinstall"
-            exit 1
-          }
-          Write-Host "Listing contents of C:/Qt/Tools/$mingwDir/bin/..."
-          dir "C:/Qt/Tools/$mingwDir/bin/"
-          if (-not (Test-Path "C:/Qt/Tools/$mingwDir/bin/g++.exe")) {
-            Write-Host "Error: g++.exe not found in C:/Qt/Tools/$mingwDir/bin/"
-            exit 1
-          }
-          Write-Host "Copying MinGW binaries to Qt bin directory..."
-          Copy-Item -Path "C:/Qt/Tools/$mingwDir/bin/*" -Destination "C:/Qt/Qt/5.15.2/mingw81_64/bin/" -Force
-          if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe")) {
-            Write-Host "Error: g++.exe not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/ after copying"
-            dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-            exit 1
-          }
-        } else {
-          Write-Host "mingw32-make.exe already exists, checking for g++..."
-          if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe")) {
-            Write-Host "Error: g++.exe not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-            dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-            exit 1
-          }
-        }
-        Write-Host "MinGW installation completed and verified"
-      shell: powershell
-
     - name: Install MinGW via Chocolatey
       run: |
         Write-Host "Installing Chocolatey..."
@@ -120,8 +81,14 @@ jobs:
           exit 1
         }
         
+        Write-Host "Refreshing environment variables..."
+        refreshenv
+        
+        Write-Host "Listing contents of MinGW directory..."
+        dir "C:\ProgramData\mingw64\mingw64\bin"
+        
         Write-Host "Adding MinGW to PATH..."
-        $mingwPath = "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin"
+        $mingwPath = "C:\ProgramData\mingw64\mingw64\bin"
         if (-not (Test-Path $mingwPath)) {
           Write-Host "Error: MinGW not found at $mingwPath"
           exit 1

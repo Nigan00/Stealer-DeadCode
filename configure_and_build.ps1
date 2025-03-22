@@ -3,12 +3,21 @@
 # Проверка зависимостей g++
 Write-Host "Checking g++ dependencies..."
 $requiredDlls = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
+$mingwBinPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin"
 foreach ($dll in $requiredDlls) {
-    if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/$dll")) {
-        Write-Host "Error: $dll not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-        exit 1
+    if (-not (Test-Path "$mingwBinPath/$dll")) {
+        Write-Host "Error: $dll not found in $mingwBinPath/"
+        # Attempt to find the DLL in the original MinGW installation path
+        $fallbackPath = "C:/ProgramData/mingw64/mingw64/bin/$dll"
+        if (Test-Path $fallbackPath) {
+            Write-Host "Found $dll at $fallbackPath, copying to $mingwBinPath/"
+            Copy-Item -Path $fallbackPath -Destination $mingwBinPath -Force
+        } else {
+            Write-Host "Error: $dll not found in fallback path $fallbackPath"
+            exit 1
+        }
     } else {
-        Write-Host "$dll found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+        Write-Host "$dll found in $mingwBinPath/"
     }
 }
 
@@ -16,11 +25,19 @@ foreach ($dll in $requiredDlls) {
 Write-Host "Checking MinGW utilities..."
 $requiredUtils = @("gcc.exe", "as.exe", "ld.exe", "ar.exe", "cpp.exe", "nm.exe", "strip.exe")
 foreach ($util in $requiredUtils) {
-    if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/$util")) {
-        Write-Host "Error: $util not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-        exit 1
+    if (-not (Test-Path "$mingwBinPath/$util")) {
+        Write-Host "Error: $util not found in $mingwBinPath/"
+        # Attempt to find the utility in the original MinGW installation path
+        $fallbackPath = "C:/ProgramData/mingw64/mingw64/bin/$util"
+        if (Test-Path $fallbackPath) {
+            Write-Host "Found $util at $fallbackPath, copying to $mingwBinPath/"
+            Copy-Item -Path $fallbackPath -Destination $mingwBinPath -Force
+        } else {
+            Write-Host "Error: $util not found in fallback path $fallbackPath"
+            exit 1
+        }
     } else {
-        Write-Host "$util found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+        Write-Host "$util found in $mingwBinPath/"
     }
 }
 
@@ -31,26 +48,36 @@ $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
 $gccPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe"
 $proFile = "DeadCode.pro"
 
+# Проверка наличия qmake и mingw32-make
+if (-not (Test-Path $qmakePath)) {
+    Write-Host "Error: qmake.exe not found at $qmakePath"
+    exit 1
+}
+if (-not (Test-Path $makePath)) {
+    Write-Host "Error: mingw32-make.exe not found at $makePath"
+    exit 1
+}
+
 # Проверка текущей директории
 Write-Host "Текущая директория после перехода в корень проекта: $(Get-Location)"
 Write-Host "Содержимое корневой директории:"
 Get-ChildItem -Path . | ForEach-Object { Write-Host $_.Name }
 
 # Проверка PATH
-$env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;" + $env:Path
+$env:Path = "$mingwBinPath;" + $env:Path
 Write-Host "PATH: $env:Path"
 
 # Проверка доступности g++
 Write-Host "Verifying g++ is accessible..."
 & $gppPath --version
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: g++ is not accessible"
+    Write-Host "Error: g++ is not accessible at $gppPath"
     exit 1
 }
 
 # Дополнительная проверка g++ с использованием пути, переданного в QMAKE_CXX
 Write-Host "Verifying g++ with the path specified in QMAKE_CXX..."
-$testGppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
+$testGppPath = $gppPath
 & $testGppPath --version
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: g++ at $testGppPath is not accessible"
@@ -65,24 +92,39 @@ $customCommonDir = "$customMkspecDir/common"
 
 # Создаём директории для кастомного mkspec
 if (-not (Test-Path $customWin32GppDir)) {
-    New-Item -ItemType Directory -Path $customWin32GppDir -Force
+    New-Item -ItemType Directory -Path $customWin32GppDir -Force | Out-Null
 }
 if (-not (Test-Path $customCommonDir)) {
-    New-Item -ItemType Directory -Path $customCommonDir -Force
+    New-Item -ItemType Directory -Path $customCommonDir -Force | Out-Null
 }
 
 # Копируем win32-g++ и common
-Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/*" -Destination $customWin32GppDir -Recurse -Force
-Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/common/*" -Destination $customCommonDir -Recurse -Force
+try {
+    Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/*" -Destination $customWin32GppDir -Recurse -Force -ErrorAction Stop
+    Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/common/*" -Destination $customCommonDir -Recurse -Force -ErrorAction Stop
+} catch {
+    Write-Host "Error: Failed to copy mkspec files. Error: $($_.Exception.Message)"
+    exit 1
+}
 
 # Модификация qmake.conf в кастомном mkspec
 $qmakeConfPath = "$customWin32GppDir/qmake.conf"
-$qmakeConfContent = Get-Content $qmakeConfPath -Raw
-$qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CXX\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_CXX = $gppPath"
-$qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CC\s*=\s*\$\${CROSS_COMPILE}gcc', "QMAKE_CC = $gccPath"
-$qmakeConfContent = $qmakeConfContent -replace 'QMAKE_LINK\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_LINK = $gppPath"
-$qmakeConfContent = $qmakeConfContent -replace 'QMAKE_LINK_C\s*=\s*\$\${CROSS_COMPILE}gcc', "QMAKE_LINK_C = $gccPath"
-Set-Content -Path $qmakeConfPath -Value $qmakeConfContent
+if (-not (Test-Path $qmakeConfPath)) {
+    Write-Host "Error: qmake.conf not found at $qmakeConfPath after copying"
+    exit 1
+}
+
+try {
+    $qmakeConfContent = Get-Content $qmakeConfPath -Raw -ErrorAction Stop
+    $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CXX\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_CXX = $gppPath"
+    $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_CC\s*=\s*\$\${CROSS_COMPILE}gcc', "QMAKE_CC = $gccPath"
+    $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_LINK\s*=\s*\$\${CROSS_COMPILE}g\+\+', "QMAKE_LINK = $gppPath"
+    $qmakeConfContent = $qmakeConfContent -replace 'QMAKE_LINK_C\s*=\s*\$\${CROSS_COMPILE}gcc', "QMAKE_LINK_C = $gccPath"
+    Set-Content -Path $qmakeConfPath -Value $qmakeConfContent -ErrorAction Stop
+} catch {
+    Write-Host "Error: Failed to modify qmake.conf. Error: $($_.Exception.Message)"
+    exit 1
+}
 Write-Host "Custom mkspec created at $customWin32GppDir"
 
 # Вывод содержимого qmake.conf для отладки
@@ -98,8 +140,18 @@ Write-Host "Checking where qmake looks for g++..."
 & $qmakePath -query QMAKE_CXX
 
 # Переход в директорию ui
+if (-not (Test-Path "ui")) {
+    Write-Host "Error: ui directory not found in $(Get-Location)"
+    exit 1
+}
 Set-Location -Path "ui"
 Write-Host "Рабочая директория после перехода в ui: $(Get-Location)"
+
+# Проверка наличия DeadCode.pro
+if (-not (Test-Path $proFile)) {
+    Write-Host "Error: $proFile not found in $(Get-Location)"
+    exit 1
+}
 
 # Проверка версии qmake
 Write-Host "qmake version:"
@@ -117,7 +169,7 @@ Write-Host "Current TMP: $env:TMP"
 Write-Host "Running a test compilation to verify g++ with verbose output..."
 $testDir = "test_temp"
 if (-not (Test-Path $testDir)) {
-    New-Item -ItemType Directory -Path $testDir -Force
+    New-Item -ItemType Directory -Path $testDir -Force | Out-Null
 }
 $testCppFile = "$testDir/test.cpp"
 $testExeFile = "$testDir/test.exe"
@@ -143,7 +195,19 @@ if ($LASTEXITCODE -ne 0) {
     }
     exit 1
 }
-Write-Host "Test compilation successful"
+
+# Проверка, что тестовый исполняемый файл был создан и может быть запущен
+if (-not (Test-Path $testExeFile)) {
+    Write-Host "Error: Test executable $testExeFile was not created"
+    exit 1
+}
+Write-Host "Running test executable..."
+& $testExeFile
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: Test executable failed to run"
+    exit 1
+}
+Write-Host "Test compilation and execution successful"
 
 # Запуск qmake с кастомным mkspec
 Write-Host "Running qmake with custom mkspec..."
