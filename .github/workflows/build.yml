@@ -109,50 +109,71 @@ jobs:
     - name: Install MinGW-w64 manually
       run: |
         Write-Host "Downloading MinGW-w64..."
-        $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/8.1.0-rt_v6-rev0/x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z"
-        $mingwUrlFallback = "https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/8.1.0/threads-posix/seh/x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z/download"
+        $mingwUrl = "https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/8.1.0/threads-posix/seh/x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z/download"
         $mingwArchive = "C:/mingw-w64.7z"
         $maxRetries = 3
         $retryCount = 0
         $success = $false
 
-        # Проверка доступности основного URL
-        Write-Host "Checking if primary URL is accessible..."
-        try {
-          $response = Invoke-WebRequest -Uri $mingwUrl -Method Head -UseBasicParsing
-          Write-Host "Primary URL is accessible. Status code: $($response.StatusCode)"
-        } catch {
-          Write-Host "Warning: Unable to access primary URL. Status: $($_.Exception.Message)"
-          Write-Host "Switching to fallback URL: $mingwUrlFallback"
-          $mingwUrl = $mingwUrlFallback
-        }
-
-        # Попытка загрузки с основного или запасного URL
-        Write-Host "Attempting download from $mingwUrl..."
+        # Попытка загрузки с curl.exe (основной метод для SourceForge)
+        Write-Host "Attempting download from $mingwUrl using curl.exe..."
         for ($retryCount = 0; $retryCount -lt $maxRetries; $retryCount++) {
-          Write-Host "Attempt $($retryCount + 1) of $maxRetries to download with Invoke-WebRequest..."
-          try {
-            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -Uri $mingwUrl -OutFile $mingwArchive -UseBasicParsing
-            if (Test-Path $mingwArchive) {
-              $success = $true
-              break
-            }
-          } catch {
-            Write-Host "Download failed: $($_.Exception.Message)"
-            if ($retryCount -eq ($maxRetries - 1)) {
-              Write-Host "Falling back to curl.exe..."
-              for ($curlRetry = 0; $curlRetry -lt $maxRetries; $curlRetry++) {
-                Write-Host "Attempt $($curlRetry + 1) of $maxRetries to download with curl.exe..."
-                curl.exe -L $mingwUrl -o $mingwArchive
-                if ($LASTEXITCODE -eq 0 -and (Test-Path $mingwArchive)) {
-                  $success = $true
-                  break
-                }
-                Write-Host "Download failed. Retrying in 5 seconds..."
-                Start-Sleep -Seconds 5
+          Write-Host "Attempt $($retryCount + 1) of $maxRetries to download with curl.exe..."
+          curl.exe -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3" $mingwUrl -o $mingwArchive
+          if ($LASTEXITCODE -eq 0 -and (Test-Path $mingwArchive)) {
+            # Проверка размера файла (должен быть больше 10 МБ, так как архив ~40-50 МБ)
+            $fileSize = (Get-Item $mingwArchive).Length
+            Write-Host "Downloaded file size: $fileSize bytes"
+            if ($fileSize -gt 10MB) {
+              # Проверка, является ли файл архивом
+              $firstBytes = Get-Content $mingwArchive -Encoding Byte -TotalCount 2
+              if ($firstBytes[0] -eq 0x37 -and $firstBytes[1] -eq 0x7A) { # Первые два байта 7z архива: 37 7A
+                $success = $true
+                break
+              } else {
+                Write-Host "Downloaded file is not a 7z archive (magic bytes do not match)"
+                Remove-Item $mingwArchive -Force
               }
             } else {
+              Write-Host "Downloaded file is too small ($fileSize bytes), expected at least 10MB"
+              Remove-Item $mingwArchive -Force
+            }
+          }
+          Write-Host "Download failed. Retrying in 5 seconds..."
+          Start-Sleep -Seconds 5
+        }
+
+        if (-not $success) {
+          Write-Host "Falling back to Invoke-WebRequest..."
+          for ($retryCount = 0; $retryCount -lt $maxRetries; $retryCount++) {
+            Write-Host "Attempt $($retryCount + 1) of $maxRetries to download with Invoke-WebRequest..."
+            try {
+              [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+              $headers = @{"User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"}
+              Invoke-WebRequest -Uri $mingwUrl -OutFile $mingwArchive -Headers $headers -UseBasicParsing -MaximumRedirection 10
+              if (Test-Path $mingwArchive) {
+                $fileSize = (Get-Item $mingwArchive).Length
+                Write-Host "Downloaded file size: $fileSize bytes"
+                if ($fileSize -gt 10MB) {
+                  $firstBytes = Get-Content $mingwArchive -Encoding Byte -TotalCount 2
+                  if ($firstBytes[0] -eq 0x37 -and $firstBytes[1] -eq 0x7A) {
+                    $success = $true
+                    break
+                  } else {
+                    Write-Host "Downloaded file is not a 7z archive (magic bytes do not match)"
+                    Remove-Item $mingwArchive -Force
+                  }
+                } else {
+                  Write-Host "Downloaded file is too small ($fileSize bytes), expected at least 10MB"
+                  Remove-Item $mingwArchive -Force
+                }
+              }
+            } catch {
+              Write-Host "Download failed: $($_.Exception.Message)"
+              if ($retryCount -eq ($maxRetries - 1)) {
+                Write-Host "Error: Failed to download MinGW-w64 after $maxRetries attempts with both curl.exe and Invoke-WebRequest"
+                exit 1
+              }
               Write-Host "Retrying in 5 seconds..."
               Start-Sleep -Seconds 5
             }
@@ -160,7 +181,7 @@ jobs:
         }
 
         if (-not $success) {
-          Write-Host "Error: Failed to download MinGW-w64 after $maxRetries attempts with both Invoke-WebRequest and curl.exe"
+          Write-Host "Error: Failed to download a valid MinGW-w64 archive after $maxRetries attempts"
           exit 1
         }
 
