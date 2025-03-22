@@ -110,12 +110,70 @@ jobs:
       run: |
         Write-Host "Downloading MinGW-w64..."
         $mingwUrl = "https://github.com/niXman/mingw-builds-binaries/releases/download/8.1.0-rt_v6-rev0/x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z"
+        $mingwUrlFallback = "https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/8.1.0/threads-posix/seh/x86_64-8.1.0-release-posix-seh-rt_v6-rev0.7z/download"
         $mingwArchive = "C:/mingw-w64.7z"
-        Invoke-WebRequest -Uri $mingwUrl -OutFile $mingwArchive
+        $maxRetries = 3
+        $retryCount = 0
+        $success = $false
+
+        # Проверка доступности основного URL
+        Write-Host "Checking if primary URL is accessible..."
+        try {
+          $response = Invoke-WebRequest -Uri $mingwUrl -Method Head -UseBasicParsing
+          Write-Host "Primary URL is accessible. Status code: $($response.StatusCode)"
+        } catch {
+          Write-Host "Warning: Unable to access primary URL. Status: $($_.Exception.Message)"
+          Write-Host "Switching to fallback URL: $mingwUrlFallback"
+          $mingwUrl = $mingwUrlFallback
+        }
+
+        # Попытка загрузки с основного или запасного URL
+        Write-Host "Attempting download from $mingwUrl..."
+        for ($retryCount = 0; $retryCount -lt $maxRetries; $retryCount++) {
+          Write-Host "Attempt $($retryCount + 1) of $maxRetries to download with Invoke-WebRequest..."
+          try {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $mingwUrl -OutFile $mingwArchive -UseBasicParsing
+            if (Test-Path $mingwArchive) {
+              $success = $true
+              break
+            }
+          } catch {
+            Write-Host "Download failed: $($_.Exception.Message)"
+            if ($retryCount -eq ($maxRetries - 1)) {
+              Write-Host "Falling back to curl.exe..."
+              for ($curlRetry = 0; $curlRetry -lt $maxRetries; $curlRetry++) {
+                Write-Host "Attempt $($curlRetry + 1) of $maxRetries to download with curl.exe..."
+                curl.exe -L $mingwUrl -o $mingwArchive
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $mingwArchive)) {
+                  $success = $true
+                  break
+                }
+                Write-Host "Download failed. Retrying in 5 seconds..."
+                Start-Sleep -Seconds 5
+              }
+            } else {
+              Write-Host "Retrying in 5 seconds..."
+              Start-Sleep -Seconds 5
+            }
+          }
+        }
+
+        if (-not $success) {
+          Write-Host "Error: Failed to download MinGW-w64 after $maxRetries attempts with both Invoke-WebRequest and curl.exe"
+          exit 1
+        }
+
         Write-Host "Extracting MinGW-w64..."
         7z x $mingwArchive -oC:/ -y
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to extract MinGW-w64 archive"
+          exit 1
+        }
+
         Write-Host "Copying MinGW-w64 binaries to Qt bin directory..."
         Copy-Item -Path "C:/mingw64/bin/*" -Destination "C:/Qt/Qt/5.15.2/mingw81_64/bin/" -Force
+
         Write-Host "Verifying MinGW-w64 installation..."
         if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe")) {
           Write-Host "Error: g++.exe not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
