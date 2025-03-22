@@ -7,28 +7,7 @@
 #include <algorithm>
 #include <chrono>
 #include <thread>
-
-// Функция для генерации случайного числа
-inline int getRandomNumber(int min, int max) {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(min, max);
-    return dis(gen);
-}
-
-// Генерация случайной строки
-inline std::string generateRandomString(size_t length) {
-    static const char alphanum[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
-    std::string result;
-    result.reserve(length);
-    for (size_t i = 0; i < length; ++i) {
-        result += alphanum[getRandomNumber(0, sizeof(alphanum) - 2)];
-    }
-    return result;
-}
+#include "polymorphic_code.h" // Добавляем включение polymorphic_code.h
 
 namespace JunkCode {
 

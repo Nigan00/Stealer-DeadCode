@@ -35,8 +35,8 @@ inline std::string generateRandomFuncName() {
     static const char* prefixes[] = {"polyFunc", "obfFunc", "cryptFunc", "hideFunc", "maskFunc"};
     std::stringstream ss;
     ss << prefixes[getRandomNumber(0, 4)] << "_"
-       << getRandomNumber(10000, 99999) << "_"
- потуж:       << getRandomNumber(10000, 99999);
+       << getRandomNumber(10000, 99999) << "_"; // Исправлено: добавлена точка с запятой
+    ss << getRandomNumber(10000, 99999); // Исправлено: удалён некорректный текст
     return ss.str();
 }
 
