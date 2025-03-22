@@ -240,7 +240,7 @@ jobs:
         & $vcpkgExe --version
         Write-Host "Downloading bzip2 archive manually..."
         mkdir -p C:/vcpkg/downloads
-        curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o C:/vcpkg/downloads/bzip2-1.0.8.tar.gz
+        curl.exe -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o C:/vcpkg/downloads/bzip2-1.0.8.tar.gz
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to download bzip2-1.0.8.tar.gz"
           exit 1
