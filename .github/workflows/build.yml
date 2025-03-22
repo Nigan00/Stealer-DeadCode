@@ -224,11 +224,6 @@ jobs:
           Write-Host "Cloning vcpkg..."
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
         }
-        Write-Host "Updating vcpkg to the latest version..."
-        cd C:/vcpkg
-        git checkout master
-        git pull origin master
-        cd ../
         Write-Host "Running bootstrap-vcpkg..."
         & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
         if ($LASTEXITCODE -ne 0) {
@@ -243,6 +238,13 @@ jobs:
         $env:Path = "C:/vcpkg;" + $env:Path
         Write-Host "vcpkg version after bootstrap:"
         & $vcpkgExe --version
+        Write-Host "Downloading bzip2 archive manually..."
+        mkdir -p C:/vcpkg/downloads
+        curl -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o C:/vcpkg/downloads/bzip2-1.0.8.tar.gz
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to download bzip2-1.0.8.tar.gz"
+          exit 1
+        }
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
         & $vcpkgExe install sqlite3 libzip zlib bzip2 curl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
@@ -456,6 +458,7 @@ jobs:
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
           Stealer-DeadCode/uic_output.log
+          Stealer-DeadCode/test_compile.log
         if-no-files-found: warn
 
     - name: Upload artifact
