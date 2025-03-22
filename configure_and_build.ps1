@@ -14,7 +14,7 @@ foreach ($dll in $requiredDlls) {
 
 # Проверка утилит MinGW
 Write-Host "Checking MinGW utilities..."
-$requiredUtils = @("gcc.exe", "as.exe", "ld.exe", "ar.exe")
+$requiredUtils = @("gcc.exe", "as.exe", "ld.exe", "ar.exe", "cpp.exe", "nm.exe", "strip.exe")
 foreach ($util in $requiredUtils) {
     if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/$util")) {
         Write-Host "Error: $util not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
@@ -113,8 +113,8 @@ Get-Content $proFile
 Write-Host "Current TEMP: $env:TEMP"
 Write-Host "Current TMP: $env:TMP"
 
-# Тестовая компиляция для отладки (без изменения TEMP/TMP)
-Write-Host "Running a test compilation to verify g++..."
+# Тестовая компиляция для отладки с verbose output
+Write-Host "Running a test compilation to verify g++ with verbose output..."
 $testDir = "test_temp"
 if (-not (Test-Path $testDir)) {
     New-Item -ItemType Directory -Path $testDir -Force
@@ -128,8 +128,13 @@ int main() {
     return 0;
 }
 "@
+Write-Host "Running g++ with verbose output..."
+& $gppPath -v 2>&1 | Tee-Object -FilePath "gpp_verbose.log"
+Write-Host "Contents of gpp_verbose.log:"
+Get-Content "gpp_verbose.log"
+
 Write-Host "Compiling $testCppFile..."
-& $gppPath -o $testExeFile $testCppFile 2>&1 | Tee-Object -FilePath "test_compile.log"
+& $gppPath -v -o $testExeFile $testCppFile 2>&1 | Tee-Object -FilePath "test_compile.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: Test compilation failed"
     if (Test-Path "test_compile.log") {
