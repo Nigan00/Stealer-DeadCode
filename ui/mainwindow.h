@@ -57,9 +57,11 @@ public:
     MainWindow(QWidget *parent = nullptr);  // Конструктор главного окна
     ~MainWindow();                         // Деструктор для очистки ресурсов
 
+    // Публичные методы
     std::string generateUniqueXorKey();         // Генерация уникального XOR-ключа
     std::array<unsigned char, 16> GetEncryptionKey(bool useFirstKey); // Получение ключа шифрования
     bool isRunningInVM();                  // Проверка на виртуальную машину
+    void emitLog(const QString& message);  // Удобный метод для вызова сигнала logUpdated (перенесено из private)
 
     // Структура для хранения настроек
     struct Config {
@@ -187,7 +189,7 @@ private slots:
     void exportLogs();                     // Экспорт логов в файл
     void exitApp();                        // Выход из приложения
     void showAbout();                      // Отображение информации о программе
-    void appendLog(const QString& message);  // Добавление сообщения в лог
+    void appendLog(const QString& message);  // Добавление сообщения в лог (остается приватным)
 
     // Слоты для дополнительных функций
     bool AntiAnalysis();                    // Проверка на запуск в виртуальной машине
@@ -211,7 +213,6 @@ private:
     QByteArray applyXOR(const QByteArray& data, const std::array<unsigned char, 16>& key); // Применение XOR-шифрования
     QByteArray applyAES(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv); // Применение AES-шифрования
     std::array<unsigned char, 16> generateIV(); // Генерация инициализационного вектора для AES
-    void emitLog(const QString& message);  // Удобный метод для вызова сигнала logUpdated
 
     // Приватные члены
     Ui::MainWindow *ui;                    // Указатель на UI, сгенерированный Qt Designer
