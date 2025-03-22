@@ -61,7 +61,10 @@ public:
     std::string generateUniqueXorKey();         // Генерация уникального XOR-ключа
     std::array<unsigned char, 16> GetEncryptionKey(bool useFirstKey); // Получение ключа шифрования
     bool isRunningInVM();                  // Проверка на виртуальную машину
-    void emitLog(const QString& message);  // Удобный метод для вызова сигнала logUpdated (перенесено из private)
+    void emitLog(const QString& message);  // Удобный метод для вызова сигнала logUpdated
+
+    // Метод для обновления config на основе значений из интерфейса
+    void updateConfigFromUI();
 
     // Структура для хранения настроек
     struct Config {

