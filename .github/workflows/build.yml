@@ -103,13 +103,19 @@ jobs:
           exit 1
         }
         
-        Write-Host "Copying MinGW binaries to Qt bin directory..."
-        Copy-Item -Path "$mingwPath/*" -Destination "C:/Qt/Qt/5.15.2/mingw81_64/bin/" -Force
+        Write-Host "Copying entire MinGW directory to Qt directory..."
+        $mingwSource = "C:\ProgramData\mingw64\mingw64"
+        $mingwDest = "C:/Qt/Qt/5.15.2/mingw81_64"
+        if (-not (Test-Path $mingwSource)) {
+          Write-Host "Error: MinGW source directory $mingwSource not found"
+          exit 1
+        }
+        Copy-Item -Path "$mingwSource/*" -Destination $mingwDest -Recurse -Force
         
         Write-Host "Verifying g++ in Qt bin directory..."
-        if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe")) {
-          Write-Host "Error: g++.exe not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-          dir "C:/Qt/Qt/5.15.2/mingw81_64/bin/"
+        if (-not (Test-Path "$mingwDest/bin/g++.exe")) {
+          Write-Host "Error: g++.exe not found in $mingwDest/bin/"
+          dir "$mingwDest/bin/"
           exit 1
         }
         Write-Host "MinGW installation via Chocolatey completed"
@@ -156,7 +162,7 @@ jobs:
           Write-Host "Found uic.exe at $uicPath"
         }
         if (-not (Test-Path $makePath)) {
-          Write-Host "Error: mingw32-make.exe not found at $qmakePath. Searching for mingw32-make.exe..."
+          Write-Host "Error: mingw32-make.exe not found at $makePath. Searching for mingw32-make.exe..."
           $makePath = (Get-ChildItem -Path C:/Qt -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if (-not $makePath) {
             Write-Host "Error: mingw32-make.exe not found in C:/Qt"
@@ -199,6 +205,10 @@ jobs:
           Write-Host "Error: g++ --version failed"
           exit 1
         }
+        Write-Host "Determining MinGW version..."
+        $gppVersionOutput = & $gppPath --version | Select-Object -First 1
+        $gppVersion = $gppVersionOutput -replace ".* (\d+\.\d+\.\d+).*", '$1'
+        Write-Host "Detected MinGW version: $gppVersion"
         Write-Host "Checking for g++ dependencies..."
         $requiredDlls = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
         foreach ($dll in $requiredDlls) {
@@ -217,12 +227,19 @@ jobs:
           }
         }
         Write-Host "Checking for cc1plus.exe..."
-        $cc1plusPath = "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/8.1.0/cc1plus.exe"
+        $cc1plusPath = "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/cc1plus.exe"
         if (-not (Test-Path $cc1plusPath)) {
           Write-Host "Error: cc1plus.exe not found at $cc1plusPath"
-          Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/8.1.0/..."
-          dir "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/8.1.0/" -ErrorAction SilentlyContinue
-          exit 1
+          Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/..."
+          dir "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/" -ErrorAction SilentlyContinue
+          # Пытаемся найти cc1plus.exe в других местах
+          $cc1plusPath = (Get-ChildItem -Path "C:/Qt" -Filter cc1plus.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $cc1plusPath) {
+            Write-Host "Error: cc1plus.exe not found in C:/Qt"
+            dir "C:/Qt/Qt/5.15.2/mingw81_64/libexec" -Recurse
+            exit 1
+          }
+          Write-Host "Found cc1plus.exe at $cc1plusPath"
         } else {
           Write-Host "cc1plus.exe found at $cc1plusPath"
         }

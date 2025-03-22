@@ -7,7 +7,7 @@ $mingwBinPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin"
 foreach ($dll in $requiredDlls) {
     if (-not (Test-Path "$mingwBinPath/$dll")) {
         Write-Host "Error: $dll not found in $mingwBinPath/"
-        # Attempt to find the DLL in the original MinGW installation path
+        # Пытаемся найти DLL в исходной директории MinGW
         $fallbackPath = "C:/ProgramData/mingw64/mingw64/bin/$dll"
         if (Test-Path $fallbackPath) {
             Write-Host "Found $dll at $fallbackPath, copying to $mingwBinPath/"
@@ -27,7 +27,7 @@ $requiredUtils = @("gcc.exe", "as.exe", "ld.exe", "ar.exe", "cpp.exe", "nm.exe",
 foreach ($util in $requiredUtils) {
     if (-not (Test-Path "$mingwBinPath/$util")) {
         Write-Host "Error: $util not found in $mingwBinPath/"
-        # Attempt to find the utility in the original MinGW installation path
+        # Пытаемся найти утилиту в исходной директории MinGW
         $fallbackPath = "C:/ProgramData/mingw64/mingw64/bin/$util"
         if (Test-Path $fallbackPath) {
             Write-Host "Found $util at $fallbackPath, copying to $mingwBinPath/"
@@ -73,6 +73,28 @@ Write-Host "Verifying g++ is accessible..."
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: g++ is not accessible at $gppPath"
     exit 1
+}
+
+# Определение версии MinGW
+Write-Host "Determining MinGW version..."
+$gppVersionOutput = & $gppPath --version | Select-Object -First 1
+$gppVersion = $gppVersionOutput -replace ".* (\d+\.\d+\.\d+).*", '$1'
+Write-Host "Detected MinGW version: $gppVersion"
+
+# Проверка наличия cc1plus.exe
+Write-Host "Checking for cc1plus.exe..."
+$cc1plusPath = "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/cc1plus.exe"
+if (-not (Test-Path $cc1plusPath)) {
+    Write-Host "Error: cc1plus.exe not found at $cc1plusPath"
+    $cc1plusPath = (Get-ChildItem -Path "C:/Qt" -Filter cc1plus.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+    if (-not $cc1plusPath) {
+        Write-Host "Error: cc1plus.exe not found in C:/Qt"
+        dir "C:/Qt/Qt/5.15.2/mingw81_64/libexec" -Recurse
+        exit 1
+    }
+    Write-Host "Found cc1plus.exe at $cc1plusPath"
+} else {
+    Write-Host "cc1plus.exe found at $cc1plusPath"
 }
 
 # Дополнительная проверка g++ с использованием пути, переданного в QMAKE_CXX
