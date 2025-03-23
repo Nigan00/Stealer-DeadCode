@@ -51,7 +51,11 @@ LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lshlwapi \
         -lcrypt32 \
         -lgdi32 \
-        -luser32
+        -luser32 \
+        -ladvapi32 \
+        -lwininet \
+        -lshell32 \
+        -lurlmon
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
@@ -64,7 +68,9 @@ QMAKE_CXXFLAGS += -O2 \
                   -D_UNICODE \
                   -DWIN32 \
                   -DQT_NO_DEBUG \
-                  -D_CRT_SECURE_NO_WARNINGS
+                  -D_CRT_SECURE_NO_WARNINGS \
+                  -Wno-deprecated-declarations \
+                  -Wno-cast-function-type
 
 # Флаги линковки
 QMAKE_LFLAGS += -static \
@@ -102,6 +108,7 @@ win32 {
     CONFIG(debug, debug|release) {
         # Для отладочной сборки
         QMAKE_CXXFLAGS += -g
+        QMAKE_LFLAGS -= -O2
     } else {
         # Для релизной сборки
         QMAKE_CXXFLAGS += -O2
