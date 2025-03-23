@@ -1,80 +1,76 @@
 #ifndef POLYMORPHIC_CODE_H
 #define POLYMORPHIC_CODE_H
 
-#include <random>
 #include <string>
-#include <sstream>
-#include <iomanip>
-#include <chrono>
-#include <thread>
-#include <mutex>
+#include <vector>
+#include "build_key.h" // Включаем build_key.h для использования RandomGenerator
 
-// Потокобезопасный генератор случайных чисел
-class RandomGenerator {
-public:
-    static std::mt19937& getGenerator() {
-        static std::mutex mtx;
-        std::lock_guard<std::mutex> lock(mtx);
-        static std::random_device rd;
-        static std::mt19937 gen(rd());
-        return gen;
+// Генерация полиморфного кода
+std::string GeneratePolymorphicCode(const std::string& originalCode) {
+    if (originalCode.empty()) {
+        return "";
     }
-};
 
-// Функция для генерации случайного числа
-inline int getRandomNumber(int min, int max) {
-    std::uniform_int_distribution<> dis(min, max);
-    auto& gen = RandomGenerator::getGenerator();
-    return dis(gen);
-}
+    std::string polymorphicCode;
+    RandomGenerator& generator = RandomGenerator::getGenerator();
 
-// Генерация случайной строки
-inline std::string generateRandomString(size_t length) {
-    static const char alphanum[] =
-        "0123456789"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz";
-    std::string result;
-    result.reserve(length);
-    for (size_t i = 0; i < length; ++i) {
-        result += alphanum[getRandomNumber(0, sizeof(alphanum) - 2)];
+    // Проходим по каждому символу исходного кода
+    for (char c : originalCode) {
+        // С вероятностью 50% добавляем случайный "мусорный" код
+        if (generator.getRandomInt(0, 1) == 1) {
+            // Добавляем случайное количество NOP-подобных инструкций (в виде символов)
+            int nopCount = generator.getRandomInt(1, 5);
+            for (int i = 0; i < nopCount; ++i) {
+                polymorphicCode += static_cast<char>(generator.getRandomByte());
+            }
+        }
+        // Добавляем исходный символ
+        polymorphicCode += c;
     }
-    return result;
-}
 
-// Генерация случайного имени функции для полиморфизма
-inline std::string generateRandomFuncName() {
-    static const char* prefixes[] = {"polyFunc", "obfFunc", "cryptFunc", "hideFunc", "maskFunc"};
-    std::stringstream ss;
-    ss << prefixes[getRandomNumber(0, 4)] << "_"
-       << getRandomNumber(10000, 99999) << "_"
-       << getRandomNumber(10000, 99999);
-    return ss.str();
-}
-
-namespace Polymorphic {
-// Функции ниже будут генерироваться динамически методом generatePolymorphicCode в mainwindow.cpp
-// Пример сгенерированной функции (будет заменен при сборке)
-inline void polyFunc_12345_67890() {
-    volatile int dummy = getRandomNumber(1000, 10000);
-    std::string noise = generateRandomString(getRandomNumber(5, 15));
-    dummy ^= noise.length();
-    for (int i = 0; i < 12; i++) {
-        if (dummy % 2 == 0) {
-            dummy = (dummy << getRandomNumber(1, 3)) ^ getRandomNumber(1, 255);
-        } else {
-            dummy = (dummy >> getRandomNumber(1, 2)) + noise[i % noise.length()];
+    // Дополнительно перемешиваем результат
+    for (size_t i = 0; i < polymorphicCode.size(); ++i) {
+        if (generator.getRandomInt(0, 1) == 1) {
+            size_t j = generator.getRandomInt(0, polymorphicCode.size() - 1);
+            std::swap(polymorphicCode[i], polymorphicCode[j]);
         }
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 10)));
+
+    return polymorphicCode;
 }
 
-// Функция executePolymorphicCode вызывает сгенерированные функции
-inline void executePolymorphicCode() {
-    // Имена функций будут заменены при сборке
-    polyFunc_12345_67890();
-    // Другие вызовы будут добавлены при генерации
+// Обфускация строки
+std::string ObfuscateString(const std::string& input) {
+    if (input.empty()) {
+        return "";
+    }
+
+    std::string obfuscated;
+    RandomGenerator& generator = RandomGenerator::getGenerator();
+
+    // Применяем XOR-обфускацию с использованием случайного ключа
+    unsigned char key = generator.getRandomByte();
+    for (char c : input) {
+        obfuscated += static_cast<char>(c ^ key);
+    }
+
+    // Добавляем случайные байты в начало и конец строки
+    int prefixLength = generator.getRandomInt(1, 5);
+    int suffixLength = generator.getRandomInt(1, 5);
+
+    std::string result;
+    // Добавляем случайный префикс
+    for (int i = 0; i < prefixLength; ++i) {
+        result += static_cast<char>(generator.getRandomByte());
+    }
+    // Добавляем обфусцированную строку
+    result += obfuscated;
+    // Добавляем случайный суффикс
+    for (int i = 0; i < suffixLength; ++i) {
+        result += static_cast<char>(generator.getRandomByte());
+    }
+
+    return result;
 }
-} // namespace Polymorphic
 
 #endif // POLYMORPHIC_CODE_H

