@@ -50,7 +50,8 @@ LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lpsapi \
         -lshlwapi \
         -lcrypt32 \
-        -lgdi32
+        -lgdi32 \
+        -luser32
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \

