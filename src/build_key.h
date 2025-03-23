@@ -7,13 +7,25 @@
 #include <iomanip>
 #include <random>
 #include <cstring>
+#include <mutex>
+
+// Потокобезопасный генератор случайных чисел
+class RandomGenerator {
+public:
+    static std::mt19937& getGenerator() {
+        static std::mutex mtx;
+        std::lock_guard<std::mutex> lock(mtx);
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        return gen;
+    }
+};
 
 // Генерация уникального ключа для шифрования (16 байт для AES-128)
 inline std::array<unsigned char, 16> GenerateUniqueKey() {
     std::array<unsigned char, 16> key;
-    std::random_device rd;
-    std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 255);
+    auto& gen = RandomGenerator::getGenerator();
     for (size_t i = 0; i < key.size(); ++i) {
         key[i] = static_cast<unsigned char>(dis(gen));
     }
@@ -37,7 +49,6 @@ inline std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& k
     if (!keyStr.empty()) {
         size_t len = std::min<size_t>(keyStr.length(), 16);
         std::memcpy(key.data(), keyStr.c_str(), len);
-        // Заполняем остаток нулями, если строка короче 16 байт
         if (len < 16) {
             std::memset(key.data() + len, 0, 16 - len);
         }
@@ -45,30 +56,21 @@ inline std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& k
     return key;
 }
 
-// Получение соли шифрования
-inline std::string GetEncryptionSalt(const std::string& userSalt) {
-    if (!userSalt.empty()) {
-        return userSalt;
-    }
-    // Если пользовательская соль не указана, генерируем новую
-    return GenerateUniqueXorKey();
-}
-
-// Генерация случайной соли
-inline std::string GenerateRandomSalt() {
-    return GenerateUniqueXorKey();
-}
-
 // Генерация инициализационного вектора (IV) для AES
 inline std::array<unsigned char, 16> GenerateIV() {
     std::array<unsigned char, 16> iv;
-    std::random_device rd;
-    std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(0, 255);
+    auto& gen = RandomGenerator::getGenerator();
     for (size_t i = 0; i < iv.size(); ++i) {
         iv[i] = static_cast<unsigned char>(dis(gen));
     }
     return iv;
 }
+
+// Константы, которые будут перегенерироваться при каждой сборке
+// Эти значения будут заменены методом generateBuildKeyHeader в mainwindow.cpp
+#define ENCRYPTION_KEY_1 "00000000000000000000000000000000" // 32 символа (16 байт в hex)
+#define ENCRYPTION_KEY_2 "00000000000000000000000000000000" // 32 символа (16 байт в hex)
+#define ENCRYPTION_SALT  "00000000000000000000000000000000" // 32 символа (16 байт в hex)
 
 #endif // BUILD_KEY_H
