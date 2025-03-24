@@ -4,10 +4,12 @@
 #include <array>
 #include <random>
 #include <mutex>
+#include <string> // Добавлено для использования std::string в GetStaticEncryptionKey
 
 // Класс для генерации случайных чисел (потокобезопасный)
 class RandomGenerator {
 public:
+    // Получение единственного экземпляра генератора (паттерн Singleton)
     static RandomGenerator& getGenerator() {
         static RandomGenerator instance;
         return instance;
@@ -26,13 +28,14 @@ public:
     }
 
 private:
+    // Приватный конструктор для реализации Singleton
     RandomGenerator() : gen_(rd_()) {} // Инициализация генератора случайных чисел
-    RandomGenerator(const RandomGenerator&) = delete;
-    RandomGenerator& operator=(const RandomGenerator&) = delete;
+    RandomGenerator(const RandomGenerator&) = delete; // Запрет копирования
+    RandomGenerator& operator=(const RandomGenerator&) = delete; // Запрет присваивания
 
-    std::random_device rd_;
-    std::mt19937 gen_;
-    std::mutex mutex_;
+    std::random_device rd_; // Источник энтропии
+    std::mt19937 gen_;     // Генератор случайных чисел (Mersenne Twister)
+    std::mutex mutex_;     // Мьютекс для потокобезопасности
 };
 
 // Генерация инициализационного вектора (IV) для шифрования
@@ -40,7 +43,7 @@ std::array<unsigned char, 16> GenerateIV() {
     std::array<unsigned char, 16> iv;
     RandomGenerator& generator = RandomGenerator::getGenerator();
     for (auto& byte : iv) {
-        byte = generator.getRandomByte();
+        byte = generator.getRandomByte(); // Заполняем IV случайными байтами
     }
     return iv;
 }
@@ -49,6 +52,8 @@ std::array<unsigned char, 16> GenerateIV() {
 std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& key) {
     std::array<unsigned char, 16> encryptionKey = {};
     if (key.empty()) {
+        // Предупреждение: возвращение нулевого ключа может ослабить шифрование.
+        // Рекомендуется выбросить исключение или использовать резервный ключ.
         return encryptionKey; // Возвращаем пустой ключ, если входная строка пуста
     }
 
@@ -61,7 +66,7 @@ std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& key) {
     // Добавляем случайные данные для повышения энтропии
     RandomGenerator& generator = RandomGenerator::getGenerator();
     for (size_t i = 0; i < encryptionKey.size(); ++i) {
-        encryptionKey[i] ^= generator.getRandomByte();
+        encryptionKey[i] ^= generator.getRandomByte(); // Применяем XOR с случайным байтом
     }
 
     return encryptionKey;

