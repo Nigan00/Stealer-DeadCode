@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>600</width>
-    <height>900</height>
+    <width>900</width>
+    <height>1200</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>600</width>
-    <height>900</height>
+    <width>900</width>
+    <height>1200</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -21,23 +21,23 @@
   </property>
   <property name="styleSheet">
    <string notr="true">background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1A0000, stop:1 #330000);
-    QTextEdit { font-size: 14px; padding: 5px; color: #FFFFFF; background-color: #2A0000; border: 2px solid #FF0000; border-radius: 5px; }
-    QGroupBox { border: 2px solid #FF0000; border-radius: 5px; padding: 10px; background-color: rgba(42, 0, 0, 0.9); color: #FFFFFF; }
-    QGroupBox::title { color: #FF0000; font-weight: bold; }
-    QPushButton { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FF0000, stop:1 #CC0000); color: #FFFFFF; border-radius: 5px; padding: 8px; font-weight: bold; }
+    QTextEdit { font-size: 16px; padding: 8px; color: #FFFFFF; background-color: #2A0000; border: 2px solid #FF0000; border-radius: 5px; }
+    QGroupBox { border: 2px solid #FF0000; border-radius: 5px; padding: 15px; background-color: rgba(42, 0, 0, 0.9); color: #FFFFFF; }
+    QGroupBox::title { color: #FF0000; font-weight: bold; font-size: 18px; }
+    QPushButton { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #FF0000, stop:1 #CC0000); color: #FFFFFF; border-radius: 5px; padding: 10px; font-weight: bold; font-size: 14px; }
     QPushButton:hover { background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #CC0000, stop:1 #990000); }
-    QCheckBox { color: #FFFFFF; font-size: 12px; }
-    QCheckBox::indicator { border: 1px solid #FF0000; background-color: #330000; width: 16px; height: 16px; }
+    QCheckBox { color: #FFFFFF; font-size: 14px; padding: 5px; }
+    QCheckBox::indicator { border: 1px solid #FF0000; background-color: #330000; width: 18px; height: 18px; }
     QCheckBox::indicator:checked { background-color: #FF0000; }
-    QLineEdit { background-color: #330000; color: #FFFFFF; border: 2px solid #FF0000; border-radius: 5px; padding: 5px; }
-    QComboBox { background-color: #330000; color: #FFFFFF; border: 2px solid #FF0000; border-radius: 5px; padding: 5px; }
+    QLineEdit { background-color: #330000; color: #FFFFFF; border: 2px solid #FF0000; border-radius: 5px; padding: 8px; font-size: 14px; }
+    QComboBox { background-color: #330000; color: #FFFFFF; border: 2px solid #FF0000; border-radius: 5px; padding: 8px; font-size: 14px; }
     QComboBox::drop-down { border: none; }
-    QMenuBar { background-color: #2A0000; color: #FFFFFF; border-bottom: 2px solid #FF0000; }
-    QMenu { background-color: #2A0000; color: #FFFFFF; border: 1px solid #FF0000; border-radius: 3px; }
+    QMenuBar { background-color: #2A0000; color: #FFFFFF; border-bottom: 2px solid #FF0000; font-size: 14px; }
+    QMenu { background-color: #2A0000; color: #FFFFFF; border: 1px solid #FF0000; border-radius: 3px; font-size: 14px; }
     QMenu::item:selected { background-color: #FF0000; color: #FFFFFF; }
-    QStatusBar { background-color: #2A0000; color: #FFFFFF; border-top: 1px solid #FF0000; }
+    QStatusBar { background-color: #2A0000; color: #FFFFFF; border-top: 1px solid #FF0000; font-size: 14px; }
     QLabel#logoLabel { border-bottom: 2px solid #FF0000; background-color: rgba(0, 0, 0, 0.7); text-shadow: 2px 2px 4px #000000; }
-    QLabel.sectionLabel { color: #FF0000; font-size: 14px; font-weight: bold; }
+    QLabel.sectionLabel { color: #FF0000; font-size: 16px; font-weight: bold; }
    </string>
   </property>
   <widget class="QWidget" name="centralwidget">
@@ -53,17 +53,17 @@
       <property name="minimumSize">
        <size>
         <width>0</width>
-        <height>150</height>
+        <height>200</height>
        </size>
       </property>
       <property name="maximumSize">
        <size>
         <width>16777215</width>
-        <height>150</height>
+        <height>200</height>
        </size>
       </property>
       <property name="styleSheet">
-       <string notr="true">color: #FF0000; font-size: 40px; font-weight: bold; border-bottom: 2px solid #FF0000; background-color: rgba(0, 0, 0, 0.7); text-shadow: 2px 2px 4px #000000;</string>
+       <string notr="true">color: #FF0000; font-size: 48px; font-weight: bold; border-bottom: 2px solid #FF0000; background-color: rgba(0, 0, 0, 0.7); text-shadow: 2px 2px 4px #000000;</string>
       </property>
      </widget>
     </item>
@@ -87,7 +87,7 @@
               <string>Кража игровых данных</string>
              </property>
              <property name="styleSheet">
-              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+              <string notr="true">color: #FF0000; font-size: 16px; font-weight: bold;</string>
              </property>
             </widget>
            </item>
@@ -159,7 +159,7 @@
              <property name="sizeHint" stdset="0">
               <size>
                <width>20</width>
-               <height>10</height>
+               <height>20</height>
               </size>
              </property>
             </spacer>
@@ -171,7 +171,7 @@
               <string>Кража данных мессенджеров</string>
              </property>
              <property name="styleSheet">
-              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+              <string notr="true">color: #FF0000; font-size: 16px; font-weight: bold;</string>
              </property>
             </widget>
            </item>
@@ -213,7 +213,7 @@
              <property name="sizeHint" stdset="0">
               <size>
                <width>20</width>
-               <height>10</height>
+               <height>20</height>
               </size>
              </property>
             </spacer>
@@ -225,7 +225,7 @@
               <string>Кража браузерных данных</string>
              </property>
              <property name="styleSheet">
-              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+              <string notr="true">color: #FF0000; font-size: 16px; font-weight: bold;</string>
              </property>
             </widget>
            </item>
@@ -257,7 +257,7 @@
              <property name="sizeHint" stdset="0">
               <size>
                <width>20</width>
-               <height>10</height>
+               <height>20</height>
               </size>
              </property>
             </spacer>
@@ -269,7 +269,7 @@
               <string>Дополнительные функции</string>
              </property>
              <property name="styleSheet">
-              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+              <string notr="true">color: #FF0000; font-size: 16px; font-weight: bold;</string>
              </property>
             </widget>
            </item>
@@ -321,7 +321,7 @@
              <property name="sizeHint" stdset="0">
               <size>
                <width>20</width>
-               <height>10</height>
+               <height>20</height>
               </size>
              </property>
             </spacer>
@@ -333,7 +333,7 @@
               <string>Защита и скрытность</string>
              </property>
              <property name="styleSheet">
-              <string notr="true">color: #FF0000; font-size: 14px; font-weight: bold;</string>
+              <string notr="true">color: #FF0000; font-size: 16px; font-weight: bold;</string>
              </property>
             </widget>
            </item>
@@ -384,6 +384,16 @@
              </property>
              <property name="toolTip">
               <string>Обеспечение персистентности: программа сохраняется в системе после перезагрузки</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="selfDestructCheckBox">
+             <property name="text">
+              <string>Самоуничтожение</string>
+             </property>
+             <property name="toolTip">
+              <string>Удаление программы после выполнения (через batch-файл)</string>
              </property>
             </widget>
            </item>
@@ -484,40 +494,40 @@
        <item row="2" column="0">
         <widget class="QLabel" name="githubTokenLabel">
          <property name="text">
-          <string>GitHub Токен:</string>
+          <string>GitHub Token:</string>
          </property>
          <property name="toolTip">
-          <string>Токен для доступа к GitHub API (для GitHub Actions)</string>
+          <string>Токен для доступа к GitHub API (для сборки через GitHub Actions)</string>
          </property>
         </widget>
        </item>
        <item row="2" column="1">
         <widget class="QLineEdit" name="githubTokenLineEdit">
          <property name="placeholderText">
-          <string>Введите токен GitHub (для GitHub Actions)</string>
+          <string>Введите GitHub Token</string>
          </property>
          <property name="toolTip">
-          <string>Введите токен GitHub для доступа к API (оставьте пустым для Local Build)</string>
+          <string>Введите токен для доступа к GitHub API (оставьте пустым для локальной сборки)</string>
          </property>
         </widget>
        </item>
        <item row="3" column="0">
         <widget class="QLabel" name="githubRepoLabel">
          <property name="text">
-          <string>GitHub Репозиторий:</string>
+          <string>GitHub Repository:</string>
          </property>
          <property name="toolTip">
-          <string>Имя репозитория GitHub (для GitHub Actions)</string>
+          <string>Репозиторий для сборки через GitHub Actions (формат: username/repo)</string>
          </property>
         </widget>
        </item>
        <item row="3" column="1">
         <widget class="QLineEdit" name="githubRepoLineEdit">
          <property name="placeholderText">
-          <string>Введите имя репозитория (для GitHub Actions)</string>
+          <string>Введите GitHub Repository (username/repo)</string>
          </property>
          <property name="toolTip">
-          <string>Введите имя репозитория GitHub (оставьте пустым для Local Build)</string>
+          <string>Введите репозиторий в формате username/repo (оставьте пустым для локальной сборки)</string>
          </property>
         </widget>
        </item>
@@ -655,8 +665,8 @@
       </property>
       <property name="minimumSize">
        <size>
-        <width>100</width>
-        <height>40</height>
+        <width>150</width>
+        <height>50</height>
        </size>
       </property>
      </widget>
@@ -678,7 +688,7 @@
          <property name="minimumSize">
           <size>
            <width>0</width>
-           <height>150</height>
+           <height>200</height>
           </size>
          </property>
          <property name="readOnly">
@@ -686,6 +696,25 @@
          </property>
          <property name="toolTip">
           <string>Лог выполнения: результаты сборки, ошибки и статус</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="clearLogsButton">
+         <property name="text">
+          <string>Очистить логи</string>
+         </property>
+         <property name="toolTip">
+          <string>Очистить содержимое логов</string>
+         </property>
+         <property name="icon">
+          <iconset theme="edit-clear"/>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>150</width>
+           <height>40</height>
+          </size>
          </property>
         </widget>
        </item>
@@ -699,8 +728,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>600</width>
-     <height>21</height>
+     <width>900</width>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
