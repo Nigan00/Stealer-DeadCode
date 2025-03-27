@@ -13,7 +13,8 @@ TEMPLATE = app
 # Исходные файлы (.cpp)
 SOURCES += \
     ../src/main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    ../src/stealerworker.cpp # Добавлено
 
 # Заголовочные файлы (.h)
 HEADERS += \
@@ -21,7 +22,7 @@ HEADERS += \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
     ../src/junk_code.h \
-    ../src/stealerworker.h # Добавлено
+    ../src/stealerworker.h
 
 # Файлы интерфейса (.ui)
 FORMS += \
@@ -122,7 +123,7 @@ PRE_TARGETDEPS += \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
     ../src/junk_code.h \
-    ../src/stealerworker.h # Добавлено
+    ../src/stealerworker.h
 
 # Создание пустых файлов, если они отсутствуют
 !exists(../src/build_key.h) {
@@ -136,4 +137,4 @@ PRE_TARGETDEPS += \
 }
 !exists(../src/stealerworker.h) {
     system(echo. > ../src/stealerworker.h)
-} # Добавлено
+}
