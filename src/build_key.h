@@ -4,71 +4,84 @@
 #include <array>
 #include <random>
 #include <mutex>
-#include <string> // Добавлено для использования std::string в GetStaticEncryptionKey
+#include <string>
+#include <sstream>
+#include <iomanip>
 
 // Класс для генерации случайных чисел (потокобезопасный)
 class RandomGenerator {
 public:
-    // Получение единственного экземпляра генератора (паттерн Singleton)
     static RandomGenerator& getGenerator() {
         static RandomGenerator instance;
         return instance;
     }
 
-    // Генерация случайного числа в заданном диапазоне
     int getRandomInt(int min, int max) {
         std::lock_guard<std::mutex> lock(mutex_);
         std::uniform_int_distribution<int> dist(min, max);
         return dist(gen_);
     }
 
-    // Генерация случайного байта (0-255)
     unsigned char getRandomByte() {
         return static_cast<unsigned char>(getRandomInt(0, 255));
     }
 
 private:
-    // Приватный конструктор для реализации Singleton
-    RandomGenerator() : gen_(rd_()) {} // Инициализация генератора случайных чисел
-    RandomGenerator(const RandomGenerator&) = delete; // Запрет копирования
-    RandomGenerator& operator=(const RandomGenerator&) = delete; // Запрет присваивания
+    RandomGenerator() : gen_(rd_()) {}
+    RandomGenerator(const RandomGenerator&) = delete;
+    RandomGenerator& operator=(const RandomGenerator&) = delete;
 
-    std::random_device rd_; // Источник энтропии
-    std::mt19937 gen_;     // Генератор случайных чисел (Mersenne Twister)
-    std::mutex mutex_;     // Мьютекс для потокобезопасности
+    std::random_device rd_;
+    std::mt19937 gen_;
+    std::mutex mutex_;
 };
 
-// Генерация инициализационного вектора (IV) для шифрования
-std::array<unsigned char, 16> GenerateIV() {
+// Генерация уникального ключа
+inline std::array<unsigned char, 16> GenerateUniqueKey() {
+    std::array<unsigned char, 16> key;
+    RandomGenerator& generator = RandomGenerator::getGenerator();
+    for (auto& byte : key) {
+        byte = generator.getRandomByte();
+    }
+    return key;
+}
+
+// Генерация инициализационного вектора (IV)
+inline std::array<unsigned char, 16> GenerateIV() {
     std::array<unsigned char, 16> iv;
     RandomGenerator& generator = RandomGenerator::getGenerator();
     for (auto& byte : iv) {
-        byte = generator.getRandomByte(); // Заполняем IV случайными байтами
+        byte = generator.getRandomByte();
     }
     return iv;
 }
 
-// Получение статического ключа шифрования на основе входной строки
-std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& key) {
+// Генерация XOR-ключа как строки
+inline std::string GenerateUniqueXorKey() {
+    RandomGenerator& generator = RandomGenerator::getGenerator();
+    std::stringstream ss;
+    for (int i = 0; i < 16; ++i) {
+        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(generator.getRandomByte());
+    }
+    return ss.str();
+}
+
+// Получение статического ключа шифрования на основе строки
+inline std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& key) {
     std::array<unsigned char, 16> encryptionKey = {};
     if (key.empty()) {
-        // Предупреждение: возвращение нулевого ключа может ослабить шифрование.
-        // Рекомендуется выбросить исключение или использовать резервный ключ.
-        return encryptionKey; // Возвращаем пустой ключ, если входная строка пуста
+        return encryptionKey; // Нулевой ключ при пустой строке
     }
 
-    // Используем входной ключ для заполнения массива
     size_t keyLength = key.length();
     for (size_t i = 0; i < encryptionKey.size(); ++i) {
         encryptionKey[i] = static_cast<unsigned char>(key[i % keyLength]);
     }
 
-    // Добавляем случайные данные для повышения энтропии
     RandomGenerator& generator = RandomGenerator::getGenerator();
     for (size_t i = 0; i < encryptionKey.size(); ++i) {
-        encryptionKey[i] ^= generator.getRandomByte(); // Применяем XOR с случайным байтом
+        encryptionKey[i] ^= generator.getRandomByte();
     }
-
     return encryptionKey;
 }
 

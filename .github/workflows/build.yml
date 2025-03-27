@@ -232,7 +232,6 @@ jobs:
           Write-Host "Error: cc1plus.exe not found at $cc1plusPath"
           Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/..."
           dir "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/" -ErrorAction SilentlyContinue
-          # Пытаемся найти cc1plus.exe в других местах
           $cc1plusPath = (Get-ChildItem -Path "C:/Qt" -Filter cc1plus.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if (-not $cc1plusPath) {
             Write-Host "Error: cc1plus.exe not found in C:/Qt"
@@ -282,7 +281,7 @@ jobs:
           exit 1
         }
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl openssl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
           dir C:/vcpkg/installed/x64-windows-static/lib
@@ -309,8 +308,8 @@ jobs:
       run: |
         $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
-        $libs = @("sqlite3", "zip", "zlib", "bz2", "libcurl")
-        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h")
+        $libs = @("sqlite3", "zip", "zlib", "bz2", "libcurl", "ssl", "crypto")
+        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib.lib")) {
@@ -330,6 +329,8 @@ jobs:
           dir ${includeDir}
           Write-Host "Contents of directory ${includeDir}/curl:"
           dir ${includeDir}/curl
+          Write-Host "Contents of directory ${includeDir}/openssl:"
+          dir ${includeDir}/openssl
           exit 1
         }
         if (-not (Test-Path $libDir)) {
@@ -380,6 +381,11 @@ jobs:
         if (-not (Test-Path ui/mainwindow.h)) {
           Write-Host "Error: mainwindow.h not found in ui/"
           dir ui -ErrorAction SilentlyContinue
+          exit 1
+        }
+        if (-not (Test-Path configure_and_build.ps1)) {
+          Write-Host "Error: configure_and_build.ps1 not found in $(Get-Location)"
+          dir . -ErrorAction SilentlyContinue
           exit 1
         }
         if (-not (Test-Path icon.ico)) {
@@ -487,7 +493,7 @@ jobs:
           Write-Host "Error: $($_.Exception.Message)"
         }
 
-        cd D:\a\Stealer-DeadCode\Stealer-DeadCode\Stealer-DeadCode
+        cd D:\a\Stealer-DeadCode\Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         Write-Host "Listing contents of current directory:"
         dir .
@@ -503,7 +509,16 @@ jobs:
         }
         Write-Host "Current PATH before running configure_and_build.ps1:"
         Write-Host $env:Path
-        pwsh -File configure_and_build.ps1
+        pwsh -File configure_and_build.ps1 2>&1 | Tee-Object -FilePath "build_output.log"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: configure_and_build.ps1 failed. Check build_output.log for details."
+          if (Test-Path build_output.log) {
+            Write-Host "Contents of build_output.log:"
+            Get-Content build_output.log
+          }
+          exit 1
+        }
+        Write-Host "Build completed successfully"
       shell: pwsh
 
     - name: Upload build logs
@@ -515,7 +530,9 @@ jobs:
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
           Stealer-DeadCode/uic_output.log
+          Stealer-DeadCode/build_output.log
           Stealer-DeadCode/test_compile.log
+          Stealer-DeadCode/gpp_verbose.log
         if-no-files-found: warn
 
     - name: Upload artifact

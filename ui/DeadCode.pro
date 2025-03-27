@@ -14,7 +14,7 @@ TEMPLATE = app
 SOURCES += \
     ../src/main.cpp \
     mainwindow.cpp \
-    ../src/stealerworker.cpp # Добавлено
+    ../src/stealerworker.cpp
 
 # Заголовочные файлы (.h)
 HEADERS += \
@@ -45,6 +45,8 @@ LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lz \
         -lbz2 \
         -lcurl \
+        -lssl \
+        -lcrypto \
         -lbcrypt \
         -lws2_32 \
         -lgdiplus \
