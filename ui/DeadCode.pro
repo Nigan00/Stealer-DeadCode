@@ -36,7 +36,7 @@ INCLUDEPATH += \
     ../src \
     . \
     C:/vcpkg/installed/x64-windows-static/include \
-    ../release
+    ../Release
 
 # Библиотеки (vcpkg и системные Windows-библиотеки)
 LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
@@ -45,8 +45,8 @@ LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lz \
         -lbz2 \
         -lcurl \
-        -lssl \
-        -lcrypto \
+        -llibssl \      # Исправлено с -lssl на -llibssl
+        -llibcrypto \   # Исправлено с -lcrypto на -llibcrypto
         -lbcrypt \
         -lws2_32 \
         -lgdiplus \
@@ -96,16 +96,16 @@ DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
 
 # Директории для выходных файлов (относительные пути внутри проекта)
 DESTDIR = ../build
-OBJECTS_DIR = ../release
-MOC_DIR = ../release
-UI_DIR = ../release
+OBJECTS_DIR = ../Release
+MOC_DIR = ../Release
+UI_DIR = ../Release
 
 # Очистка (удаляем исполняемый файл и промежуточные файлы)
 QMAKE_CLEAN += \
     ../build/DeadCode.exe \
-    ../release/*.o \
-    ../release/*.cpp \
-    ../release/*.h
+    ../Release/*.o \
+    ../Release/*.cpp \
+    ../Release/*.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
