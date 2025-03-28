@@ -38,7 +38,7 @@ INCLUDEPATH += \
 LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lsqlite3 \
         -lzip \
-        -lz \
+        -lzlib \
         -lbz2 \
         -lcurl \
         -lssl \
@@ -93,15 +93,15 @@ DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
 # Директории для выходных файлов
 DESTDIR = ../build
 OBJECTS_DIR = ../release
-MOC_DIR = ../Release
-UI_DIR = ../Release
+MOC_DIR = ../release
+UI_DIR = ../release
 
 # Очистка
 QMAKE_CLEAN += \
     ../build/DeadCode.exe \
-    ../Release/*.o \
-    ../Release/*.cpp \
-    ../Release/*.h
+    ../release/*.o \
+    ../release/*.cpp \
+    ../release/*.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {

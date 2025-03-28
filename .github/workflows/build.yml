@@ -303,7 +303,7 @@ jobs:
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
-        $libs = @("libsqlite3.a", "libzip.a", "libz.a", "libbz2.a", "libcurl.a", "libssl.a", "libcrypto.a")
+        $libs = @("libsqlite3.a", "libzip.a", "libzlib.a", "libbz2.a", "libcurl.a", "libssl.a", "libcrypto.a")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
