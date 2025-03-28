@@ -61,9 +61,8 @@ jobs:
         arch: 'win64_mingw81'
         dir: 'C:/Qt'
         install-deps: 'true'
-        cache: 'false' # Отключаем кэширование временно
-        setup-python: 'false' # Python уже настроен
-        aqtversion: '==3.1.*'
+        cache: 'false'
+        setup-python: 'false'
       env:
         AQTINSTALL_DEBUG: true
 
@@ -273,14 +272,14 @@ jobs:
         $env:Path = "C:/vcpkg;" + $env:Path
         Write-Host "vcpkg version after bootstrap:"
         & $vcpkgExe --version
-        Write-Host "Setting MinGW compiler for vcpkg..."
-        $env:CC = "C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe"
-        $env:CXX = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
-        Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl openssl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        Write-Host "Cleaning vcpkg buildtrees and installed directories..."
+        Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "C:/vcpkg/installed" -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl openssl --triplet x64-mingw-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
-          dir C:/vcpkg/installed/x64-windows-static/lib
+          dir C:/vcpkg/installed/x64-mingw-static/lib
           Write-Host "Printing vcpkg logs..."
           if (Test-Path vcpkg_install.log) {
             Write-Host "Contents of vcpkg_install.log:"
@@ -302,9 +301,8 @@ jobs:
 
     - name: Verify vcpkg installation
       run: |
-        $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
-        $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
-        # Используем имена библиотек, ожидаемые MinGW (lib*.a)
+        $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
+        $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
         $libs = @("libsqlite3.a", "libzip.a", "libz.a", "libbz2.a", "libcurl.a", "libssl.a", "libcrypto.a")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
@@ -380,15 +378,6 @@ jobs:
           dir ui -ErrorAction SilentlyContinue
           exit 1
         }
-        if (-not (Test-Path configure_and_build.ps1)) {
-          Write-Host "Error: configure_and_build.ps1 not found in $(Get-Location)"
-          dir . -ErrorAction SilentlyContinue
-          exit 1
-        }
-        if (-not (Test-Path icon.ico)) {
-          Write-Host "Warning: icon.ico not found, creating a placeholder..."
-          New-Item -Path . -Name icon.ico -ItemType File -Force
-        }
         Write-Host "Creating build directory if it doesn't exist..."
         New-Item -Path build -ItemType Directory -Force
         Write-Host "Creating release directory if it doesn't exist..."
@@ -449,27 +438,8 @@ jobs:
         Write-Host "mainwindow.ui is valid and ui_mainwindow.h generated successfully"
       shell: powershell
 
-    - name: Check PowerShell version
-      run: |
-        $PSVersionTable.PSVersion
-      shell: pwsh
-
-    - name: Debug mkspec configuration
-      run: |
-        Write-Host "Checking mkspec configuration..."
-        $mkspecPath = "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/qmake.conf"
-        if (Test-Path $mkspecPath) {
-          Write-Host "Contents of ${mkspecPath}:"
-          Get-Content $mkspecPath
-        } else {
-          Write-Host "Error: mkspec file not found at $mkspecPath"
-          exit 1
-        }
-      shell: powershell
-
     - name: Configure and build
       run: |
-        # Создаём новую временную директорию
         Write-Host "Setting up temporary directory..."
         $tempDir = "C:/Temp"
         if (-not (Test-Path $tempDir)) {
@@ -480,7 +450,6 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        # Добавляем пути Qt и vcpkg в PATH
         $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;" + $env:Path
         Write-Host "Updated PATH: $env:Path"
 

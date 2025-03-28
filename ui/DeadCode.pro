@@ -1,8 +1,4 @@
-# Явно указываем компилятор
-QMAKE_CXX = C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe
-QMAKE_CC = C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe
-
-# Основные модули Qt, которые используются в проекте
+# Основные модули Qt
 QT += core gui network widgets
 
 # Имя целевого исполняемого файла
@@ -35,18 +31,18 @@ RC_ICONS = ../icon.ico
 INCLUDEPATH += \
     ../src \
     . \
-    C:/vcpkg/installed/x64-windows-static/include \
-    ../Release
+    C:/vcpkg/installed/x64-mingw-static/include \
+    ../release
 
 # Библиотеки (vcpkg и системные Windows-библиотеки)
-LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
+LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lsqlite3 \
         -lzip \
         -lz \
         -lbz2 \
         -lcurl \
-        -lssl \         # Используем -lssl для MinGW
-        -lcrypto \      # Используем -lcrypto для MinGW
+        -lssl \
+        -lcrypto \
         -lbcrypt \
         -lws2_32 \
         -lgdiplus \
@@ -94,13 +90,13 @@ isEmpty(BUILD_VERSION) {
 DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
            BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
-# Директории для выходных файлов (относительные пути внутри проекта)
+# Директории для выходных файлов
 DESTDIR = ../build
-OBJECTS_DIR = ../Release
+OBJECTS_DIR = ../release
 MOC_DIR = ../Release
 UI_DIR = ../Release
 
-# Очистка (удаляем исполняемый файл и промежуточные файлы)
+# Очистка
 QMAKE_CLEAN += \
     ../build/DeadCode.exe \
     ../Release/*.o \
@@ -110,11 +106,9 @@ QMAKE_CLEAN += \
 # Дополнительные проверки и зависимости для Windows
 win32 {
     CONFIG(debug, debug|release) {
-        # Для отладочной сборки
         QMAKE_CXXFLAGS += -g
         QMAKE_LFLAGS -= -O2
     } else {
-        # Для релизной сборки
         QMAKE_CXXFLAGS += -O2
         QMAKE_LFLAGS += -O2
     }
