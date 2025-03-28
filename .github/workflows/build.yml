@@ -273,13 +273,9 @@ jobs:
         $env:Path = "C:/vcpkg;" + $env:Path
         Write-Host "vcpkg version after bootstrap:"
         & $vcpkgExe --version
-        Write-Host "Downloading bzip2 archive manually..."
-        mkdir -p C:/vcpkg/downloads
-        curl.exe -L https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz -o C:/vcpkg/downloads/bzip2-1.0.8.tar.gz
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to download bzip2-1.0.8.tar.gz"
-          exit 1
-        }
+        Write-Host "Setting MinGW compiler for vcpkg..."
+        $env:CC = "C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe"
+        $env:CXX = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
         Write-Host "Installing vcpkg dependencies with triplet x64-windows-static..."
         & $vcpkgExe install sqlite3 libzip zlib bzip2 curl openssl --triplet x64-windows-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
@@ -308,12 +304,13 @@ jobs:
       run: |
         $libDir = "C:/vcpkg/installed/x64-windows-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-windows-static/include"
-        $libs = @("sqlite3", "zip", "zlib", "bz2", "libcurl", "ssl", "crypto")
+        # Используем имена библиотек, ожидаемые MinGW (lib*.a)
+        $libs = @("libsqlite3.a", "libzip.a", "libz.a", "libbz2.a", "libcurl.a", "libssl.a", "libcrypto.a")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
-          if (-not (Test-Path "$libDir/$lib.lib")) {
-            $missing += "$lib.lib"
+          if (-not (Test-Path "$libDir/$lib")) {
+            $missing += "$lib"
           }
         }
         foreach ($header in $headers) {
@@ -337,8 +334,8 @@ jobs:
           Write-Host "Error: Directory $libDir does not exist"
           exit 1
         }
-        Write-Host "Listing all .lib files in $libDir"
-        Get-ChildItem -Path $libDir -Filter *.lib
+        Write-Host "Listing all .a files in $libDir"
+        Get-ChildItem -Path $libDir -Filter *.a
         Write-Host "All vcpkg dependencies verified"
       shell: powershell
 
@@ -483,38 +480,33 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        # Пытаемся отключить Windows Defender (если у нас есть права)
-        Write-Host "Attempting to disable Windows Defender real-time protection..."
-        try {
-          Set-MpPreference -DisableRealtimeMonitoring $true -ErrorAction Stop
-          Write-Host "Windows Defender real-time protection disabled"
-        } catch {
-          Write-Host "Warning: Could not disable Windows Defender real-time protection. This may cause issues with MinGW."
-          Write-Host "Error: $($_.Exception.Message)"
-        }
+        # Добавляем пути Qt и vcpkg в PATH
+        $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;" + $env:Path
+        Write-Host "Updated PATH: $env:Path"
 
         cd D:\a\Stealer-DeadCode\Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         Write-Host "Listing contents of current directory:"
         dir .
-        if (-not (Test-Path configure_and_build.ps1)) {
-          Write-Host "Error: configure_and_build.ps1 not found in $(Get-Location)"
+        if (-not (Test-Path ui/DeadCode.pro)) {
+          Write-Host "Error: DeadCode.pro not found in ui/"
           exit 1
         }
-        Write-Host "configure_and_build.ps1 found, executing..."
-        Write-Host "Verifying ui directory exists before running script..."
-        if (-not (Test-Path ui)) {
-          Write-Host "Error: ui directory not found in $(Get-Location)"
-          exit 1
-        }
-        Write-Host "Current PATH before running configure_and_build.ps1:"
-        Write-Host $env:Path
-        pwsh -File configure_and_build.ps1 2>&1 | Tee-Object -FilePath "build_output.log"
+        Write-Host "Running qmake..."
+        C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe ui/DeadCode.pro 2>&1 | Tee-Object -FilePath "qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: configure_and_build.ps1 failed. Check build_output.log for details."
-          if (Test-Path build_output.log) {
-            Write-Host "Contents of build_output.log:"
-            Get-Content build_output.log
+          Write-Host "Error: qmake failed. Check qmake_output.log for details."
+          if (Test-Path qmake_output.log) {
+            Get-Content qmake_output.log
+          }
+          exit 1
+        }
+        Write-Host "Running mingw32-make..."
+        C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe -j4 2>&1 | Tee-Object -FilePath "make_output.log"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: mingw32-make failed. Check make_output.log for details."
+          if (Test-Path make_output.log) {
+            Get-Content make_output.log
           }
           exit 1
         }
@@ -530,9 +522,7 @@ jobs:
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
           Stealer-DeadCode/uic_output.log
-          Stealer-DeadCode/build_output.log
-          Stealer-DeadCode/test_compile.log
-          Stealer-DeadCode/gpp_verbose.log
+          Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
     - name: Upload artifact

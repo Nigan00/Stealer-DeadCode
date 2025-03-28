@@ -45,8 +45,8 @@ LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lz \
         -lbz2 \
         -lcurl \
-        -llibssl \      # Используем -llibssl для MinGW
-        -llibcrypto \   # Используем -llibcrypto для MinGW
+        -lssl \         # Используем -lssl для MinGW
+        -lcrypto \      # Используем -lcrypto для MinGW
         -lbcrypt \
         -lws2_32 \
         -lgdiplus \
@@ -68,7 +68,7 @@ QMAKE_CXXFLAGS += -O2 \
                   -Wextra \
                   -Werror=return-type \
                   -fexceptions \
-                  - Englishman: -DUNICODE \
+                  -DUNICODE \
                   -D_UNICODE \
                   -DWIN32 \
                   -DQT_NO_DEBUG \
