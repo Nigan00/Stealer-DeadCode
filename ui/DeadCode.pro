@@ -45,8 +45,8 @@ LIBS += -LC:/vcpkg/installed/x64-windows-static/lib \
         -lz \
         -lbz2 \
         -lcurl \
-        -llibssl \      # Исправлено с -lssl на -llibssl
-        -llibcrypto \   # Исправлено с -lcrypto на -llibcrypto
+        "C:/vcpkg/installed/x64-windows-static/lib/libssl.lib" \
+        "C:/vcpkg/installed/x64-windows-static/lib/libcrypto.lib" \
         -lbcrypt \
         -lws2_32 \
         -lgdiplus \
