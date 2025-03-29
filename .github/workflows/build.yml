@@ -427,6 +427,26 @@ jobs:
 
     - name: Verify and generate UI files
       run: |
+        Write-Host "Current directory before processing: $(Get-Location)"
+        Write-Host "Listing contents of current directory:"
+        dir .
+        Write-Host "Ensuring release directory exists and is writable..."
+        if (-not (Test-Path release)) {
+          New-Item -Path release -ItemType Directory -Force
+          Write-Host "Created release directory"
+        }
+        Write-Host "Checking write access to release directory..."
+        $testFile = "release/test_write.txt"
+        try {
+          Set-Content -Path $testFile -Value "Test write access"
+          Remove-Item -Path $testFile
+          Write-Host "Write access to release directory confirmed"
+        } catch {
+          Write-Host "Error: Cannot write to release directory"
+          exit 1
+        }
+        Write-Host "Listing contents of release directory before uic:"
+        dir release -ErrorAction SilentlyContinue
         Write-Host "Checking mainwindow.ui for validity and generating ui_mainwindow.h..."
         $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/uic.exe"
         if (-not (Test-Path $uicPath)) {
@@ -439,22 +459,25 @@ jobs:
           }
           Write-Host "Found uic.exe at $uicPath"
         }
-        Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
-        & $uicPath ui/mainwindow.ui -o release/ui_mainwindow.h 2>&1 | Tee-Object -FilePath "uic_output.log"
+        $outputPath = "$(Get-Location)/release/ui_mainwindow.h"
+        Write-Host "Generating $outputPath from ui/mainwindow.ui..."
+        & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: mainwindow.ui is invalid. Check the logs for details."
+          Write-Host "Error: uic.exe failed. Check uic_output.log for details."
           if (Test-Path uic_output.log) {
             Write-Host "Contents of uic_output.log:"
             Get-Content uic_output.log
           }
+          Write-Host "Listing contents of release directory after uic failure:"
+          dir release -ErrorAction SilentlyContinue
           exit 1
         }
-        if (-not (Test-Path release/ui_mainwindow.h)) {
-          Write-Host "Error: ui_mainwindow.h was not generated"
-          dir release
+        if (-not (Test-Path $outputPath)) {
+          Write-Host "Error: $outputPath was not generated"
+          dir release -ErrorAction SilentlyContinue
           exit 1
         }
-        Write-Host "mainwindow.ui is valid and ui_mainwindow.h generated successfully"
+        Write-Host "mainwindow.ui is valid and ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
     - name: Configure and build
