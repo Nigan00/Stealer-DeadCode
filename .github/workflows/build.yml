@@ -378,11 +378,6 @@ jobs:
           dir ui -ErrorAction SilentlyContinue
           exit 1
         }
-        if (-not (Test-Path src/stealerworker.cpp)) {
-          Write-Host "Error: stealerworker.cpp not found in src/"
-          dir src -ErrorAction SilentlyContinue
-          exit 1
-        }
         if (-not (Test-Path src/build_key.h)) {
           Write-Host "Error: build_key.h not found in src/"
           dir src -ErrorAction SilentlyContinue

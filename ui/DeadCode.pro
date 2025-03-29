@@ -9,8 +9,7 @@ TEMPLATE = app
 # Исходные файлы (.cpp)
 SOURCES += \
     ../src/main.cpp \
-    mainwindow.cpp \
-    ../src/stealerworker.cpp
+    mainwindow.cpp
 
 # Заголовочные файлы (.h)
 HEADERS += \
