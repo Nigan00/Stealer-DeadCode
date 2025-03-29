@@ -427,7 +427,6 @@ jobs:
 
     - name: Verify and generate UI files
       run: |
-        cd Stealer-DeadCode
         Write-Host "Checking mainwindow.ui for validity and generating ui_mainwindow.h..."
         $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/uic.exe"
         if (-not (Test-Path $uicPath)) {
