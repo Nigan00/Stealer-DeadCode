@@ -473,7 +473,6 @@ jobs:
         $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;" + $env:Path
         Write-Host "Updated PATH: $env:Path"
 
-        cd D:\a\Stealer-DeadCode\Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         Write-Host "Listing contents of current directory:"
         dir .
