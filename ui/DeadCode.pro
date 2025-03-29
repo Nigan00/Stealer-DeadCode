@@ -120,17 +120,3 @@ PRE_TARGETDEPS += \
     ../src/polymorphic_code.h \
     ../src/junk_code.h \
     ../src/stealerworker.h
-
-# Создание пустых файлов, если они отсутствуют
-!exists(../src/build_key.h) {
-    system(echo. > ../src/build_key.h)
-}
-!exists(../src/polymorphic_code.h) {
-    system(echo. > ../src/polymorphic_code.h)
-}
-!exists(../src/junk_code.h) {
-    system(echo. > ../src/junk_code.h)
-}
-!exists(../src/stealerworker.h) {
-    system(echo. > ../src/stealerworker.h)
-}

