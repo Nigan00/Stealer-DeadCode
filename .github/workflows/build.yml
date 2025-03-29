@@ -497,32 +497,50 @@ jobs:
         $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;" + $env:Path
         Write-Host "Updated PATH: $env:Path"
 
-        Write-Host "Current directory: $(Get-Location)"
-        Write-Host "Listing contents of current directory:"
-        dir .
-        if (-not (Test-Path ui/DeadCode.pro)) {
-          Write-Host "Error: DeadCode.pro not found in ui/"
-          exit 1
+        Write-Host "Current directory before build setup: $(Get-Location)"
+        Write-Host "Ensuring build directory exists..."
+        if (-not (Test-Path build)) {
+          New-Item -Path build -ItemType Directory -Force
+          Write-Host "Created build directory"
         }
+        cd build
+        Write-Host "Changed to build directory: $(Get-Location)"
+        Write-Host "Listing contents of build directory:"
+        dir .
+
         Write-Host "Running qmake..."
-        C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe ui/DeadCode.pro 2>&1 | Tee-Object -FilePath "qmake_output.log"
+        C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe ../ui/DeadCode.pro 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
-          if (Test-Path qmake_output.log) {
-            Get-Content qmake_output.log
+          if (Test-Path ../qmake_output.log) {
+            Get-Content ../qmake_output.log
           }
           exit 1
         }
+        Write-Host "Listing generated files after qmake:"
+        dir .
+
+        Write-Host "Checking contents of Makefile.Release..."
+        if (Test-Path Makefile.Release) {
+          Write-Host "Contents of Makefile.Release (first 50 lines):"
+          Get-Content Makefile.Release -TotalCount 50
+        } else {
+          Write-Host "Error: Makefile.Release not found"
+          exit 1
+        }
+
         Write-Host "Running mingw32-make..."
-        C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe -j4 2>&1 | Tee-Object -FilePath "make_output.log"
+        C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
-          if (Test-Path make_output.log) {
-            Get-Content make_output.log
+          if (Test-Path ../make_output.log) {
+            Get-Content ../make_output.log
           }
           exit 1
         }
         Write-Host "Build completed successfully"
+        Write-Host "Listing contents of build directory after build:"
+        dir .
       shell: pwsh
 
     - name: Upload build logs
