@@ -2,7 +2,10 @@
 #define STEALERWORKER_H
 
 #include <QObject>
-#include "mainwindow.h"
+#include <QDebug>         // Для qDebug и qWarning
+#include <exception>      // Для std::exception
+#include <filesystem>     // Для std::filesystem
+#include "mainwindow.h"   // Для MainWindow
 
 class StealerWorker : public QObject {
     Q_OBJECT

