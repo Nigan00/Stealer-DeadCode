@@ -76,43 +76,6 @@ void Log(const QString& message) {
     std::cout << message.toStdString() << std::endl;
 }
 
-// Генерация IV с использованием криптографически безопасного RNG
-std::array<unsigned char, 16> GenerateIV() {
-    std::array<unsigned char, 16> iv;
-    BCRYPT_ALG_HANDLE hRng;
-    NTSTATUS status = BCryptOpenAlgorithmProvider(&hRng, BCRYPT_RNG_ALGORITHM, nullptr, 0);
-    if (BCRYPT_SUCCESS(status)) {
-        status = BCryptGenRandom(hRng, iv.data(), iv.size(), 0);
-        BCryptCloseAlgorithmProvider(hRng, 0);
-        if (!BCRYPT_SUCCESS(status)) {
-            Log("Ошибка генерации IV: " + QString::number(status));
-        }
-    } else {
-        Log("Ошибка открытия провайдера RNG: " + QString::number(status));
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(0, 255);
-        for (auto& byte : iv) {
-            byte = static_cast<unsigned char>(dis(gen));
-        }
-    }
-    return iv;
-}
-
-// Получение ключа из строки с дополнением до нужной длины
-std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& key) {
-    std::array<unsigned char, 16> result = {};
-    if (key.empty()) return result;
-    size_t len = std::min(key.size(), result.size());
-    std::copy(key.begin(), key.begin() + len, result.begin());
-    if (len < result.size()) {
-        for (size_t i = len; i < result.size(); ++i) {
-            result[i] = result[i % len];
-        }
-    }
-    return result;
-}
-
 // Шифрование данных с улучшенной обработкой ошибок
 std::string EncryptData(const std::string& data, const std::string& key1, const std::string& key2, const std::string& salt) {
     if (data.empty() || key1.empty() || key2.empty() || salt.empty()) {
@@ -198,9 +161,9 @@ std::string DecryptData(const std::string& encryptedData) {
         return "";
     }
 
-    std::string key1 = g_mainWindow->encryptionKey1;
-    std::string key2 = g_mainWindow->encryptionKey2;
-    std::string salt = g_mainWindow->encryptionSalt;
+    std::string key1 = g_mainWindow->getEncryptionKey1();
+    std::string key2 = g_mainWindow->getEncryptionKey2();
+    std::string salt = g_mainWindow->getEncryptionSalt();
 
     if (key1.empty() || key2.empty() || salt.empty()) {
         Log("Ключи дешифрования или соль пусты");
@@ -677,7 +640,12 @@ std::string GetCustomSystemInfo() {
         result << "Версия ОС: " << osInfo.dwMajorVersion << "." << osInfo.dwMinorVersion << "\n";
         result << "Номер сборки: " << osInfo.dwBuildNumber << "\n";
         if (osInfo.szCSDVersion[0]) {
-            result << "Сервис-пак: " << std::wstring(osInfo.szCSDVersion) << "\n";
+            std::wstring servicePack(osInfo.szCSDVersion);
+            int size_needed = WideCharToMultiByte(CP_UTF8, 0, servicePack.c_str(), -1, nullptr, 0, nullptr, nullptr);
+            std::string servicePackStr(size_needed, 0);
+            WideCharToMultiByte(CP_UTF8, 0, servicePack.c_str(), -1, &servicePackStr[0], size_needed, nullptr, nullptr);
+            servicePackStr.pop_back(); // Удаляем завершающий нулевой символ
+            result << "Сервис-пак: " << servicePackStr << "\n";
         }
     } else {
         result << "Информация об ОС: Неизвестно\n";

