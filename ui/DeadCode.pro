@@ -71,11 +71,11 @@ QMAKE_CXXFLAGS += -O2 \
                   -Wno-deprecated-declarations \
                   -Wno-cast-function-type
 
-# Флаги линковки
+# Флаги линковки (исправлено для MinGW)
 QMAKE_LFLAGS += -static \
-                -DYNAMICBASE \
-                -NXCOMPAT \
-                -SUBSYSTEM:WINDOWS
+                -Wl,--dynamicbase \
+                -Wl,-subsystem,windows \
+                -Wl,-s
 
 # Определения для сборки (добавляем дату сборки и версию из git)
 BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'")
