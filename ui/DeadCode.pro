@@ -16,9 +16,7 @@ HEADERS += \
     mainwindow.h \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
-    ../src/polymorphic_code_generated.h \
     ../src/junk_code.h \
-    ../src/junk_code_generated.h \
     ../src/stealerworker.h
 
 # Файлы интерфейса (.ui)
@@ -102,9 +100,7 @@ QMAKE_CLEAN += \
     ../build/DeadCode.exe \
     ../release/*.o \
     ../release/*.cpp \
-    ../release/*.h \
-    ../src/polymorphic_code_generated.h \
-    ../src/junk_code_generated.h
+    ../release/*.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
@@ -117,11 +113,9 @@ win32 {
     }
 }
 
-# Пользовательские шаги сборки для генерации заголовков
+# Пользовательские шаги сборки для зависимостей
 PRE_TARGETDEPS += \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
-    ../src/polymorphic_code_generated.h \
     ../src/junk_code.h \
-    ../src/junk_code_generated.h \
     ../src/stealerworker.h

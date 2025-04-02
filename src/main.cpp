@@ -1483,28 +1483,12 @@ void MainWindow::replyFinished(QNetworkReply* reply) {
 
 // Генерация полиморфного кода
 std::string MainWindow::generatePolymorphicCode() {
-    // Используем функционал из polymorphic_code.h
-    std::string polyCode;
-    
-    // Пример генерации: случайная строка и выполнение полиморфного кода
-    polyCode += "#include \"polymorphic_code.h\"\n";
-    polyCode += "void executeGeneratedPolymorphicCode() {\n";
-    polyCode += "    Polymorphic::executePolymorphicCode();\n";
-    polyCode += "    volatile int result = Polymorphic::getRandomNumber(1000, 5000);\n";
-    polyCode += "    std::string noise = Polymorphic::generateRandomString(" + std::to_string(Polymorphic::getRandomNumber(10, 30)) + ");\n";
-    polyCode += "    for (int i = 0; i < noise.length(); i++) {\n";
-    polyCode += "        result ^= noise[i];\n";
-    polyCode += "    }\n";
-    polyCode += "}\n";
-
-    std::ofstream outFile("polymorphic_code_generated.h", std::ios::binary);
+    std::string polyCode = generatePolymorphicCode();
+    std::ofstream outFile("polymorphic_code.h", std::ios::binary);
     if (outFile.is_open()) {
-        outFile << "#ifndef POLYMORPHIC_CODE_GENERATED_H\n";
-        outFile << "#define POLYMORPHIC_CODE_GENERATED_H\n\n";
         outFile << polyCode;
-        outFile << "\n#endif // POLYMORPHIC_CODE_GENERATED_H\n";
         outFile.close();
-        Log("Полиморфный код сгенерирован и сохранён в polymorphic_code_generated.h");
+        Log("Полиморфный код сгенерирован");
     } else {
         Log("Не удалось сгенерировать полиморфный код");
     }
@@ -1531,21 +1515,7 @@ void MainWindow::generateBuildKeyHeader(const std::string& encryptionKey) {
 
 // Генерация мусорного кода
 std::string MainWindow::generateJunkCode() {
-    // Используем функционал из junk_code.h
-    std::string junkCode;
-    
-    // Пример генерации: случайные вычисления и мусорный код
-    junkCode += "#include \"junk_code.h\"\n";
-    junkCode += "void executeGeneratedJunkCode() {\n";
-    junkCode += "    JunkCode::executeJunkCode();\n";
-    junkCode += "    volatile int x = JunkCode::getRandomNumber(500, 2000);\n";
-    junkCode += "    std::vector<int> noise(" + std::to_string(JunkCode::getRandomNumber(5, 15)) + ");\n";
-    junkCode += "    for (int i = 0; i < noise.size(); i++) {\n";
-    junkCode += "        noise[i] = JunkCode::getRandomNumber(1, 100);\n";
-    junkCode += "        x += noise[i] * JunkCode::getRandomNumber(2, 10);\n";
-    junkCode += "    }\n";
-    junkCode += "}\n";
-
+    std::string junkCode = generateJunkCode();
     std::ofstream outFile("junk_code_generated.h", std::ios::binary);
     if (outFile.is_open()) {
         outFile << "#ifndef JUNK_CODE_GENERATED_H\n";
