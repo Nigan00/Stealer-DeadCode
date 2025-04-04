@@ -3,6 +3,11 @@ QT += core gui network widgets
 TARGET = DeadCode
 TEMPLATE = app
 
+# Добавляем параметры для статической сборки
+CONFIG += static
+CONFIG += staticlib
+QTPLUGIN += -
+
 SOURCES += \
     ../src/main.cpp \
     mainwindow.cpp
@@ -27,7 +32,7 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lsqlite3 \
         -lzip \
         -lz \
-        -lbz2 \    # Изменено с -lbzip2 на -lbz2
+        -lbz2 \
         -lcurl \
         -lssl \
         -lcrypto \

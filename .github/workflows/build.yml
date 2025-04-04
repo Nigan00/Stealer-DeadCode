@@ -53,19 +53,6 @@ jobs:
         Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
       shell: powershell
 
-    - name: Install Qt
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '5.15.2'
-        target: 'desktop'
-        arch: 'win64_mingw81'
-        dir: 'C:/Qt'
-        install-deps: 'true'
-        cache: 'false'
-        setup-python: 'false'
-      env:
-        AQTINSTALL_DEBUG: true
-
     - name: Install MinGW via Chocolatey
       run: |
         Write-Host "Installing Chocolatey..."
@@ -101,23 +88,23 @@ jobs:
           Write-Host "Error: g++ --version failed"
           exit 1
         }
-        
-        Write-Host "Copying entire MinGW directory to Qt directory..."
-        $mingwSource = "C:\ProgramData\mingw64\mingw64"
-        $mingwDest = "C:/Qt/Qt/5.15.2/mingw81_64"
-        if (-not (Test-Path $mingwSource)) {
-          Write-Host "Error: MinGW source directory $mingwSource not found"
-          exit 1
-        }
-        Copy-Item -Path "$mingwSource/*" -Destination $mingwDest -Recurse -Force
-        
-        Write-Host "Verifying g++ in Qt bin directory..."
-        if (-not (Test-Path "$mingwDest/bin/g++.exe")) {
-          Write-Host "Error: g++.exe not found in $mingwDest/bin/"
-          dir "$mingwDest/bin/"
-          exit 1
-        }
-        Write-Host "MinGW installation via Chocolatey completed"
+      shell: powershell
+
+    - name: Build static Qt from source
+      run: |
+        Write-Host "Cloning Qt 5.15.2 source..."
+        git clone https://code.qt.io/qt/qt5.git C:/QtSrc
+        cd C:/QtSrc
+        git checkout v5.15.2
+        perl init-repository --module-subset=qtbase,qttools
+        mkdir build
+        cd build
+        Write-Host "Configuring Qt for static build..."
+        ../configure -static -release -platform win32-g++ -prefix C:/Qt/Qt/5.15.2/mingw81_64_static -opensource -confirm-license -nomake examples -nomake tests -opengl desktop -I C:/vcpkg/installed/x64-mingw-static/include -L C:/vcpkg/installed/x64-mingw-static/lib
+        Write-Host "Building Qt..."
+        mingw32-make -j4
+        Write-Host "Installing Qt..."
+        mingw32-make install
       shell: powershell
 
     - name: Debug Qt installation
@@ -128,18 +115,18 @@ jobs:
         dir C:/Qt/Qt -Recurse
         Write-Host "Listing contents of C:/Qt/Qt/5.15.2..."
         dir C:/Qt/Qt/5.15.2 -Recurse
-        Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64/bin..."
-        dir C:/Qt/Qt/5.15.2/mingw81_64/bin -Recurse
+        Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64_static/bin..."
+        dir C:/Qt/Qt/5.15.2/mingw81_64_static/bin -Recurse
       shell: powershell
       continue-on-error: true
 
     - name: Verify Qt installation
       run: |
         Write-Host "Verifying Qt installation..."
-        $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
-        $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/uic.exe"
-        $makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
-        $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
+        $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe"
+        $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/uic.exe"
+        $makePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/mingw32-make.exe"
+        $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/g++.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
           $qmakePath = (Get-ChildItem -Path C:/Qt -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -203,43 +190,6 @@ jobs:
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ --version failed"
           exit 1
-        }
-        Write-Host "Determining MinGW version..."
-        $gppVersionOutput = & $gppPath --version | Select-Object -First 1
-        $gppVersion = $gppVersionOutput -replace ".* (\d+\.\d+\.\d+).*", '$1'
-        Write-Host "Detected MinGW version: $gppVersion"
-        Write-Host "Checking for g++ dependencies..."
-        $requiredDlls = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
-        foreach ($dll in $requiredDlls) {
-          if (-not (Test-Path "C:/Qt/Qt/5.15.2/mingw81_64/bin/$dll")) {
-            Write-Host "Warning: $dll not found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-            $dllPath = (Get-ChildItem -Path "C:/Qt" -Filter $dll -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-            if ($dllPath) {
-              Write-Host "Found $dll at $dllPath, copying to C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-              Copy-Item -Path $dllPath -Destination "C:/Qt/Qt/5.15.2/mingw81_64/bin/" -Force
-            } else {
-              Write-Host "Error: $dll not found in C:/Qt"
-              exit 1
-            }
-          } else {
-            Write-Host "$dll found in C:/Qt/Qt/5.15.2/mingw81_64/bin/"
-          }
-        }
-        Write-Host "Checking for cc1plus.exe..."
-        $cc1plusPath = "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/cc1plus.exe"
-        if (-not (Test-Path $cc1plusPath)) {
-          Write-Host "Error: cc1plus.exe not found at $cc1plusPath"
-          Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/..."
-          dir "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/" -ErrorAction SilentlyContinue
-          $cc1plusPath = (Get-ChildItem -Path "C:/Qt" -Filter cc1plus.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $cc1plusPath) {
-            Write-Host "Error: cc1plus.exe not found in C:/Qt"
-            dir "C:/Qt/Qt/5.15.2/mingw81_64/libexec" -Recurse
-            exit 1
-          }
-          Write-Host "Found cc1plus.exe at $cc1plusPath"
-        } else {
-          Write-Host "cc1plus.exe found at $cc1plusPath"
         }
         Write-Host "Qt and MinGW installation completed and verified"
       shell: powershell
@@ -449,7 +399,7 @@ jobs:
         Write-Host "Listing contents of release directory before uic:"
         dir release -ErrorAction SilentlyContinue
         Write-Host "Checking mainwindow.ui for validity and generating ui_mainwindow.h..."
-        $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/uic.exe"
+        $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/uic.exe"
         if (-not (Test-Path $uicPath)) {
           Write-Host "Error: uic.exe not found at $uicPath. Searching for uic.exe..."
           $uicPath = (Get-ChildItem -Path C:/Qt -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -494,7 +444,7 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;" + $env:Path
+        $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin;C:/vcpkg;" + $env:Path
         Write-Host "Updated PATH: $env:Path"
 
         Write-Host "Current directory before build setup: $(Get-Location)"
@@ -508,8 +458,8 @@ jobs:
         Write-Host "Listing contents of build directory:"
         dir .
 
-        Write-Host "Running qmake..."
-        C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe ../ui/DeadCode.pro 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        Write-Host "Running qmake with static configuration..."
+        C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=static CONFIG+=staticlib 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           if (Test-Path ../qmake_output.log) {
@@ -530,7 +480,7 @@ jobs:
         }
 
         Write-Host "Running mingw32-make..."
-        C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "../make_output.log"
+        C:/Qt/Qt/5.15.2/mingw81_64_static/bin/mingw32-make.exe -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
           if (Test-Path ../make_output.log) {
