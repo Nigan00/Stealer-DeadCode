@@ -204,7 +204,6 @@ signals:
 public slots:
     void sendData(const QString& encryptedData, const std::vector<std::string>& files);
     void replyFinished(QNetworkReply *reply);
-    void sendDataToServer(const std::string& encryptedData, const std::vector<std::string>& files); // Добавлено
 
 private slots:
     std::string generatePolymorphicCode(); // Оставлено как std::string

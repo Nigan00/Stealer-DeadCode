@@ -30,10 +30,10 @@ RC_ICONS = ../icon.ico
 INCLUDEPATH += \
     ../src \
     . \
-    C:/vcpkg/installed/x64-mingw-static/include \
-    ../release
+    C:/vcpkg/installed/x64-mingw-static/include
 
 # Библиотеки (vcpkg и системные Windows-библиотеки)
+# Убедись, что все библиотеки установлены через vcpkg: sqlite3, libzip, zlib, curl, openssl
 LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lsqlite3 \
         -lzip \
@@ -89,16 +89,16 @@ DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
 
 # Директории для выходных файлов
 DESTDIR = ../build
-OBJECTS_DIR = ../release
-MOC_DIR = ../release
-UI_DIR = ../release
+OBJECTS_DIR = ../Release
+MOC_DIR = ../Release
+UI_DIR = ../Release
 
 # Очистка
 QMAKE_CLEAN += \
     ../build/DeadCode.exe \
-    ../release/*.o \
-    ../release/*.cpp \
-    ../release/*.h
+    ../Release/*.o \
+    ../Release/*.cpp \
+    ../Release/*.h
 
 # Дополнительные проверки и зависимости для Windows
 win32 {
