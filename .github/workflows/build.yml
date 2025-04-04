@@ -144,10 +144,8 @@ jobs:
         Write-Host "Patching qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition and add winnt.h include..."
         $filePath = "C:/QtSrc/qtbase/src/corelib/io/qfilesystemengine_win.cpp"
         $content = Get-Content -Path $filePath -Raw
-        # Удаляем дублирующее определение FILE_ID_INFO
         if ($content -match "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;") {
           $newContent = $content -replace "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;", ""
-          # Добавляем #include <winnt.h> после существующих включений
           if (-not ($newContent -match "#include <winnt.h>")) {
             $newContent = $newContent -replace "(#include <[^>]+>\s*)+", "$&#include <winnt.h>`n"
           }
@@ -165,6 +163,23 @@ jobs:
         }
       shell: powershell
 
+    - name: Patch qmake.conf to set _WIN32_WINNT consistently
+      run: |
+        Write-Host "Patching qmake.conf to set _WIN32_WINNT=0x0602..."
+        $filePath = "C:/QtSrc/qtbase/mkspecs/win32-g++/qmake.conf"
+        $content = Get-Content -Path $filePath -Raw
+        $newContent = $content -replace "-D_WIN32_WINNT=0x[0-9a-fA-F]+", "-D_WIN32_WINNT=0x0602"
+        Set-Content -Path $filePath -Value $newContent
+        Write-Host "qmake.conf patched successfully"
+      shell: powershell
+
+    - name: Check system resources before Qt build
+      run: |
+        Write-Host "Checking CPU and memory usage..."
+        Get-CimInstance Win32_ComputerSystem | Select-Object @{Name="TotalPhysicalMemory(GB)";Expression={[math]::Round($_.TotalPhysicalMemory/1GB,2)}}, @{Name="FreePhysicalMemory(GB)";Expression={[math]::Round($_.FreePhysicalMemory/1GB,2)}}
+        Get-CimInstance Win32_Processor | Select-Object LoadPercentage
+      shell: powershell
+
     - name: Build static Qt from source
       run: |
         cd C:/QtSrc
@@ -172,11 +187,24 @@ jobs:
         cd build
         Write-Host "Configuring Qt for static build..."
         ../configure -static -release -platform win32-g++ -prefix C:/Qt/Qt/5.15.2/mingw81_64_static -opensource -confirm-license -nomake examples -nomake tests -opengl desktop -D _WIN32_WINNT=0x0602 -I C:/vcpkg/installed/x64-mingw-static/include -L C:/vcpkg/installed/x64-mingw-static/lib
-        Write-Host "Building Qt..."
-        mingw32-make -j4
+        Write-Host "Building Qt with reduced parallelism..."
+        mingw32-make -j1 --debug=v 2>&1 | Tee-Object -FilePath "qt_build.log"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Qt build failed. Check qt_build.log for details."
+          Get-Content qt_build.log
+          exit 1
+        }
         Write-Host "Installing Qt..."
         mingw32-make install
       shell: powershell
+
+    - name: Upload Qt build logs
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: qt-build-logs
+        path: C:/QtSrc/build/qt_build.log
+        if-no-files-found: warn
 
     - name: Debug Qt installation
       run: |
@@ -525,7 +553,6 @@ jobs:
           Write-Host "Created build directory"
         }
         
-        # Переходим в директорию ui для вызова qmake
         cd ui
         Write-Host "Changed to ui directory: $(Get-Location)"
         Write-Host "Running qmake with static configuration..."
@@ -538,7 +565,6 @@ jobs:
           exit 1
         }
         
-        # Возвращаемся в директорию build для сборки
         cd ../build
         Write-Host "Changed to build directory: $(Get-Location)"
         Write-Host "Listing generated files after qmake:"
