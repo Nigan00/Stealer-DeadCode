@@ -27,7 +27,7 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lsqlite3 \
         -lzip \
         -lz \
-        -lbzip2 \
+        -lbz2 \    # Изменено с -lbzip2 на -lbz2
         -lcurl \
         -lssl \
         -lcrypto \
