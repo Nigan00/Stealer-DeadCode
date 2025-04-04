@@ -53,45 +53,29 @@ jobs:
         Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
       shell: powershell
 
-    - name: Install MinGW via Chocolatey
+    - name: Install MinGW via MSYS2
       run: |
-        Write-Host "Checking for Chocolatey installation..."
-        if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-          Write-Host "Installing Chocolatey..."
-          Set-ExecutionPolicy Bypass -Scope Process -Force
-          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-        } else {
-          Write-Host "Chocolatey is already installed, skipping installation."
-        }
-        
-        Write-Host "Installing MinGW via Chocolatey..."
-        choco install mingw -y
+        Write-Host "Installing MSYS2 and MinGW..."
+        choco install msys2 -y
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MinGW via Chocolatey"
+          Write-Host "Error: Failed to install MSYS2 via Chocolatey"
           exit 1
         }
-        
-        Write-Host "Refreshing environment variables..."
-        Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
-        refreshenv
-        
-        Write-Host "Listing contents of MinGW directory..."
-        dir "C:\ProgramData\mingw64\mingw64\bin"
-        
+        Write-Host "Updating MSYS2 and installing MinGW..."
+        C:\tools\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm"
+        C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
         Write-Host "Adding MinGW to PATH..."
-        $mingwPath = "C:\ProgramData\mingw64\mingw64\bin"
-        if (-not (Test-Path $mingwPath)) {
-          Write-Host "Error: MinGW not found at $mingwPath"
-          exit 1
-        }
-        $env:Path = "$mingwPath;" + $env:Path
+        $env:Path = "C:\tools\msys64\mingw64\bin;" + $env:Path
         Write-Host "PATH updated: $env:Path"
-        
         Write-Host "Verifying MinGW installation..."
         g++ --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ --version failed"
+          exit 1
+        }
+        mingw32-make --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: mingw32-make --version failed"
           exit 1
         }
       shell: powershell
@@ -105,7 +89,6 @@ jobs:
           exit 1
         }
         Write-Host "Perl installation completed (or already installed)."
-        
         Write-Host "Refreshing environment variables..."
         Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         refreshenv
@@ -156,17 +139,29 @@ jobs:
         }
       shell: powershell
 
-    - name: Patch qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition
+    - name: Patch qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition and add winnt.h
       run: |
-        Write-Host "Patching qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition..."
+        Write-Host "Patching qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition and add winnt.h include..."
         $filePath = "C:/QtSrc/qtbase/src/corelib/io/qfilesystemengine_win.cpp"
         $content = Get-Content -Path $filePath -Raw
-        if ($content -match "typedef struct _FILE_ID_INFO") {
+        # Удаляем дублирующее определение FILE_ID_INFO
+        if ($content -match "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;") {
           $newContent = $content -replace "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;", ""
+          # Добавляем #include <winnt.h> после существующих включений
+          if (-not ($newContent -match "#include <winnt.h>")) {
+            $newContent = $newContent -replace "(#include <[^>]+>\s*)+", "$&#include <winnt.h>`n"
+          }
           Set-Content -Path $filePath -Value $newContent
           Write-Host "qfilesystemengine_win.cpp patched successfully"
         } else {
-          Write-Host "qfilesystemengine_win.cpp does not contain FILE_ID_INFO definition, no patch needed"
+          Write-Host "qfilesystemengine_win.cpp does not contain FILE_ID_INFO definition, checking for winnt.h include..."
+          if (-not ($content -match "#include <winnt.h>")) {
+            $newContent = $content -replace "(#include <[^>]+>\s*)+", "$&#include <winnt.h>`n"
+            Set-Content -Path $filePath -Value $newContent
+            Write-Host "Added #include <winnt.h> to qfilesystemengine_win.cpp"
+          } else {
+            Write-Host "qfilesystemengine_win.cpp already includes winnt.h, no patch needed"
+          }
         }
       shell: powershell
 
@@ -176,7 +171,7 @@ jobs:
         mkdir build
         cd build
         Write-Host "Configuring Qt for static build..."
-        ../configure -static -release -platform win32-g++ -prefix C:/Qt/Qt/5.15.2/mingw81_64_static -opensource -confirm-license -nomake examples -nomake tests -opengl desktop -I C:/vcpkg/installed/x64-mingw-static/include -L C:/vcpkg/installed/x64-mingw-static/lib
+        ../configure -static -release -platform win32-g++ -prefix C:/Qt/Qt/5.15.2/mingw81_64_static -opensource -confirm-license -nomake examples -nomake tests -opengl desktop -D _WIN32_WINNT=0x0602 -I C:/vcpkg/installed/x64-mingw-static/include -L C:/vcpkg/installed/x64-mingw-static/lib
         Write-Host "Building Qt..."
         mingw32-make -j4
         Write-Host "Installing Qt..."
@@ -202,7 +197,7 @@ jobs:
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe"
         $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/uic.exe"
         $makePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/mingw32-make.exe"
-        $gppPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/g++.exe"
+        $gppPath = "C:/tools/msys64/mingw64/bin/g++.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
           $qmakePath = (Get-ChildItem -Path C:/Qt -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -235,15 +230,15 @@ jobs:
         }
         if (-not (Test-Path $gppPath)) {
           Write-Host "Error: g++.exe not found at $gppPath. Searching for g++.exe..."
-          $gppPath = (Get-ChildItem -Path C:/Qt -Filter g++.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          $gppPath = (Get-ChildItem -Path C:/tools/msys64 -Filter g++.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if (-not $gppPath) {
-            Write-Host "Error: g++.exe not found in C:/Qt"
-            dir C:/Qt -Recurse
+            Write-Host "Error: g++.exe not found in C:/tools/msys64"
+            dir C:/tools/msys64 -Recurse
             exit 1
           }
           Write-Host "Found g++.exe at $gppPath"
         }
-        $env:Path = [System.IO.Path]::GetDirectoryName($qmakePath) + ";" + $env:Path
+        $env:Path = "C:/tools/msys64/mingw64/bin;" + [System.IO.Path]::GetDirectoryName($qmakePath) + ";" + $env:Path
         Write-Host "PATH: $env:Path"
         Write-Host "qmake path: $qmakePath"
         Write-Host "uic path: $uicPath"
@@ -520,7 +515,7 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin;C:/vcpkg;" + $env:Path
+        $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
         Write-Host "Updated PATH: $env:Path"
 
         Write-Host "Current directory before build setup: $(Get-Location)"
