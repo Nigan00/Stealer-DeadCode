@@ -21,7 +21,7 @@ HEADERS += \
 
 FORMS += mainwindow.ui
 
-RC_ICONS = ../icon.ico
+RC_FILE = ../icon.rc
 
 INCLUDEPATH += \
     ../src \
@@ -79,13 +79,13 @@ DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
            BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
 DESTDIR = ../build
-OBJECTS_DIR = ../Release
-MOC_DIR = ../Release
-UI_DIR = ../Release
+OBJECTS_DIR = ../release
+MOC_DIR = ../release
+UI_DIR = ../release
 
 QMAKE_CLEAN += \
     ../build/DeadCode.exe \
-    ../Release/*.o
+    ../release/*.o
 
 win32 {
     CONFIG(debug, debug|release) {

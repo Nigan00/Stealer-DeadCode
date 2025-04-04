@@ -90,13 +90,51 @@ jobs:
         }
       shell: powershell
 
-    - name: Build static Qt from source
+    - name: Install Perl (required for Qt build)
+      run: |
+        Write-Host "Installing Perl via Chocolatey..."
+        choco install strawberryperl -y
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Perl via Chocolatey"
+          exit 1
+        }
+        refreshenv
+      shell: powershell
+
+    - name: Cache Qt
+      uses: actions/cache@v4
+      with:
+        path: C:/Qt/Qt/5.15.2/mingw81_64_static
+        key: qt-5.15.2-static-${{ runner.os }}-${{ hashFiles('C:/QtSrc/qtbase/configure') }}
+        restore-keys: |
+          qt-5.15.2-static-${{ runner.os }}-
+
+    - name: Clone Qt 5.15.2 source
       run: |
         Write-Host "Cloning Qt 5.15.2 source..."
         git clone https://code.qt.io/qt/qt5.git C:/QtSrc
         cd C:/QtSrc
         git checkout v5.15.2
         perl init-repository --module-subset=qtbase,qttools
+      shell: powershell
+
+    - name: Patch qfloat16.h to include <limits>
+      run: |
+        Write-Host "Patching qfloat16.h to include <limits>..."
+        $filePath = "C:/QtSrc/qtbase/src/corelib/global/qfloat16.h"
+        $content = Get-Content -Path $filePath -Raw
+        if (-not ($content -match "#include <limits>")) {
+          $newContent = $content -replace "#include <QtCore/qglobal.h>", "#include <QtCore/qglobal.h>`n#include <limits>"
+          Set-Content -Path $filePath -Value $newContent
+          Write-Host "qfloat16.h patched successfully"
+        } else {
+          Write-Host "qfloat16.h already contains #include <limits>"
+        }
+      shell: powershell
+
+    - name: Build static Qt from source
+      run: |
+        cd C:/QtSrc
         mkdir build
         cd build
         Write-Host "Configuring Qt for static build..."
