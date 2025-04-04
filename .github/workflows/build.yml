@@ -55,10 +55,15 @@ jobs:
 
     - name: Install MinGW via Chocolatey
       run: |
-        Write-Host "Installing Chocolatey..."
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-        iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        Write-Host "Checking for Chocolatey installation..."
+        if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+          Write-Host "Installing Chocolatey..."
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        } else {
+          Write-Host "Chocolatey is already installed, skipping installation."
+        }
         
         Write-Host "Installing MinGW via Chocolatey..."
         choco install mingw -y
@@ -68,6 +73,7 @@ jobs:
         }
         
         Write-Host "Refreshing environment variables..."
+        Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         refreshenv
         
         Write-Host "Listing contents of MinGW directory..."
@@ -94,10 +100,14 @@ jobs:
       run: |
         Write-Host "Installing Perl via Chocolatey..."
         choco install strawberryperl -y
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Perl via Chocolatey"
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Failed to install Perl via Chocolatey (exit code: $LASTEXITCODE)"
           exit 1
         }
+        Write-Host "Perl installation completed (or already installed)."
+        
+        Write-Host "Refreshing environment variables..."
+        Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         refreshenv
       shell: powershell
 
