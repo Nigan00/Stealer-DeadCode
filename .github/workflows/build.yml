@@ -156,6 +156,20 @@ jobs:
         }
       shell: powershell
 
+    - name: Patch qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition
+      run: |
+        Write-Host "Patching qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition..."
+        $filePath = "C:/QtSrc/qtbase/src/corelib/io/qfilesystemengine_win.cpp"
+        $content = Get-Content -Path $filePath -Raw
+        if ($content -match "typedef struct _FILE_ID_INFO") {
+          $newContent = $content -replace "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;", ""
+          Set-Content -Path $filePath -Value $newContent
+          Write-Host "qfilesystemengine_win.cpp patched successfully"
+        } else {
+          Write-Host "qfilesystemengine_win.cpp does not contain FILE_ID_INFO definition, no patch needed"
+        }
+      shell: powershell
+
     - name: Build static Qt from source
       run: |
         cd C:/QtSrc
@@ -515,13 +529,12 @@ jobs:
           New-Item -Path build -ItemType Directory -Force
           Write-Host "Created build directory"
         }
-        cd build
-        Write-Host "Changed to build directory: $(Get-Location)"
-        Write-Host "Listing contents of build directory:"
-        dir .
-
+        
+        # Переходим в директорию ui для вызова qmake
+        cd ui
+        Write-Host "Changed to ui directory: $(Get-Location)"
         Write-Host "Running qmake with static configuration..."
-        C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=static CONFIG+=staticlib 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe DeadCode.pro CONFIG+=static CONFIG+=staticlib 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           if (Test-Path ../qmake_output.log) {
@@ -529,6 +542,10 @@ jobs:
           }
           exit 1
         }
+        
+        # Возвращаемся в директорию build для сборки
+        cd ../build
+        Write-Host "Changed to build directory: $(Get-Location)"
         Write-Host "Listing generated files after qmake:"
         dir .
 
