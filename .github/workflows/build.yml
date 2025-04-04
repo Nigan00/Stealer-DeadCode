@@ -142,6 +142,20 @@ jobs:
         }
       shell: powershell
 
+    - name: Patch qbytearraymatcher.h to include <limits>
+      run: |
+        Write-Host "Patching qbytearraymatcher.h to include <limits>..."
+        $filePath = "C:/QtSrc/qtbase/src/corelib/text/qbytearraymatcher.h"
+        $content = Get-Content -Path $filePath -Raw
+        if (-not ($content -match "#include <limits>")) {
+          $newContent = $content -replace "#include <QtCore/qbytearray.h>", "#include <QtCore/qbytearray.h>`n#include <limits>"
+          Set-Content -Path $filePath -Value $newContent
+          Write-Host "qbytearraymatcher.h patched successfully"
+        } else {
+          Write-Host "qbytearraymatcher.h already contains #include <limits>"
+        }
+      shell: powershell
+
     - name: Build static Qt from source
       run: |
         cd C:/QtSrc
