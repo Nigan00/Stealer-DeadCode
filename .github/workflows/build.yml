@@ -35,29 +35,30 @@ jobs:
         python -m aqt version
       shell: powershell
 
-    - name: Check available Qt modules
-      run: |
-        Write-Host "Checking available Qt versions and architectures..."
-        python -m aqt list-qt windows desktop
-        Write-Host "Checking available architectures for Qt 5.15.2..."
-        python -m aqt list-qt windows desktop --arch 5.15.2
-        Write-Host "Checking available modules for Qt 5.15.2 with win64_mingw81..."
-        python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
-        Write-Host "Checking available MinGW tools..."
-        python -m aqt list-tool windows desktop tools_mingw
-      shell: powershell
-      continue-on-error: true
-
     - name: Check disk space
       run: |
         Write-Host "Checking available disk space..."
         Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
       shell: powershell
 
+    - name: Cache MSYS2
+      uses: actions/cache@v4
+      with:
+        path: C:/tools/msys64
+        key: msys2-${{ runner.os }}-${{ hashFiles('**/choco-install-msys2.yml') }}
+        restore-keys: |
+          msys2-${{ runner.os }}-
+
+    - name: Test network connectivity
+      run: |
+        Write-Host "Testing network connectivity to Chocolatey..."
+        ping -n 4 community.chocolatey.org
+      shell: powershell
+
     - name: Install MinGW via MSYS2
       run: |
         Write-Host "Installing MSYS2 and MinGW..."
-        choco install msys2 -y
+        choco install msys2 -y --timeout 600
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install MSYS2 via Chocolatey"
           exit 1
@@ -68,7 +69,6 @@ jobs:
         Write-Host "Adding MinGW to PATH..."
         $env:Path = "C:\tools\msys64\mingw64\bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        Write-Host "PATH updated: $env:Path"
         Write-Host "Verifying MinGW installation..."
         g++ --version
         if ($LASTEXITCODE -ne 0) {
@@ -82,7 +82,7 @@ jobs:
         }
       shell: powershell
 
-    - name: Install Perl (required for Qt build)
+    - name: Install Perl (required for Qt)
       run: |
         Write-Host "Installing Perl via Chocolatey..."
         choco install strawberryperl -y
@@ -90,7 +90,6 @@ jobs:
           Write-Host "Error: Failed to install Perl via Chocolatey (exit code: $LASTEXITCODE)"
           exit 1
         }
-        Write-Host "Perl installation completed (or already installed)."
         Write-Host "Refreshing environment variables..."
         Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
         refreshenv
@@ -99,236 +98,42 @@ jobs:
     - name: Cache Qt
       uses: actions/cache@v4
       with:
-        path: C:/Qt/Qt/5.15.2/mingw81_64_static
-        key: qt-5.15.2-static-${{ runner.os }}-${{ hashFiles('C:/QtSrc/qtbase/configure') }}
+        path: C:/Qt/Qt/5.15.2/win64_mingw81
+        key: qt-5.15.2-${{ runner.os }}-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
-          qt-5.15.2-static-${{ runner.os }}-
+          qt-5.15.2-${{ runner.os }}-
 
-    - name: Clone Qt 5.15.2 source
+    - name: Install Qt 5.15.2 via aqtinstall
       run: |
-        Write-Host "Cloning Qt 5.15.2 source..."
-        git clone https://code.qt.io/qt/qt5.git C:/QtSrc
-        cd C:/QtSrc
-        git checkout v5.15.2
-        perl init-repository --module-subset=qtbase,qttools
+        Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
+        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql --noarchives
+        Write-Host "Qt installation completed."
       shell: powershell
-
-    - name: Patch qfloat16.h to include <limits>
-      run: |
-        Write-Host "Patching qfloat16.h to include <limits>..."
-        $filePath = "C:/QtSrc/qtbase/src/corelib/global/qfloat16.h"
-        $content = Get-Content -Path $filePath -Raw
-        if (-not ($content -match "#include <limits>")) {
-          $newContent = $content -replace "#include <QtCore/qglobal.h>", "#include <QtCore/qglobal.h>`n#include <limits>"
-          Set-Content -Path $filePath -Value $newContent
-          Write-Host "qfloat16.h patched successfully"
-        } else {
-          Write-Host "qfloat16.h already contains #include <limits>"
-        }
-      shell: powershell
-
-    - name: Patch qbytearraymatcher.h to include <limits>
-      run: |
-        Write-Host "Patching qbytearraymatcher.h to include <limits>..."
-        $filePath = "C:/QtSrc/qtbase/src/corelib/text/qbytearraymatcher.h"
-        $content = Get-Content -Path $filePath -Raw
-        if (-not ($content -match "#include <limits>")) {
-          $newContent = $content -replace "#include <QtCore/qbytearray.h>", "#include <QtCore/qbytearray.h>`n#include <limits>"
-          Set-Content -Path $filePath -Value $newContent
-          Write-Host "qbytearraymatcher.h patched successfully"
-        } else {
-          Write-Host "qbytearraymatcher.h already contains #include <limits>"
-        }
-      shell: powershell
-
-    - name: Patch qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition and add winnt.h
-      run: |
-        Write-Host "Patching qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition and add winnt.h include..."
-        $filePath = "C:/QtSrc/qtbase/src/corelib/io/qfilesystemengine_win.cpp"
-        $content = Get-Content -Path $filePath -Raw
-        if ($content -match "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;") {
-          $newContent = $content -replace "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;", ""
-          if (-not ($newContent -match "#include <winnt.h>")) {
-            $newContent = $newContent -replace "(#include <[^>]+>\s*)+", "$&#include <winnt.h>`n"
-          }
-          Set-Content -Path $filePath -Value $newContent
-          Write-Host "qfilesystemengine_win.cpp patched successfully"
-        } else {
-          Write-Host "qfilesystemengine_win.cpp does not contain FILE_ID_INFO definition, checking for winnt.h include..."
-          if (-not ($content -match "#include <winnt.h>")) {
-            $newContent = $content -replace "(#include <[^>]+>\s*)+", "$&#include <winnt.h>`n"
-            Set-Content -Path $filePath -Value $newContent
-            Write-Host "Added #include <winnt.h> to qfilesystemengine_win.cpp"
-          } else {
-            Write-Host "qfilesystemengine_win.cpp already includes winnt.h, no patch needed"
-          }
-        }
-      shell: powershell
-
-    - name: Patch qmake.conf to set _WIN32_WINNT consistently
-      run: |
-        Write-Host "Patching qmake.conf to set _WIN32_WINNT=0x0602..."
-        $filePath = "C:/QtSrc/qtbase/mkspecs/win32-g++/qmake.conf"
-        $content = Get-Content -Path $filePath -Raw
-        $newContent = $content -replace "-D_WIN32_WINNT=0x[0-9a-fA-F]+", "-D_WIN32_WINNT=0x0602"
-        Set-Content -Path $filePath -Value $newContent
-        Write-Host "qmake.conf patched successfully"
-      shell: powershell
-
-    - name: Check system resources before Qt build
-      run: |
-        Write-Host "Checking CPU and memory usage..."
-        Get-CimInstance Win32_ComputerSystem | Select-Object @{Name="TotalPhysicalMemory(GB)";Expression={[math]::Round($_.TotalPhysicalMemory/1GB,2)}}, @{Name="FreePhysicalMemory(GB)";Expression={[math]::Round($_.FreePhysicalMemory/1GB,2)}}
-        Get-CimInstance Win32_Processor | Select-Object LoadPercentage
-      shell: powershell
-
-    - name: Build static Qt from source
-      run: |
-        cd C:/QtSrc
-        mkdir build
-        cd build
-        Write-Host "Configuring Qt for static build..."
-        ../configure -static -release -platform win32-g++ -prefix C:/Qt/Qt/5.15.2/mingw81_64_static -opensource -confirm-license -nomake examples -nomake tests -opengl desktop -D _WIN32_WINNT=0x0602 -I C:/vcpkg/installed/x64-mingw-static/include -L C:/vcpkg/installed/x64-mingw-static/lib
-        Write-Host "Building Qt with reduced parallelism..."
-        mingw32-make -j1 --debug=v 2>&1 | Tee-Object -FilePath "qt_build.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Qt build failed. Check qt_build.log for details."
-          Get-Content qt_build.log
-          exit 1
-        }
-        Write-Host "Installing Qt..."
-        mingw32-make install
-      shell: powershell
-
-    - name: Verify Qt static build
-      run: |
-        Write-Host "Checking for static Qt libraries..."
-        $libDir = "C:/Qt/Qt/5.15.2/mingw81_64_static/lib"
-        if (-not (Test-Path $libDir)) {
-          Write-Host "Error: Qt library directory $libDir does not exist"
-          exit 1
-        }
-        $staticLibs = @("libQt5Core.a", "libQt5Gui.a", "libQt5Network.a", "libQt5Widgets.a")
-        $dynamicLibs = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll")
-        $missingStatic = @()
-        $foundDynamic = @()
-        foreach ($lib in $staticLibs) {
-          if (-not (Test-Path "$libDir/$lib")) {
-            $missingStatic += $lib
-          }
-        }
-        foreach ($dll in $dynamicLibs) {
-          if (Test-Path "$libDir/$dll") {
-            $foundDynamic += $dll
-          }
-        }
-        if ($missingStatic) {
-          Write-Host "Error: Missing static Qt libraries: $missingStatic"
-          dir $libDir
-          exit 1
-        }
-        if ($foundDynamic) {
-          Write-Host "Error: Found dynamic Qt libraries: $foundDynamic. Qt was not built statically."
-          dir $libDir
-          exit 1
-        }
-        Write-Host "Qt static libraries verified: $staticLibs"
-      shell: powershell
-
-    - name: Upload Qt build logs
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: qt-build-logs
-        path: C:/QtSrc/build/qt_build.log
-        if-no-files-found: warn
-
-    - name: Debug Qt installation
-      run: |
-        Write-Host "Listing contents of C:/Qt..."
-        dir C:/Qt -Recurse
-        Write-Host "Listing contents of C:/Qt/Qt..."
-        dir C:/Qt/Qt -Recurse
-        Write-Host "Listing contents of C:/Qt/Qt/5.15.2..."
-        dir C:/Qt/Qt/5.15.2 -Recurse
-        Write-Host "Listing contents of C:/Qt/Qt/5.15.2/mingw81_64_static/bin..."
-        dir C:/Qt/Qt/5.15.2/mingw81_64_static/bin -Recurse
-      shell: powershell
-      continue-on-error: true
 
     - name: Verify Qt installation
       run: |
         Write-Host "Verifying Qt installation..."
-        $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe"
-        $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/uic.exe"
-        $makePath = "C:/tools/msys64/mingw64/bin/mingw32-make.exe"
-        $gppPath = "C:/tools/msys64/mingw64/bin/g++.exe"
+        $qmakePath = "C:/Qt/Qt/5.15.2/win64_mingw81/bin/qmake.exe"
+        $uicPath = "C:/Qt/Qt/5.15.2/win64_mingw81/bin/uic.exe"
         if (-not (Test-Path $qmakePath)) {
-          Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
-          $qmakePath = (Get-ChildItem -Path C:/Qt -Filter qmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $qmakePath) {
-            Write-Host "Error: qmake.exe not found in C:/Qt"
-            dir C:/Qt -Recurse
-            exit 1
-          }
-          Write-Host "Found qmake.exe at $qmakePath"
+          Write-Host "Error: qmake.exe not found at $qmakePath"
+          dir C:/Qt -Recurse
+          exit 1
         }
         if (-not (Test-Path $uicPath)) {
-          Write-Host "Error: uic.exe not found at $uicPath. Searching for uic.exe..."
-          $uicPath = (Get-ChildItem -Path C:/Qt -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $uicPath) {
-            Write-Host "Error: uic.exe not found in C:/Qt"
-            dir C:/Qt -Recurse
-            exit 1
-          }
-          Write-Host "Found uic.exe at $uicPath"
+          Write-Host "Error: uic.exe not found at $uicPath"
+          dir C:/Qt -Recurse
+          exit 1
         }
-        if (-not (Test-Path $makePath)) {
-          Write-Host "Error: mingw32-make.exe not found at $makePath. Searching for mingw32-make.exe..."
-          $makePath = (Get-ChildItem -Path C:/tools/msys64 -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $makePath) {
-            Write-Host "Error: mingw32-make.exe not found in C:/tools/msys64"
-            dir C:/tools/msys64 -Recurse
-            exit 1
-          }
-          Write-Host "Found mingw32-make.exe at $makePath"
-        }
-        if (-not (Test-Path $gppPath)) {
-          Write-Host "Error: g++.exe not found at $gppPath. Searching for g++.exe..."
-          $gppPath = (Get-ChildItem -Path C:/tools/msys64 -Filter g++.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $gppPath) {
-            Write-Host "Error: g++.exe not found in C:/tools/msys64"
-            dir C:/tools/msys64 -Recurse
-            exit 1
-          }
-          Write-Host "Found g++.exe at $gppPath"
-        }
-        $env:Path = "C:/tools/msys64/mingw64/bin;" + [System.IO.Path]::GetDirectoryName($qmakePath) + ";" + $env:Path
+        $env:Path = "C:/tools/msys64/mingw64/bin;C:/Qt/Qt/5.15.2/win64_mingw81/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        Write-Host "PATH: $env:Path"
-        Write-Host "qmake path: $qmakePath"
-        Write-Host "uic path: $uicPath"
-        Write-Host "mingw32-make path: $makePath"
-        Write-Host "g++ path: $gppPath"
         Write-Host "Verifying qmake..."
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake --version failed"
           exit 1
         }
-        Write-Host "Verifying mingw32-make..."
-        & $makePath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: mingw32-make --version failed"
-          exit 1
-        }
-        Write-Host "Verifying g++..."
-        & $gppPath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: g++ --version failed"
-          exit 1
-        }
-        Write-Host "Qt and MinGW installation completed and verified"
+        Write-Host "Qt installation verified"
       shell: powershell
 
     - name: Cache vcpkg
@@ -352,14 +157,8 @@ jobs:
           exit 1
         }
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
-        if (-not (Test-Path $vcpkgExe)) {
-          Write-Host "Error: vcpkg.exe not found at $vcpkgExe"
-          exit 1
-        }
         $env:Path = "C:/vcpkg;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        Write-Host "vcpkg version after bootstrap:"
-        & $vcpkgExe --version
         Write-Host "Cleaning vcpkg buildtrees and installed directories..."
         Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -Path "C:/vcpkg/installed" -Recurse -Force -ErrorAction SilentlyContinue
@@ -367,10 +166,7 @@ jobs:
         & $vcpkgExe install sqlite3 libzip zlib bzip2 curl openssl --triplet x64-mingw-static --clean-after-build 2>&1 | Tee-Object -FilePath "Stealer-DeadCode/vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check the logs for details."
-          dir C:/vcpkg/installed/x64-mingw-static/lib
-          Write-Host "Printing vcpkg logs..."
           if (Test-Path Stealer-DeadCode/vcpkg_install.log) {
-            Write-Host "Contents of vcpkg_install.log:"
             Get-Content Stealer-DeadCode/vcpkg_install.log
           }
           exit 1
@@ -392,9 +188,7 @@ jobs:
         $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
         $libs = @("libsqlite3.a", "libzip.a", "libzlib.a", "libbz2.a", "libcurl.a", "libssl.a", "libcrypto.a")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
-        $dynamicLibs = @("sqlite3.dll", "zip.dll", "zlib.dll", "bz2.dll", "curl.dll", "ssl.dll", "crypto.dll")
         $missing = @()
-        $foundDynamic = @()
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib")) {
             $missing += "$lib"
@@ -405,53 +199,19 @@ jobs:
             $missing += $header
           }
         }
-        foreach ($dll in $dynamicLibs) {
-          if (Test-Path "$libDir/$dll") {
-            $foundDynamic += $dll
-          }
-        }
         if ($missing) {
           Write-Host "Error: Missing libraries or header files: $missing"
-          Write-Host "Contents of directory ${libDir}:"
-          dir ${libDir}
-          Write-Host "Contents of directory ${includeDir}:"
-          dir ${includeDir}
-          Write-Host "Contents of directory ${includeDir}/curl:"
-          dir ${includeDir}/curl
-          Write-Host "Contents of directory ${includeDir}/openssl:"
-          dir ${includeDir}/openssl
-          exit 1
-        }
-        if ($foundDynamic) {
-          Write-Host "Error: Found dynamic libraries in vcpkg: $foundDynamic. vcpkg dependencies must be static."
           dir $libDir
+          dir $includeDir
           exit 1
         }
-        if (-not (Test-Path $libDir)) {
-          Write-Host "Error: Directory $libDir does not exist"
-          exit 1
-        }
-        Write-Host "Listing all .a files in $libDir"
-        Get-ChildItem -Path $libDir -Filter *.a
         Write-Host "All vcpkg dependencies verified as static"
-      shell: powershell
-
-    - name: Debug project structure
-      run: |
-        Write-Host "Listing contents of project root:"
-        dir D:\a\Stealer-DeadCode\Stealer-DeadCode
-        Write-Host "Listing contents of ui directory (if exists):"
-        dir D:\a\Stealer-DeadCode\Stealer-DeadCode\ui -ErrorAction SilentlyContinue
-        Write-Host "Listing contents of src directory (if exists):"
-        dir D:\a\Stealer-DeadCode\Stealer-DeadCode\src -ErrorAction SilentlyContinue
       shell: powershell
 
     - name: Verify project structure
       run: |
         cd Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
-        Write-Host "Listing contents of project root:"
-        dir .
         $requiredFiles = @(
           "ui/DeadCode.pro",
           "src/main.cpp",
@@ -482,108 +242,35 @@ jobs:
         New-Item -Path build -ItemType Directory -Force
         Write-Host "Creating release directory if it doesn't exist..."
         New-Item -Path release -ItemType Directory -Force
-        Write-Host "Verifying write access to build directory..."
-        $testFile = "build/test_write.txt"
-        try {
-          Set-Content -Path $testFile -Value "Test write access"
-          Remove-Item -Path $testFile
-          Write-Host "Write access to build directory verified"
-        } catch {
-          Write-Host "Error: No write access to build directory"
-          exit 1
-        }
-        Write-Host "Verifying write access to release directory..."
-        $testFile = "release/test_write.txt"
-        try {
-          Set-Content -Path $testFile -Value "Test write access"
-          Remove-Item -Path $testFile
-          Write-Host "Write access to release directory verified"
-        } catch {
-          Write-Host "Error: No write access to release directory"
-          exit 1
-        }
         Write-Host "Project structure verified"
       shell: powershell
 
-    - name: Check icon.rc file
+    - name: Fix icon.rc encoding
       run: |
         cd Stealer-DeadCode
-        Write-Host "Checking icon.rc file..."
-        if (-not (Test-Path icon.rc)) {
-          Write-Host "Error: icon.rc file not found"
-          exit 1
-        }
-        Write-Host "Contents of icon.rc:"
-        Get-Content icon.rc
-        if (-not (Test-Path icon.ico)) {
-          Write-Host "Error: icon.ico file not found"
-          exit 1
-        }
-        Write-Host "icon.ico file exists"
-        # Проверяем кодировку файла
-        Write-Host "Checking encoding of icon.rc..."
-        $content = Get-Content -Path icon.rc -Raw -AsByteStream
-        if ($content.Length -ge 3 -and $content[0] -eq 0xEF -and $content[1] -eq 0xBB -and $content[2] -eq 0xBF) {
-          Write-Host "Warning: icon.rc has UTF-8 BOM, which may cause issues with windres"
-        } else {
-          Write-Host "icon.rc encoding looks good (no UTF-8 BOM detected)"
-        }
+        Write-Host "Fixing encoding of icon.rc..."
+        $content = Get-Content -Path icon.rc -Raw
+        Set-Content -Path icon.rc -Value $content -NoNewline -Encoding ASCII
+        Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
     - name: Verify and generate UI files
       run: |
         cd Stealer-DeadCode
-        Write-Host "Current directory before processing: $(Get-Location)"
-        Write-Host "Listing contents of current directory:"
-        dir .
-        Write-Host "Ensuring release directory exists and is writable..."
-        if (-not (Test-Path release)) {
-          New-Item -Path release -ItemType Directory -Force
-          Write-Host "Created release directory"
-        }
-        Write-Host "Checking write access to release directory..."
-        $testFile = "release/test_write.txt"
-        try {
-          Set-Content -Path $testFile -Value "Test write access"
-          Remove-Item -Path $testFile
-          Write-Host "Write access to release directory confirmed"
-        } catch {
-          Write-Host "Error: Cannot write to release directory"
-          exit 1
-        }
-        Write-Host "Listing contents of release directory before uic:"
-        dir release -ErrorAction SilentlyContinue
-        Write-Host "Checking mainwindow.ui for validity and generating ui_mainwindow.h..."
-        $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/uic.exe"
-        if (-not (Test-Path $uicPath)) {
-          Write-Host "Error: uic.exe not found at $uicPath. Searching for uic.exe..."
-          $uicPath = (Get-ChildItem -Path C:/Qt -Filter uic.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $uicPath) {
-            Write-Host "Error: uic.exe not found in C:/Qt"
-            dir C:/Qt -Recurse
-            exit 1
-          }
-          Write-Host "Found uic.exe at $uicPath"
-        }
+        Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
+        $uicPath = "C:/Qt/Qt/5.15.2/win64_mingw81/bin/uic.exe"
         $outputPath = "$(Get-Location)/release/ui_mainwindow.h"
-        Write-Host "Generating $outputPath from ui/mainwindow.ui..."
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: uic.exe failed. Check uic_output.log for details."
-          if (Test-Path uic_output.log) {
-            Write-Host "Contents of uic_output.log:"
-            Get-Content uic_output.log
-          }
-          Write-Host "Listing contents of release directory after uic failure:"
-          dir release -ErrorAction SilentlyContinue
+          Get-Content uic_output.log
           exit 1
         }
         if (-not (Test-Path $outputPath)) {
           Write-Host "Error: $outputPath was not generated"
-          dir release -ErrorAction SilentlyContinue
           exit 1
         }
-        Write-Host "mainwindow.ui is valid and ui_mainwindow.h generated successfully at $outputPath"
+        Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
     - name: Configure and build
@@ -599,7 +286,7 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        $env:Path = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
+        $env:Path = "C:/Qt/Qt/5.15.2/win64_mingw81/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
 
@@ -612,34 +299,12 @@ jobs:
         Write-Host "Build Date: $buildDate"
         Write-Host "Build Version: $buildVersion"
 
-        Write-Host "Current directory before build setup: $(Get-Location)"
-        Write-Host "Ensuring build directory exists..."
-        if (-not (Test-Path build)) {
-          New-Item -Path build -ItemType Directory -Force
-          Write-Host "Created build directory"
-        }
-        
         cd build
-        Write-Host "Changed to build directory: $(Get-Location)"
-        Write-Host "Running qmake with static configuration..."
-        C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=static CONFIG+=staticlib QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        Write-Host "Running qmake..."
+        C:/Qt/Qt/5.15.2/win64_mingw81/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
-          if (Test-Path ../qmake_output.log) {
-            Get-Content ../qmake_output.log
-          }
-          exit 1
-        }
-        
-        Write-Host "Listing generated files after qmake:"
-        dir .
-
-        Write-Host "Checking contents of Makefile.Release..."
-        if (Test-Path Makefile.Release) {
-          Write-Host "Contents of Makefile.Release (first 50 lines):"
-          Get-Content Makefile.Release -TotalCount 50
-        } else {
-          Write-Host "Error: Makefile.Release not found"
+          Get-Content ../qmake_output.log
           exit 1
         }
 
@@ -647,9 +312,7 @@ jobs:
         C:/tools/msys64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
-          if (Test-Path ../make_output.log) {
-            Get-Content ../make_output.log
-          }
+          Get-Content ../make_output.log
           exit 1
         }
 
@@ -659,11 +322,9 @@ jobs:
           exit 1
         }
         Write-Host "Build completed successfully"
-        Write-Host "Listing contents of build directory after build:"
-        dir .
       shell: powershell
 
-    - name: Verify DeadCode.exe dependencies
+    - name: Check DeadCode.exe dependencies
       run: |
         cd Stealer-DeadCode/build
         Write-Host "Checking dependencies of DeadCode.exe..."
@@ -678,19 +339,179 @@ jobs:
         if (Test-Path dependencies.txt) {
           Write-Host "Dependencies of DeadCode.exe:"
           Get-Content dependencies.txt
-          $qtDlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll")
-          $foundQtDlls = @()
-          foreach ($dll in $qtDlls) {
-            if (Get-Content dependencies.txt | Select-String $dll) {
-              $foundQtDlls += $dll
-            }
-          }
-          if ($foundQtDlls) {
-            Write-Host "Error: DeadCode.exe has dynamic Qt dependencies: $foundQtDlls. It should be fully static."
-            exit 1
+        } else {
+          Write-Host "No dependencies found or objdump failed."
+        }
+      shell: powershell
+
+    - name: Copy Qt DLLs and dependencies to build directory
+      run: |
+        cd Stealer-DeadCode/build
+        Write-Host "Copying Qt DLLs and dependencies to build directory..."
+        $qtBinDir = "C:/Qt/Qt/5.15.2/win64_mingw81/bin"
+        $qtPluginsDir = "C:/Qt/Qt/5.15.2/win64_mingw81/plugins"
+        $mingwBinDir = "C:/tools/msys64/mingw64/bin"
+        $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-static/bin"
+        $system32Dir = "C:/Windows/System32"
+
+        # Основные и дополнительные Qt DLL
+        $requiredQtDlls = @(
+          "Qt5Core.dll",
+          "Qt5Gui.dll",
+          "Qt5Network.dll",
+          "Qt5Widgets.dll",
+          "Qt5Svg.dll",
+          "Qt5Declarative.dll",
+          "Qt5Quick.dll",
+          "Qt5QuickControls2.dll",
+          "Qt5QuickWidgets.dll",
+          "Qt5Sql.dll",
+          "Qt5GraphicalEffects.dll",
+          "Qt5Qml.dll",
+          "Qt5QmlModels.dll",
+          "Qt5QmlWorkerScript.dll"
+        )
+
+        # MinGW DLL
+        $requiredMingwDlls = @(
+          "libwinpthread-1.dll",
+          "libgcc_s_seh-1.dll",
+          "libstdc++-6.dll"
+        )
+
+        # vcpkg DLL (OpenSSL, zlib, bzip2, curl и т.д.)
+        $requiredVcpkgDlls = @(
+          "libssl-1_1-x64.dll",
+          "libcrypto-1_1-x64.dll",
+          "zlib1.dll",
+          "bz2.dll",
+          "libcurl.dll"
+        )
+
+        # Системные DLL для совместимости
+        $requiredSystemDlls = @(
+          "msvcr120.dll",
+          "vcruntime140.dll",
+          "ucrtbase.dll",
+          "msvcp140.dll",
+          "api-ms-win-crt-runtime-l1-1-0.dll",
+          "api-ms-win-crt-heap-l1-1-0.dll",
+          "api-ms-win-crt-stdio-l1-1-0.dll",
+          "api-ms-win-crt-locale-l1-1-0.dll",
+          "api-ms-win-crt-math-l1-1-0.dll",
+          "api-ms-win-crt-filesystem-l1-1-0.dll",
+          "api-ms-win-crt-time-l1-1-0.dll",
+          "api-ms-win-crt-environment-l1-1-0.dll",
+          "api-ms-win-crt-string-l1-1-0.dll",
+          "api-ms-win-core-file-l1-2-0.dll",
+          "api-ms-win-core-timezone-l1-1-0.dll",
+          "api-ms-win-core-processthreads-l1-1-1.dll",
+          "api-ms-win-core-localization-l1-2-0.dll"
+        )
+
+        # Копируем Qt DLL
+        foreach ($dll in $requiredQtDlls) {
+          if (Test-Path "$qtBinDir/$dll") {
+            Copy-Item -Path "$qtBinDir/$dll" -Destination .
+            Write-Host "Copied $dll to build directory"
+          } else {
+            Write-Host "Warning: $dll not found in $qtBinDir"
           }
         }
-        Write-Host "DeadCode.exe has no dynamic Qt dependencies. Build is fully static."
+
+        # Копируем MinGW DLL
+        foreach ($dll in $requiredMingwDlls) {
+          if (Test-Path "$mingwBinDir/$dll") {
+            Copy-Item -Path "$mingwBinDir/$dll" -Destination .
+            Write-Host "Copied $dll to build directory"
+          } else {
+            Write-Host "Warning: $dll not found in $mingwBinDir"
+          }
+        }
+
+        # Копируем vcpkg DLL
+        foreach ($dll in $requiredVcpkgDlls) {
+          if (Test-Path "$vcpkgBinDir/$dll") {
+            Copy-Item -Path "$vcpkgBinDir/$dll" -Destination .
+            Write-Host "Copied $dll to build directory"
+          } else {
+            Write-Host "Warning: $dll not found in $vcpkgBinDir"
+          }
+        }
+
+        # Копируем системные DLL
+        foreach ($dll in $requiredSystemDlls) {
+          if (Test-Path "$system32Dir/$dll") {
+            Copy-Item -Path "$system32Dir/$dll" -Destination .
+            Write-Host "Copied $dll to build directory"
+          } else {
+            Write-Host "Warning: $dll not found in $system32Dir"
+          }
+        }
+
+        # Копируем Qt плагины
+        if (Test-Path "$qtPluginsDir") {
+          # Платформа Windows
+          if (Test-Path "$qtPluginsDir/platforms") {
+            New-Item -Path "platforms" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/platforms/qwindows.dll" -Destination "platforms/" -ErrorAction SilentlyContinue
+            Write-Host "Copied Qt platform plugin qwindows.dll"
+          }
+
+          # Стили
+          if (Test-Path "$qtPluginsDir/styles") {
+            New-Item -Path "styles" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/styles/qwindowsvistastyle.dll" -Destination "styles/" -ErrorAction SilentlyContinue
+            Write-Host "Copied Qt style plugin qwindowsvistastyle.dll"
+          }
+
+          # Форматы изображений
+          if (Test-Path "$qtPluginsDir/imageformats") {
+            New-Item -Path "imageformats" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/imageformats/*.dll" -Destination "imageformats/" -ErrorAction SilentlyContinue
+            Write-Host "Copied Qt imageformats plugins"
+          }
+
+          # Qt Quick
+          if (Test-Path "$qtPluginsDir/quick") {
+            New-Item -Path "quick" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/quick/*.dll" -Destination "quick/" -ErrorAction SilentlyContinue
+            Write-Host "Copied Qt Quick plugins"
+          }
+
+          # Qt QML
+          if (Test-Path "$qtPluginsDir/qmltooling") {
+            New-Item -Path "qmltooling" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/qmltooling/*.dll" -Destination "qmltooling/" -ErrorAction SilentlyContinue
+            Write-Host "Copied Qt QML tooling plugins"
+          }
+
+          # Qt Graphical Effects
+          if (Test-Path "$qtPluginsDir/effects") {
+            New-Item -Path "effects" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/effects/*.dll" -Destination "effects/" -ErrorAction SilentlyContinue
+            Write-Host "Copied Qt Graphical Effects plugins"
+          }
+
+          # Qt SQL драйверы
+          if (Test-Path "$qtPluginsDir/sqldrivers") {
+            New-Item -Path "sqldrivers" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/sqldrivers/*.dll" -Destination "sqldrivers/" -ErrorAction SilentlyContinue
+            Write-Host "Copied Qt SQL drivers"
+          }
+        } else {
+          Write-Host "Warning: Qt plugins directory not found at $qtPluginsDir"
+        }
+
+        Write-Host "Listing contents of build directory after copying DLLs:"
+        dir .
+        dir platforms -ErrorAction SilentlyContinue
+        dir styles -ErrorAction SilentlyContinue
+        dir imageformats -ErrorAction SilentlyContinue
+        dir quick -ErrorAction SilentlyContinue
+        dir qmltooling -ErrorAction SilentlyContinue
+        dir effects -ErrorAction SilentlyContinue
+        dir sqldrivers -ErrorAction SilentlyContinue
       shell: powershell
 
     - name: Upload build logs
@@ -709,7 +530,54 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DeadCode-Build
-        path: Stealer-DeadCode/build/DeadCode.exe
+        path: |
+          Stealer-DeadCode/build/DeadCode.exe
+          Stealer-DeadCode/build/Qt5Core.dll
+          Stealer-DeadCode/build/Qt5Gui.dll
+          Stealer-DeadCode/build/Qt5Network.dll
+          Stealer-DeadCode/build/Qt5Widgets.dll
+          Stealer-DeadCode/build/Qt5Svg.dll
+          Stealer-DeadCode/build/Qt5Declarative.dll
+          Stealer-DeadCode/build/Qt5Quick.dll
+          Stealer-DeadCode/build/Qt5QuickControls2.dll
+          Stealer-DeadCode/build/Qt5QuickWidgets.dll
+          Stealer-DeadCode/build/Qt5Sql.dll
+          Stealer-DeadCode/build/Qt5GraphicalEffects.dll
+          Stealer-DeadCode/build/Qt5Qml.dll
+          Stealer-DeadCode/build/Qt5QmlModels.dll
+          Stealer-DeadCode/build/Qt5QmlWorkerScript.dll
+          Stealer-DeadCode/build/libwinpthread-1.dll
+          Stealer-DeadCode/build/libgcc_s_seh-1.dll
+          Stealer-DeadCode/build/libstdc++-6.dll
+          Stealer-DeadCode/build/libssl-1_1-x64.dll
+          Stealer-DeadCode/build/libcrypto-1_1-x64.dll
+          Stealer-DeadCode/build/zlib1.dll
+          Stealer-DeadCode/build/bz2.dll
+          Stealer-DeadCode/build/libcurl.dll
+          Stealer-DeadCode/build/msvcr120.dll
+          Stealer-DeadCode/build/vcruntime140.dll
+          Stealer-DeadCode/build/ucrtbase.dll
+          Stealer-DeadCode/build/msvcp140.dll
+          Stealer-DeadCode/build/api-ms-win-crt-runtime-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-crt-heap-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-crt-stdio-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-crt-locale-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-crt-math-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-crt-filesystem-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-crt-time-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-crt-environment-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-crt-string-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-core-file-l1-2-0.dll
+          Stealer-DeadCode/build/api-ms-win-core-timezone-l1-1-0.dll
+          Stealer-DeadCode/build/api-ms-win-core-processthreads-l1-1-1.dll
+          Stealer-DeadCode/build/api-ms-win-core-localization-l1-2-0.dll
+          Stealer-DeadCode/build/platforms/qwindows.dll
+          Stealer-DeadCode/build/styles/qwindowsvistastyle.dll
+          Stealer-DeadCode/build/imageformats/*.dll
+          Stealer-DeadCode/build/quick/*.dll
+          Stealer-DeadCode/build/qmltooling/*.dll
+          Stealer-DeadCode/build/effects/*.dll
+          Stealer-DeadCode/build/sqldrivers/*.dll
         if-no-files-found: error
 
     - name: Cleanup
