@@ -57,7 +57,7 @@ jobs:
     - name: Install Qt 5.15.2 for win64_mingw81
       run: |
         Write-Host "Installing Qt 5.15.2 for win64_mingw81..."
-        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 -m qttools
+        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2"
           exit 1
