@@ -13,6 +13,7 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+    timeout-minutes: 120
 
     steps:
     - name: Checkout repository
@@ -61,9 +62,9 @@ jobs:
           Write-Host "Error: Failed to install MSYS2 via Chocolatey"
           exit 1
         }
-        Write-Host "Updating MSYS2 and installing MinGW..."
+        Write-Host "Updating MSYS2 and installing MinGW 8.1..."
         C:\tools\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm"
-        C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
+        C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc-8.1.0 mingw-w64-x86_64-make mingw-w64-x86_64-pcre2 mingw-w64-x86_64-zlib mingw-w64-x86_64-libpng mingw-w64-x86_64-libjpeg"
         Write-Host "Adding MinGW to PATH..."
         $env:Path = "C:\tools\msys64\mingw64\bin;" + $env:Path
         Write-Host "PATH updated: $env:Path"
@@ -94,14 +95,6 @@ jobs:
         refreshenv
       shell: powershell
 
-    - name: Cache Qt
-      uses: actions/cache@v4
-      with:
-        path: C:/Qt/Qt/5.15.2/mingw81_64_static
-        key: qt-5.15.2-static-${{ runner.os }}-${{ hashFiles('C:/QtSrc/qtbase/configure') }}
-        restore-keys: |
-          qt-5.15.2-static-${{ runner.os }}-
-
     - name: Clone Qt 5.15.2 source
       run: |
         Write-Host "Cloning Qt 5.15.2 source..."
@@ -110,6 +103,14 @@ jobs:
         git checkout v5.15.2
         perl init-repository --module-subset=qtbase,qttools
       shell: powershell
+
+    - name: Cache Qt
+      uses: actions/cache@v4
+      with:
+        path: C:/Qt/Qt/5.15.2/mingw81_64_static
+        key: qt-5.15.2-static-${{ runner.os }}-v2
+        restore-keys: |
+          qt-5.15.2-static-${{ runner.os }}-
 
     - name: Patch qfloat16.h to include <limits>
       run: |
@@ -180,23 +181,40 @@ jobs:
         Get-CimInstance Win32_Processor | Select-Object LoadPercentage
       shell: powershell
 
-    - name: Build static Qt from source
+    - name: Verify Perl and syncqt.pl
       run: |
-        cd C:/QtSrc
-        mkdir build
-        cd build
-        Write-Host "Configuring Qt for static build..."
-        ../configure -static -release -platform win32-g++ -prefix C:/Qt/Qt/5.15.2/mingw81_64_static -opensource -confirm-license -nomake examples -nomake tests -opengl desktop -D _WIN32_WINNT=0x0602 -I C:/vcpkg/installed/x64-mingw-static/include -L C:/vcpkg/installed/x64-mingw-static/lib
-        Write-Host "Building Qt with reduced parallelism..."
-        mingw32-make -j1 --debug=v 2>&1 | Tee-Object -FilePath "qt_build.log"
+        Write-Host "Verifying Perl installation..."
+        perl --version
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Qt build failed. Check qt_build.log for details."
-          Get-Content qt_build.log
+          Write-Host "Error: Perl is not installed or not in PATH"
           exit 1
         }
-        Write-Host "Installing Qt..."
-        mingw32-make install
+        Write-Host "Testing syncqt.pl manually..."
+        perl -w C:/QtSrc/qtbase/bin/syncqt.pl -minimal -module QtCore -module QtXml -version 5.15.2 -outdir C:/QtSrc/build/qtbase -builddir C:/QtSrc/build/qtbase C:/QtSrc/qtbase 2>&1 | Tee-Object -FilePath "syncqt_test.log"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: syncqt.pl failed. Check syncqt_test.log for details."
+          Get-Content syncqt_test.log
+          exit 1
+        }
       shell: powershell
+
+    - name: Build static Qt from source
+      run: |
+        cd C:\QtSrc
+        mkdir build
+        cd build
+        echo Configuring Qt for static build...
+        ..\configure -static -release -platform win32-g++ -prefix C:/Qt/Qt/5.15.2/mingw81_64_static -opensource -confirm-license -nomake examples -nomake tests -opengl desktop -D _WIN32_WINNT=0x0602 -I C:/vcpkg/installed/x64-mingw-static/include -L C:/vcpkg/installed/x64-mingw-static/lib
+        echo Building Qt with reduced parallelism...
+        mingw32-make -j1 > qt_build.log 2>&1
+        if %ERRORLEVEL% NEQ 0 (
+          echo Error: Qt build failed. Check qt_build.log for details.
+          type qt_build.log
+          exit /b 1
+        )
+        echo Installing Qt...
+        mingw32-make install
+      shell: cmd
 
     - name: Upload Qt build logs
       if: failure()
