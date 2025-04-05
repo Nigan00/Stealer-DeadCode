@@ -54,6 +54,17 @@ jobs:
         Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
       shell: pwsh
 
+    - name: Install Qt 5.15.2 for win64_mingw81
+      run: |
+        Write-Host "Installing Qt 5.15.2 for win64_mingw81..."
+        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 -m qttools
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Qt 5.15.2"
+          exit 1
+        }
+        Write-Host "Qt 5.15.2 installed successfully"
+      shell: pwsh
+
     - name: Install MSYS2 and MinGW
       run: |
         Write-Host "Installing MSYS2 and MinGW..."
@@ -82,167 +93,12 @@ jobs:
         }
       shell: pwsh
 
-    - name: Install Perl (required for Qt build)
-      run: |
-        Write-Host "Installing Perl via Chocolatey..."
-        choco install strawberryperl -y
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-          Write-Host "Error: Failed to install Perl via Chocolatey (exit code: $LASTEXITCODE)"
-          exit 1
-        }
-        Write-Host "Perl installation completed (or already installed)."
-        Write-Host "Refreshing environment variables..."
-        Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
-        refreshenv
-        Write-Host "Verifying Perl installation..."
-        perl --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Perl is not installed or not in PATH"
-          exit 1
-        }
-      shell: pwsh
-
-    - name: Cache Qt source
-      uses: actions/cache@v4
-      with:
-        path: C:/QtSrc
-        key: qt-source-5.15.2-${{ runner.os }}-${{ github.event.inputs.cache-buster || '1' }}
-        restore-keys: |
-          qt-source-5.15.2-${{ runner.os }}-
-
-    - name: Clone Qt 5.15.2 source
-      if: steps.cache-qt-source.outputs.cache-hit != 'true'
-      run: |
-        Write-Host "Cloning Qt 5.15.2 source..."
-        git clone https://code.qt.io/qt/qt5.git C:/QtSrc
-        cd C:/QtSrc
-        git checkout v5.15.2
-        perl init-repository --module-subset=qtbase,qttools
-      shell: pwsh
-
-    - name: Cache Qt build
-      uses: actions/cache@v4
-      with:
-        path: C:/Qt/Qt/5.15.2/mingw81_64_static
-        key: qt-5.15.2-static-${{ runner.os }}-v2-${{ github.event.inputs.cache-buster || '1' }}
-        restore-keys: |
-          qt-5.15.2-static-${{ runner.os }}-
-
-    - name: Patch qfloat16.h to include <limits>
-      run: |
-        Write-Host "Patching qfloat16.h to include <limits>..."
-        $filePath = "C:/QtSrc/qtbase/src/corelib/global/qfloat16.h"
-        $content = Get-Content -Path $filePath -Raw
-        if (-not ($content -match "#include <limits>")) {
-          $newContent = $content -replace "#include <QtCore/qglobal.h>", "#include <QtCore/qglobal.h>`n#include <limits>"
-          Set-Content -Path $filePath -Value $newContent
-          Write-Host "qfloat16.h patched successfully"
-        } else {
-          Write-Host "qfloat16.h already contains #include <limits>"
-        }
-      shell: pwsh
-
-    - name: Patch qbytearraymatcher.h to include <limits>
-      run: |
-        Write-Host "Patching qbytearraymatcher.h to include <limits>..."
-        $filePath = "C:/QtSrc/qtbase/src/corelib/text/qbytearraymatcher.h"
-        $content = Get-Content -Path $filePath -Raw
-        if (-not ($content -match "#include <limits>")) {
-          $newContent = $content -replace "#include <QtCore/qbytearray.h>", "#include <QtCore/qbytearray.h>`n#include <limits>"
-          Set-Content -Path $filePath -Value $newContent
-          Write-Host "qbytearraymatcher.h patched successfully"
-        } else {
-          Write-Host "qbytearraymatcher.h already contains #include <limits>"
-        }
-      shell: pwsh
-
-    - name: Patch qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition and add winnt.h
-      run: |
-        Write-Host "Patching qfilesystemengine_win.cpp to avoid FILE_ID_INFO redefinition and add winnt.h include..."
-        $filePath = "C:/QtSrc/qtbase/src/corelib/io/qfilesystemengine_win.cpp"
-        $content = Get-Content -Path $filePath -Raw
-        if ($content -match "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;") {
-          $newContent = $content -replace "typedef struct _FILE_ID_INFO\s*\{[^}]*\}\s*FILE_ID_INFO,\s*\*PFILE_ID_INFO;", ""
-          if (-not ($newContent -match "#include <winnt.h>")) {
-            $newContent = $newContent -replace "(#include <[^>]+>\s*)+", "$&#include <winnt.h>`n"
-          }
-          Set-Content -Path $filePath -Value $newContent
-          Write-Host "qfilesystemengine_win.cpp patched successfully"
-        } else {
-          Write-Host "qfilesystemengine_win.cpp does not contain FILE_ID_INFO definition, checking for winnt.h include..."
-          if (-not ($content -match "#include <winnt.h>")) {
-            $newContent = $content -replace "(#include <[^>]+>\s*)+", "$&#include <winnt.h>`n"
-            Set-Content -Path $filePath -Value $newContent
-            Write-Host "Added #include <winnt.h> to qfilesystemengine_win.cpp"
-          } else {
-            Write-Host "qfilesystemengine_win.cpp already includes winnt.h, no patch needed"
-          }
-        }
-      shell: pwsh
-
-    - name: Patch qmake.conf to set _WIN32_WINNT consistently
-      run: |
-        Write-Host "Patching qmake.conf to set _WIN32_WINNT=0x0602..."
-        $filePath = "C:/QtSrc/qtbase/mkspecs/win32-g++/qmake.conf"
-        $content = Get-Content -Path $filePath -Raw
-        $newContent = $content -replace "-D_WIN32_WINNT=0x[0-9a-fA-F]+", "-D_WIN32_WINNT=0x0602"
-        Set-Content -Path $filePath -Value $newContent
-        Write-Host "qmake.conf patched successfully"
-      shell: pwsh
-
-    - name: Check system resources before Qt build
-      run: |
-        Write-Host "Checking CPU and memory usage..."
-        Get-CimInstance Win32_ComputerSystem | Select-Object @{Name="TotalPhysicalMemory(GB)";Expression={[math]::Round($_.TotalPhysicalMemory/1GB,2)}}, @{Name="FreePhysicalMemory(GB)";Expression={[math]::Round($_.FreePhysicalMemory/1GB,2)}}
-        Get-CimInstance Win32_Processor | Select-Object LoadPercentage
-      shell: pwsh
-
-    - name: Build static Qt from source
-      if: steps.cache-qt-build.outputs.cache-hit != 'true'
-      run: |
-        Write-Host "Creating build directory for Qt..."
-        New-Item -Path C:/QtSrc/build -ItemType Directory -Force
-        cd C:/QtSrc/build
-        Write-Host "Configuring Qt for static build..."
-        & "C:/QtSrc/configure.bat" -static -release -platform win32-g++ -prefix C:/Qt/Qt/5.15.2/mingw81_64_static -opensource -confirm-license -nomake examples -nomake tests -opengl desktop -I C:/vcpkg/installed/x64-mingw-static/include -L C:/vcpkg/installed/x64-mingw-static/lib 2>&1 | Tee-Object -FilePath "qt_configure.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Qt configure failed. Check qt_configure.log for details."
-          Get-Content qt_configure.log
-          exit 1
-        }
-        Write-Host "Building Qt with reduced parallelism..."
-        mingw32-make -j1 2>&1 | Tee-Object -FilePath "qt_build.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Qt build failed. Check qt_build.log for details."
-          Get-Content qt_build.log
-          exit 1
-        }
-        Write-Host "Installing Qt..."
-        mingw32-make install 2>&1 | Tee-Object -FilePath "qt_install.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Qt install failed. Check qt_install.log for details."
-          Get-Content qt_install.log
-          exit 1
-        }
-      shell: pwsh
-
-    - name: Upload Qt build logs
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: qt-build-logs
-        path: |
-          C:/QtSrc/build/qt_configure.log
-          C:/QtSrc/build/qt_build.log
-          C:/QtSrc/build/qt_install.log
-        if-no-files-found: warn
-
     - name: Verify Qt installation
       run: |
         Write-Host "Verifying Qt installation..."
-        $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe"
-        $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/uic.exe"
-        $makePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/mingw32-make.exe"
+        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
+        $makePath = "C:/tools/msys64/mingw64/bin/mingw32-make.exe"
         $gppPath = "C:/tools/msys64/mingw64/bin/g++.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath"
@@ -256,7 +112,7 @@ jobs:
         }
         if (-not (Test-Path $makePath)) {
           Write-Host "Error: mingw32-make.exe not found at $makePath"
-          dir C:/Qt -Recurse
+          dir C:/tools/msys64 -Recurse
           exit 1
         }
         if (-not (Test-Path $gppPath)) {
@@ -264,7 +120,7 @@ jobs:
           dir C:/tools/msys64 -Recurse
           exit 1
         }
-        $env:Path += ";C:/Qt/Qt/5.15.2/mingw81_64_static/bin;C:/tools/msys64/mingw64/bin"
+        $env:Path += ";C:/Qt/5.15.2/mingw81_64/bin;C:/tools/msys64/mingw64/bin"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "PATH: $env:Path"
         Write-Host "Verifying qmake..."
@@ -392,7 +248,7 @@ jobs:
       run: |
         cd Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h..."
-        $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/uic.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         if (-not (Test-Path $uicPath)) {
           Write-Host "Error: uic.exe not found at $uicPath"
           exit 1
@@ -414,12 +270,12 @@ jobs:
       run: |
         cd Stealer-DeadCode
         Write-Host "Setting up environment..."
-        $env:Path += ";C:/Qt/Qt/5.15.2/mingw81_64_static/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin"
+        $env:Path += ";C:/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
         cd ui
         Write-Host "Running qmake..."
-        C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe DeadCode.pro CONFIG+=static CONFIG+=staticlib 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        C:/Qt/5.15.2/mingw81_64/bin/qmake.exe DeadCode.pro CONFIG+=static CONFIG+=staticlib 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           Get-Content ../qmake_output.log
@@ -427,7 +283,7 @@ jobs:
         }
         cd ../build
         Write-Host "Running mingw32-make..."
-        C:/Qt/Qt/5.15.2/mingw81_64_static/bin/mingw32-make.exe -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
+        C:/tools/msys64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
           Get-Content ../make_output.log

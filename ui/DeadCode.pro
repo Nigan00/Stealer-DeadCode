@@ -32,10 +32,12 @@ RC_FILE = ../icon.rc
 INCLUDEPATH += \
     ../src \
     . \
+    $$system_path(C:/Qt/5.15.2/mingw81_64/include) \
     $$system_path(C:/vcpkg/installed/x64-mingw-static/include)
 
 # Библиотеки vcpkg и системные библиотеки Windows
-LIBS += -L$$system_path(C:/vcpkg/installed/x64-mingw-static/lib) \
+LIBS += -L$$system_path(C:/Qt/5.15.2/mingw81_64/lib) \
+        -L$$system_path(C:/vcpkg/installed/x64-mingw-static/lib) \
         -lsqlite3 \
         -lzip \
         -lz \
@@ -69,6 +71,8 @@ QMAKE_CXXFLAGS += \
     -DUNICODE \
     -D_UNICODE \
     -DWIN32 \
+    -DWINVER=0x0602 \
+    -D_WIN32_WINNT=0x0602 \
     -DQT_NO_DEBUG \
     -D_CRT_SECURE_NO_WARNINGS \
     -DQT_DISABLE_DEPRECATED_BEFORE=0x050F00
