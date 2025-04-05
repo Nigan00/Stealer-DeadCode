@@ -273,15 +273,37 @@ jobs:
         $env:Path += ";C:/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
-        cd ui
+        
+        # Переходим в каталог build и указываем путь к DeadCode.pro
+        cd build
         Write-Host "Running qmake..."
-        C:/Qt/5.15.2/mingw81_64/bin/qmake.exe DeadCode.pro CONFIG+=static CONFIG+=staticlib 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        C:/Qt/5.15.2/mingw81_64/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=static CONFIG+=staticlib 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           Get-Content ../qmake_output.log
           exit 1
         }
-        cd ../build
+        
+        # Проверяем, созданы ли Makefile, Makefile.Debug и Makefile.Release
+        Write-Host "Checking for generated Makefiles..."
+        if (-not (Test-Path Makefile)) {
+          Write-Host "Error: Makefile was not generated"
+          dir .
+          exit 1
+        }
+        if (-not (Test-Path Makefile.Debug)) {
+          Write-Host "Error: Makefile.Debug was not generated"
+          dir .
+          exit 1
+        }
+        if (-not (Test-Path Makefile.Release)) {
+          Write-Host "Error: Makefile.Release was not generated"
+          dir .
+          exit 1
+        }
+        Write-Host "Makefiles generated successfully"
+        
+        # Запускаем mingw32-make в каталоге build
         Write-Host "Running mingw32-make..."
         C:/tools/msys64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
