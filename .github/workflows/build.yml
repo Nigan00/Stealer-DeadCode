@@ -50,6 +50,7 @@ jobs:
           msys2-${{ runner.os }}-
 
     - name: Test network connectivity
+      continue-on-error: true  # Добавляем, чтобы продолжить выполнение при ошибке
       run: |
         Write-Host "Testing network connectivity to Chocolatey..."
         ping -n 4 community.chocolatey.org
