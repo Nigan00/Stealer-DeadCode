@@ -200,6 +200,41 @@ jobs:
         mingw32-make install
       shell: powershell
 
+    - name: Verify Qt static build
+      run: |
+        Write-Host "Checking for static Qt libraries..."
+        $libDir = "C:/Qt/Qt/5.15.2/mingw81_64_static/lib"
+        if (-not (Test-Path $libDir)) {
+          Write-Host "Error: Qt library directory $libDir does not exist"
+          exit 1
+        }
+        $staticLibs = @("libQt5Core.a", "libQt5Gui.a", "libQt5Network.a", "libQt5Widgets.a")
+        $dynamicLibs = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll")
+        $missingStatic = @()
+        $foundDynamic = @()
+        foreach ($lib in $staticLibs) {
+          if (-not (Test-Path "$libDir/$lib")) {
+            $missingStatic += $lib
+          }
+        }
+        foreach ($dll in $dynamicLibs) {
+          if (Test-Path "$libDir/$dll") {
+            $foundDynamic += $dll
+          }
+        }
+        if ($missingStatic) {
+          Write-Host "Error: Missing static Qt libraries: $missingStatic"
+          dir $libDir
+          exit 1
+        }
+        if ($foundDynamic) {
+          Write-Host "Error: Found dynamic Qt libraries: $foundDynamic. Qt was not built statically."
+          dir $libDir
+          exit 1
+        }
+        Write-Host "Qt static libraries verified: $staticLibs"
+      shell: powershell
+
     - name: Upload Qt build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -226,7 +261,7 @@ jobs:
         Write-Host "Verifying Qt installation..."
         $qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/qmake.exe"
         $uicPath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/uic.exe"
-        $makePath = "C:/Qt/Qt/5.15.2/mingw81_64_static/bin/mingw32-make.exe"
+        $makePath = "C:/tools/msys64/mingw64/bin/mingw32-make.exe"
         $gppPath = "C:/tools/msys64/mingw64/bin/g++.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath. Searching for qmake.exe..."
@@ -250,10 +285,10 @@ jobs:
         }
         if (-not (Test-Path $makePath)) {
           Write-Host "Error: mingw32-make.exe not found at $makePath. Searching for mingw32-make.exe..."
-          $makePath = (Get-ChildItem -Path C:/Qt -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          $makePath = (Get-ChildItem -Path C:/tools/msys64 -Filter mingw32-make.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
           if (-not $makePath) {
-            Write-Host "Error: mingw32-make.exe not found in C:/Qt"
-            dir C:/Qt -Recurse
+            Write-Host "Error: mingw32-make.exe not found in C:/tools/msys64"
+            dir C:/tools/msys64 -Recurse
             exit 1
           }
           Write-Host "Found mingw32-make.exe at $makePath"
@@ -357,7 +392,9 @@ jobs:
         $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
         $libs = @("libsqlite3.a", "libzip.a", "libzlib.a", "libbz2.a", "libcurl.a", "libssl.a", "libcrypto.a")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
+        $dynamicLibs = @("sqlite3.dll", "zip.dll", "zlib.dll", "bz2.dll", "curl.dll", "ssl.dll", "crypto.dll")
         $missing = @()
+        $foundDynamic = @()
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib")) {
             $missing += "$lib"
@@ -366,6 +403,11 @@ jobs:
         foreach ($header in $headers) {
           if (-not (Test-Path "$includeDir/$header")) {
             $missing += $header
+          }
+        }
+        foreach ($dll in $dynamicLibs) {
+          if (Test-Path "$libDir/$dll") {
+            $foundDynamic += $dll
           }
         }
         if ($missing) {
@@ -380,13 +422,18 @@ jobs:
           dir ${includeDir}/openssl
           exit 1
         }
+        if ($foundDynamic) {
+          Write-Host "Error: Found dynamic libraries in vcpkg: $foundDynamic. vcpkg dependencies must be static."
+          dir $libDir
+          exit 1
+        }
         if (-not (Test-Path $libDir)) {
           Write-Host "Error: Directory $libDir does not exist"
           exit 1
         }
         Write-Host "Listing all .a files in $libDir"
         Get-ChildItem -Path $libDir -Filter *.a
-        Write-Host "All vcpkg dependencies verified"
+        Write-Host "All vcpkg dependencies verified as static"
       shell: powershell
 
     - name: Debug project structure
@@ -614,6 +661,36 @@ jobs:
         Write-Host "Build completed successfully"
         Write-Host "Listing contents of build directory after build:"
         dir .
+      shell: powershell
+
+    - name: Verify DeadCode.exe dependencies
+      run: |
+        cd Stealer-DeadCode/build
+        Write-Host "Checking dependencies of DeadCode.exe..."
+        $env:Path += ";C:/tools/msys64/mingw64/bin"
+        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
+        $objdump = "C:/tools/msys64/mingw64/bin/objdump.exe"
+        if (-not (Test-Path $objdump)) {
+          Write-Host "Error: objdump.exe not found at $objdump"
+          exit 1
+        }
+        & $objdump -p DeadCode.exe | Select-String "DLL Name" > dependencies.txt
+        if (Test-Path dependencies.txt) {
+          Write-Host "Dependencies of DeadCode.exe:"
+          Get-Content dependencies.txt
+          $qtDlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll")
+          $foundQtDlls = @()
+          foreach ($dll in $qtDlls) {
+            if (Get-Content dependencies.txt | Select-String $dll) {
+              $foundQtDlls += $dll
+            }
+          }
+          if ($foundQtDlls) {
+            Write-Host "Error: DeadCode.exe has dynamic Qt dependencies: $foundQtDlls. It should be fully static."
+            exit 1
+          }
+        }
+        Write-Host "DeadCode.exe has no dynamic Qt dependencies. Build is fully static."
       shell: powershell
 
     - name: Upload build logs
