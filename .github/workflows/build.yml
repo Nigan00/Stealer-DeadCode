@@ -34,7 +34,7 @@ jobs:
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install py7zr aqtinstall --upgrade
+        python -m pip install py7zr aqtinstall requests beautifulsoup4
         python -m aqt version
       shell: powershell
 
@@ -61,8 +61,8 @@ jobs:
         restore-keys: |
           msys2-${{ runner.os }}-20240727-
 
-    # Шаг 7: Проверка сетевого подключения к Chocolatey
-    - name: Test network connectivity to Chocolatey
+    # Шаг 7: Проверка сетевого подключения и скорости к Chocolatey
+    - name: Test network connectivity and speed to Chocolatey
       continue-on-error: true
       run: |
         Write-Host "Testing network connectivity to Chocolatey..."
@@ -70,14 +70,17 @@ jobs:
         $success = $false
         for ($i = 1; $i -le $attempts; $i++) {
           try {
-            $response = Invoke-WebRequest -Uri "https://community.chocolatey.org" -Method Head -ErrorAction Stop -TimeoutSec 30
-            Write-Host "Successfully connected to community.chocolatey.org (Status: $($response.StatusCode))"
+            $startTime = Get-Date
+            $response = Invoke-WebRequest -Uri "https://community.chocolatey.org/api/v2/" -Method Head -ErrorAction Stop -TimeoutSec 30
+            $endTime = Get-Date
+            $duration = (New-TimeSpan -Start $startTime -End $endTime).TotalSeconds
+            Write-Host "Attempt $i/$attempts : Successfully connected to community.chocolatey.org (Status: $($response.StatusCode), Duration: $duration seconds)"
             $success = $true
             break
           } catch {
             Write-Host "Attempt $i/$attempts : Could not connect to community.chocolatey.org. Error: $_"
             if ($i -eq $attempts) {
-              Write-Host "Warning: Failed to connect after $attempts attempts. Proceeding anyway..."
+              Write-Host "Warning: Failed to connect after $attempts attempts. Proceeding with alternative installation method..."
             }
             Start-Sleep -Seconds 5
           }
@@ -87,27 +90,52 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 8: Установка MSYS2 и MinGW
+    # Шаг 8: Установка MSYS2 и MinGW с альтернативным методом
     - name: Install MinGW via MSYS2
       run: |
         Write-Host "Installing MSYS2 and MinGW..."
         $attempts = 3
         $success = $false
-        for ($i = 1; $i -le $attempts; $i++) {
-          Write-Host "Attempt $i/$attempts : Installing MSYS2 via Chocolatey..."
-          choco install msys2 --version 20240727.0.0 -y --timeout 600 --params "/NoUpdate /InstallDir:C:\tools\msys64"
-          $exitCode = $LASTEXITCODE
-          if ($exitCode -eq 0 -or $exitCode -eq 3010) {
-            Write-Host "MSYS2 installed successfully."
-            $success = $true
-            break
-          } else {
-            Write-Host "Attempt $i/$attempts : Failed to install MSYS2 (exit code: $exitCode)"
-            if ($i -eq $attempts) {
-              Write-Host "Error: Failed to install MSYS2 after $attempts attempts."
-              exit 1
+
+        # Проверяем, не установлен ли уже MSYS2 (через кэш или ранее)
+        if (Test-Path "C:\tools\msys64\usr\bin\bash.exe") {
+          Write-Host "MSYS2 already exists at C:\tools\msys64. Skipping Chocolatey installation."
+          $success = $true
+        } else {
+          Write-Host "MSYS2 not found. Attempting to install via Chocolatey..."
+          for ($i = 1; $i -le $attempts; $i++) {
+            Write-Host "Attempt $i/$attempts : Installing MSYS2 via Chocolatey..."
+            # Увеличиваем тайм-аут до 20 минут (1200 секунд)
+            choco install msys2 --version 20240727.0.0 -y --timeout 1200 --params "/NoUpdate /InstallDir:C:\tools\msys64"
+            $exitCode = $LASTEXITCODE
+            if ($exitCode -eq 0 -or $exitCode -eq 3010) {
+              Write-Host "MSYS2 installed successfully via Chocolatey."
+              $success = $true
+              break
+            } else {
+              Write-Host "Attempt $i/$attempts : Failed to install MSYS2 (exit code: $exitCode)"
+              if ($i -eq $attempts) {
+                Write-Host "Chocolatey installation failed after $attempts attempts. Attempting direct download..."
+                # Альтернативный метод: загрузка напрямую с официального сайта
+                Write-Host "Downloading MSYS2 installer..."
+                Invoke-WebRequest -Uri "https://github.com/msys2/msys2-installer/releases/download/2024-07-27/msys2-x86_64-20240727.exe" -OutFile "msys2-installer.exe"
+                if ($LASTEXITCODE -eq 0 -and (Test-Path "msys2-installer.exe")) {
+                  Write-Host "Running MSYS2 installer..."
+                  Start-Process -FilePath "msys2-installer.exe" -ArgumentList "--accept-licenses --accept-messages --root C:\tools\msys64" -Wait
+                  if (Test-Path "C:\tools\msys64\usr\bin\bash.exe") {
+                    Write-Host "MSYS2 installed successfully via direct download."
+                    $success = $true
+                  } else {
+                    Write-Host "Error: MSYS2 installation failed via direct download."
+                    exit 1
+                  }
+                } else {
+                  Write-Host "Error: Failed to download MSYS2 installer."
+                  exit 1
+                }
+              }
+              Start-Sleep -Seconds 10
             }
-            Start-Sleep -Seconds 10
           }
         }
 
@@ -192,7 +220,6 @@ jobs:
           exit 1
         }
         mingw32-make --version
-        Write-Host "mingw32-make --version exit code: $LASTEXITCODE"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make --version failed (exit code: $LASTEXITCODE)"
           exit 1
@@ -203,7 +230,7 @@ jobs:
     - name: Install Perl (required for Qt)
       run: |
         Write-Host "Installing Perl via Chocolatey..."
-        choco install strawberryperl -y --force
+        choco install strawberryperl -y --force --timeout 600
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install Perl via Chocolatey (exit code: $LASTEXITCODE)"
           exit 1
@@ -218,9 +245,9 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-5.15.2-${{ runner.os }}-win64_mingw81-${{ github.event.inputs.cache-buster || '1' }}
+        key: qt-5.15.2-${{ runner.os }}-mingw81_64-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
-          qt-5.15.2-${{ runner.os }}-win64_mingw81-
+          qt-5.15.2-${{ runner.os }}-mingw81_64-
 
     # Шаг 11: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
@@ -384,7 +411,7 @@ jobs:
       run: |
         cd Stealer-DeadCode
         Write-Host "Fixing encoding of icon.rc..."
-        $content = Get-Content -Path icon.rc -Raw
+        $content = Get-Content -Path icon.rc -Raw -Encoding UTF8
         Set-Content -Path icon.rc -Value $content -NoNewline -Encoding ASCII
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
@@ -453,9 +480,10 @@ jobs:
           exit 1
         }
 
-        if (-not (Test-Path DeadCode.exe)) {
-          Write-Host "Error: DeadCode.exe was not generated in build/"
+        if (-not (Test-Path release/DeadCode.exe)) {
+          Write-Host "Error: DeadCode.exe was not generated in build/release/"
           dir .
+          dir release
           exit 1
         }
         Write-Host "Build completed successfully"
@@ -473,7 +501,7 @@ jobs:
           Write-Host "Error: objdump.exe not found at $objdump"
           exit 1
         }
-        & $objdump -p DeadCode.exe | Select-String "DLL Name" > dependencies.txt
+        & $objdump -p release/DeadCode.exe | Select-String "DLL Name" > dependencies.txt
         if (Test-Path dependencies.txt) {
           Write-Host "Dependencies of DeadCode.exe:"
           Get-Content dependencies.txt
@@ -486,7 +514,7 @@ jobs:
     - name: Copy Qt DLLs and dependencies to build directory
       run: |
         cd Stealer-DeadCode/build
-        Write-Host "Copying Qt DLLs and dependencies to build directory..."
+        Write-Host "Copying Qt DLLs and dependencies to release directory..."
         $qtBinDir = "C:/Qt/5.15.2/win64_mingw81/bin"
         $qtPluginsDir = "C:/Qt/5.15.2/win64_mingw81/plugins"
         $mingwBinDir = "C:/tools/msys64/mingw64/bin"
@@ -515,81 +543,81 @@ jobs:
           "libstdc++-6.dll"
         )
 
-        # Копируем Qt DLL
+        # Копируем Qt DLL в release/
         foreach ($dll in $requiredQtDlls) {
           if (Test-Path "$qtBinDir/$dll") {
-            Copy-Item -Path "$qtBinDir/$dll" -Destination .
-            Write-Host "Copied $dll to build directory"
+            Copy-Item -Path "$qtBinDir/$dll" -Destination release/
+            Write-Host "Copied $dll to release directory"
           } else {
             Write-Host "Warning: $dll not found in $qtBinDir"
           }
         }
 
-        # Копируем MinGW DLL
+        # Копируем MinGW DLL в release/
         foreach ($dll in $requiredMingwDlls) {
           if (Test-Path "$mingwBinDir/$dll") {
-            Copy-Item -Path "$mingwBinDir/$dll" -Destination .
-            Write-Host "Copied $dll to build directory"
+            Copy-Item -Path "$mingwBinDir/$dll" -Destination release/
+            Write-Host "Copied $dll to release directory"
           } else {
             Write-Host "Warning: $dll not found in $mingwBinDir"
           }
         }
 
-        # Копируем Qt плагины
+        # Копируем Qt плагины в release/
         if (Test-Path "$qtPluginsDir") {
           # Платформа Windows
           if (Test-Path "$qtPluginsDir/platforms") {
-            New-Item -Path "platforms" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/platforms/qwindows.dll" -Destination "platforms/" -ErrorAction SilentlyContinue
+            New-Item -Path "release/platforms" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/platforms/qwindows.dll" -Destination "release/platforms/" -ErrorAction SilentlyContinue
             Write-Host "Copied Qt platform plugin qwindows.dll"
           }
 
           # Стили
           if (Test-Path "$qtPluginsDir/styles") {
-            New-Item -Path "styles" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/styles/qwindowsvistastyle.dll" -Destination "styles/" -ErrorAction SilentlyContinue
+            New-Item -Path "release/styles" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/styles/qwindowsvistastyle.dll" -Destination "release/styles/" -ErrorAction SilentlyContinue
             Write-Host "Copied Qt style plugin qwindowsvistastyle.dll"
           }
 
           # Форматы изображений
           if (Test-Path "$qtPluginsDir/imageformats") {
-            New-Item -Path "imageformats" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/imageformats/*.dll" -Destination "imageformats/" -ErrorAction SilentlyContinue
+            New-Item -Path "release/imageformats" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/imageformats/*.dll" -Destination "release/imageformats/" -ErrorAction SilentlyContinue
             Write-Host "Copied Qt imageformats plugins"
           }
 
           # Qt Quick
           if (Test-Path "$qtPluginsDir/quick") {
-            New-Item -Path "quick" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/quick/*.dll" -Destination "quick/" -ErrorAction SilentlyContinue
+            New-Item -Path "release/quick" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/quick/*.dll" -Destination "release/quick/" -ErrorAction SilentlyContinue
             Write-Host "Copied Qt Quick plugins"
           }
 
           # Qt QML
           if (Test-Path "$qtPluginsDir/qmltooling") {
-            New-Item -Path "qmltooling" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/qmltooling/*.dll" -Destination "qmltooling/" -ErrorAction SilentlyContinue
+            New-Item -Path "release/qmltooling" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/qmltooling/*.dll" -Destination "release/qmltooling/" -ErrorAction SilentlyContinue
             Write-Host "Copied Qt QML tooling plugins"
           }
 
           # Qt SQL драйверы
           if (Test-Path "$qtPluginsDir/sqldrivers") {
-            New-Item -Path "sqldrivers" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/sqldrivers/*.dll" -Destination "sqldrivers/" -ErrorAction SilentlyContinue
+            New-Item -Path "release/sqldrivers" -ItemType Directory -Force
+            Copy-Item -Path "$qtPluginsDir/sqldrivers/*.dll" -Destination "release/sqldrivers/" -ErrorAction SilentlyContinue
             Write-Host "Copied Qt SQL drivers"
           }
         } else {
           Write-Host "Warning: Qt plugins directory not found at $qtPluginsDir"
         }
 
-        Write-Host "Listing contents of build directory after copying DLLs:"
-        dir .
-        dir platforms -ErrorAction SilentlyContinue
-        dir styles -ErrorAction SilentlyContinue
-        dir imageformats -ErrorAction SilentlyContinue
-        dir quick -ErrorAction SilentlyContinue
-        dir qmltooling -ErrorAction SilentlyContinue
-        dir sqldrivers -ErrorAction SilentlyContinue
+        Write-Host "Listing contents of release directory after copying DLLs:"
+        dir release
+        dir release/platforms -ErrorAction SilentlyContinue
+        dir release/styles -ErrorAction SilentlyContinue
+        dir release/imageformats -ErrorAction SilentlyContinue
+        dir release/quick -ErrorAction SilentlyContinue
+        dir release/qmltooling -ErrorAction SilentlyContinue
+        dir release/sqldrivers -ErrorAction SilentlyContinue
       shell: powershell
 
     # Шаг 23: Загрузка логов сборки в случае ошибки
@@ -611,29 +639,29 @@ jobs:
       with:
         name: DeadCode-Build
         path: |
-          Stealer-DeadCode/build/DeadCode.exe
-          Stealer-DeadCode/build/Qt5Core.dll
-          Stealer-DeadCode/build/Qt5Gui.dll
-          Stealer-DeadCode/build/Qt5Network.dll
-          Stealer-DeadCode/build/Qt5Widgets.dll
-          Stealer-DeadCode/build/Qt5Svg.dll
-          Stealer-DeadCode/build/Qt5Declarative.dll
-          Stealer-DeadCode/build/Qt5Quick.dll
-          Stealer-DeadCode/build/Qt5QuickControls2.dll
-          Stealer-DeadCode/build/Qt5QuickWidgets.dll
-          Stealer-DeadCode/build/Qt5Sql.dll
-          Stealer-DeadCode/build/Qt5Qml.dll
-          Stealer-DeadCode/build/Qt5QmlModels.dll
-          Stealer-DeadCode/build/Qt5QmlWorkerScript.dll
-          Stealer-DeadCode/build/libwinpthread-1.dll
-          Stealer-DeadCode/build/libgcc_s_seh-1.dll
-          Stealer-DeadCode/build/libstdc++-6.dll
-          Stealer-DeadCode/build/platforms/qwindows.dll
-          Stealer-DeadCode/build/styles/qwindowsvistastyle.dll
-          Stealer-DeadCode/build/imageformats/*.dll
-          Stealer-DeadCode/build/quick/*.dll
-          Stealer-DeadCode/build/qmltooling/*.dll
-          Stealer-DeadCode/build/sqldrivers/*.dll
+          Stealer-DeadCode/build/release/DeadCode.exe
+          Stealer-DeadCode/build/release/Qt5Core.dll
+          Stealer-DeadCode/build/release/Qt5Gui.dll
+          Stealer-DeadCode/build/release/Qt5Network.dll
+          Stealer-DeadCode/build/release/Qt5Widgets.dll
+          Stealer-DeadCode/build/release/Qt5Svg.dll
+          Stealer-DeadCode/build/release/Qt5Declarative.dll
+          Stealer-DeadCode/build/release/Qt5Quick.dll
+          Stealer-DeadCode/build/release/Qt5QuickControls2.dll
+          Stealer-DeadCode/build/release/Qt5QuickWidgets.dll
+          Stealer-DeadCode/build/release/Qt5Sql.dll
+          Stealer-DeadCode/build/release/Qt5Qml.dll
+          Stealer-DeadCode/build/release/Qt5QmlModels.dll
+          Stealer-DeadCode/build/release/Qt5QmlWorkerScript.dll
+          Stealer-DeadCode/build/release/libwinpthread-1.dll
+          Stealer-DeadCode/build/release/libgcc_s_seh-1.dll
+          Stealer-DeadCode/build/release/libstdc++-6.dll
+          Stealer-DeadCode/build/release/platforms/qwindows.dll
+          Stealer-DeadCode/build/release/styles/qwindowsvistastyle.dll
+          Stealer-DeadCode/build/release/imageformats/*.dll
+          Stealer-DeadCode/build/release/quick/*.dll
+          Stealer-DeadCode/build/release/qmltooling/*.dll
+          Stealer-DeadCode/build/release/sqldrivers/*.dll
         if-no-files-found: error
 
     # Шаг 25: Очистка
