@@ -80,7 +80,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 7: Установка MSYS2 и MinGW
+    # Шаг 7: Установка MSYS2 и MinGW (исправленный)
     - name: Install MinGW via MSYS2
       run: |
         Write-Host "Installing MSYS2 and MinGW..."
@@ -114,15 +114,20 @@ jobs:
         refreshenv
 
         Write-Host "Terminating any running MSYS2 processes..."
-        C:\tools\msys64\usr\bin\bash -lc "ps -ef | grep '[m]sys' | awk '{print \$2}' | xargs -r kill -9" 2>$null
+        try {
+          C:\tools\msys64\usr\bin\bash.exe -lc "ps -ef | grep '[m]sys' | grep -v grep | awk '{print \$2}' | while read pid; do kill -9 \$pid 2>/dev/null; done"
+          Write-Host "MSYS2 processes terminated successfully (if any were running)."
+        } catch {
+          Write-Host "Warning: Could not terminate MSYS2 processes. This may not be an issue if no processes were running."
+        }
 
         Write-Host "Updating MSYS2 and installing MinGW..."
-        C:\tools\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm --disable-download-timeout"
+        C:\tools\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm --disable-download-timeout"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: pacman -Syu failed (exit code: $LASTEXITCODE)"
           exit 1
         }
-        C:\tools\msys64\usr\bin\bash -lc "pacman -Su --noconfirm --disable-download-timeout"
+        C:\tools\msys64\usr\bin\bash.exe -lc "pacman -Su --noconfirm --disable-download-timeout"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: pacman -Su failed (exit code: $LASTEXITCODE)"
           exit 1
@@ -132,7 +137,7 @@ jobs:
         $mingwSuccess = $false
         for ($i = 1; $i -le $attempts; $i++) {
           Write-Host "Attempt $i/$attempts : Installing MinGW packages..."
-          C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm --disable-download-timeout mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
+          C:\tools\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --disable-download-timeout mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
           if ($LASTEXITCODE -eq 0) {
             Write-Host "MinGW packages installed successfully."
             $mingwSuccess = $true
