@@ -1,12 +1,13 @@
-QT += core gui network widgets
+# Основные модули Qt
+QT += core gui network widgets qml quick
 
 TARGET = DeadCode
 TEMPLATE = app
 
-# Добавляем параметры для статической сборки
+# Конфигурация для статической сборки
 CONFIG += static
-CONFIG += staticlib
-QTPLUGIN += -
+# Убрали staticlib, так как это приложение, а не библиотека
+# Убрали QTPLUGIN += -, чтобы не отключать плагины
 
 SOURCES += \
     ../src/main.cpp \
@@ -67,25 +68,30 @@ QMAKE_CXXFLAGS += -O2 \
 
 QMAKE_LFLAGS = -static-libgcc -static-libstdc++ -O2 -Wl,-s -Wl,-subsystem,windows -mthreads
 
-BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'")
-isEmpty(BUILD_DATE) {
-    BUILD_DATE = "unknown"
-}
-BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul)
-isEmpty(BUILD_VERSION) {
-    BUILD_VERSION = "unknown"
-}
-DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
-           BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
+# Убрали определение BUILD_DATE и BUILD_VERSION, так как они задаются в workflow
+# Если нужно локально, можно раскомментировать:
+# BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'")
+# isEmpty(BUILD_DATE) {
+#     BUILD_DATE = "unknown"
+# }
+# BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul)
+# isEmpty(BUILD_VERSION) {
+#     BUILD_VERSION = "unknown"
+# }
+# DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
+#            BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
 
 DESTDIR = ../build
 OBJECTS_DIR = ../release
 MOC_DIR = ../release
 UI_DIR = ../release
 
+# Расширили список файлов для очистки
 QMAKE_CLEAN += \
     ../build/DeadCode.exe \
-    ../release/*.o
+    ../release/*.o \
+    ../release/moc_*.cpp \
+    ../release/ui_*.h
 
 win32 {
     CONFIG(debug, debug|release) {
