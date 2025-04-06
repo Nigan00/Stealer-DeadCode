@@ -50,9 +50,9 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/tools/msys64
-        key: msys2-${{ runner.os }}-20240727  # Используем конкретную версию MSYS2
+        key: msys2-${{ runner.os }}-20240727-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
-          msys2-${{ runner.os }}-
+          msys2-${{ runner.os }}-20240727-
 
     # Шаг 6: Проверка сетевого подключения к Chocolatey
     - name: Test network connectivity to Chocolatey
@@ -109,20 +109,46 @@ jobs:
           exit 1
         }
 
+        Write-Host "Refreshing environment variables after MSYS2 installation..."
+        Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+        refreshenv
+
+        Write-Host "Terminating any running MSYS2 processes..."
+        C:\tools\msys64\usr\bin\bash -lc "ps -ef | grep '[m]sys' | awk '{print \$2}' | xargs -r kill -9" 2>$null
+
         Write-Host "Updating MSYS2 and installing MinGW..."
         C:\tools\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm --disable-download-timeout"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: pacman -Syu failed"
+          Write-Host "Error: pacman -Syu failed (exit code: $LASTEXITCODE)"
           exit 1
         }
         C:\tools\msys64\usr\bin\bash -lc "pacman -Su --noconfirm --disable-download-timeout"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: pacman -Su failed"
+          Write-Host "Error: pacman -Su failed (exit code: $LASTEXITCODE)"
           exit 1
         }
-        C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm --disable-download-timeout mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MinGW packages"
+
+        # Попытка установки MinGW с повторными попытками
+        $mingwSuccess = $false
+        for ($i = 1; $i -le $attempts; $i++) {
+          Write-Host "Attempt $i/$attempts : Installing MinGW packages..."
+          C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm --disable-download-timeout mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "MinGW packages installed successfully."
+            $mingwSuccess = $true
+            break
+          } else {
+            Write-Host "Attempt $i/$attempts : Failed to install MinGW packages (exit code: $LASTEXITCODE)"
+            if ($i -eq $attempts) {
+              Write-Host "Error: Failed to install MinGW packages after $attempts attempts."
+              exit 1
+            }
+            Start-Sleep -Seconds 10
+          }
+        }
+
+        if (-not $mingwSuccess) {
+          Write-Host "Error: MinGW installation failed after all attempts."
           exit 1
         }
 
@@ -130,15 +156,33 @@ jobs:
         $env:Path = "C:\tools\msys64\mingw64\bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
+        Write-Host "Current PATH: $env:Path"
+
         Write-Host "Verifying MinGW installation..."
+        Write-Host "Checking g++..."
+        $gppPath = "C:\tools\msys64\mingw64\bin\g++.exe"
+        if (-not (Test-Path $gppPath)) {
+          Write-Host "Error: g++.exe not found at $gppPath"
+          dir C:\tools\msys64\mingw64\bin -ErrorAction SilentlyContinue
+          exit 1
+        }
         g++ --version
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: g++ --version failed"
+          Write-Host "Error: g++ --version failed (exit code: $LASTEXITCODE)"
+          exit 1
+        }
+
+        Write-Host "Checking mingw32-make..."
+        $makePath = "C:\tools\msys64\mingw64\bin\mingw32-make.exe"
+        if (-not (Test-Path $makePath)) {
+          Write-Host "Error: mingw32-make.exe not found at $makePath"
+          dir C:\tools\msys64\mingw64\bin -ErrorAction SilentlyContinue
           exit 1
         }
         mingw32-make --version
+        Write-Host "mingw32-make --version exit code: $LASTEXITCODE"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: mingw32-make --version failed"
+          Write-Host "Error: mingw32-make --version failed (exit code: $LASTEXITCODE)"
           exit 1
         }
       shell: powershell
