@@ -16,66 +16,120 @@ jobs:
     timeout-minutes: 120
 
     steps:
+    # Шаг 1: Клонирование репозитория
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         path: Stealer-DeadCode
         fetch-depth: 0
 
+    # Шаг 2: Установка Python
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
+    # Шаг 3: Установка зависимостей Python для aqtinstall
     - name: Install Python dependencies for aqtinstall
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
-        python -m pip install setuptools wheel py7zr==0.22.0
-        python -m pip install aqtinstall==3.1.*
+        python -m pip install --upgrade pip setuptools wheel
+        python -m pip install py7zr==0.22.0 aqtinstall==3.1.*
         python -m aqt version
       shell: powershell
 
+    # Шаг 4: Проверка дискового пространства
     - name: Check disk space
       run: |
         Write-Host "Checking available disk space..."
         Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
       shell: powershell
 
+    # Шаг 5: Кэширование MSYS2
     - name: Cache MSYS2
       uses: actions/cache@v4
       with:
         path: C:/tools/msys64
-        key: msys2-${{ runner.os }}-${{ hashFiles('**/choco-install-msys2.yml') }}
+        key: msys2-${{ runner.os }}-20240727  # Используем конкретную версию MSYS2
         restore-keys: |
           msys2-${{ runner.os }}-
 
-    - name: Test network connectivity
+    # Шаг 6: Проверка сетевого подключения к Chocolatey
+    - name: Test network connectivity to Chocolatey
       continue-on-error: true
       run: |
         Write-Host "Testing network connectivity to Chocolatey..."
-        try {
-          Invoke-WebRequest -Uri "https://community.chocolatey.org" -Method Head -ErrorAction Stop
-          Write-Host "Successfully connected to community.chocolatey.org"
-        } catch {
-          Write-Host "Warning: Could not connect to community.chocolatey.org. Proceeding anyway..."
+        $attempts = 3
+        $success = $false
+        for ($i = 1; $i -le $attempts; $i++) {
+          try {
+            $response = Invoke-WebRequest -Uri "https://community.chocolatey.org" -Method Head -ErrorAction Stop -TimeoutSec 30
+            Write-Host "Successfully connected to community.chocolatey.org (Status: $($response.StatusCode))"
+            $success = $true
+            break
+          } catch {
+            Write-Host "Attempt $i/$attempts: Could not connect to community.chocolatey.org. Error: $_"
+            if ($i -eq $attempts) {
+              Write-Host "Warning: Failed to connect after $attempts attempts. Proceeding anyway..."
+            }
+            Start-Sleep -Seconds 5
+          }
+        }
+        if (-not $success) {
+          Write-Host "Network check failed, but continuing due to continue-on-error."
         }
       shell: powershell
 
+    # Шаг 7: Установка MSYS2 и MinGW
     - name: Install MinGW via MSYS2
       run: |
         Write-Host "Installing MSYS2 and MinGW..."
-        choco install msys2 -y --timeout 600
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-          Write-Host "Error: Failed to install MSYS2 via Chocolatey (exit code: $LASTEXITCODE)"
+        $attempts = 3
+        $success = $false
+        for ($i = 1; $i -le $attempts; $i++) {
+          Write-Host "Attempt $i/$attempts: Installing MSYS2 via Chocolatey..."
+          choco install msys2 --version 20240727.0.0 -y --timeout 600 --params "/NoUpdate /InstallDir:C:\tools\msys64"
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -eq 0 -or $exitCode -eq 3010) {
+            Write-Host "MSYS2 installed successfully."
+            $success = $true
+            break
+          } else {
+            Write-Host "Attempt $i/$attempts: Failed to install MSYS2 (exit code: $exitCode)"
+            if ($i -eq $attempts) {
+              Write-Host "Error: Failed to install MSYS2 after $attempts attempts."
+              exit 1
+            }
+            Start-Sleep -Seconds 10
+          }
+        }
+
+        if (-not $success) {
+          Write-Host "Error: MSYS2 installation failed after all attempts."
           exit 1
         }
+
         Write-Host "Updating MSYS2 and installing MinGW..."
         C:\tools\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm --disable-download-timeout"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: pacman -Syu failed"
+          exit 1
+        }
         C:\tools\msys64\usr\bin\bash -lc "pacman -Su --noconfirm --disable-download-timeout"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: pacman -Su failed"
+          exit 1
+        }
         C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm --disable-download-timeout mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install MinGW packages"
+          exit 1
+        }
+
         Write-Host "Adding MinGW to PATH..."
         $env:Path = "C:\tools\msys64\mingw64\bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
+
         Write-Host "Verifying MinGW installation..."
         g++ --version
         if ($LASTEXITCODE -ne 0) {
@@ -89,6 +143,7 @@ jobs:
         }
       shell: powershell
 
+    # Шаг 8: Установка Perl (требуется для Qt)
     - name: Install Perl (required for Qt)
       run: |
         Write-Host "Installing Perl via Chocolatey..."
@@ -102,26 +157,33 @@ jobs:
         refreshenv
       shell: powershell
 
+    # Шаг 9: Кэширование Qt
     - name: Cache Qt
       uses: actions/cache@v4
       with:
-        path: C:/Qt/Qt/5.15.2/win64_mingw81
+        path: C:/Qt
         key: qt-5.15.2-${{ runner.os }}-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
           qt-5.15.2-${{ runner.os }}-
 
+    # Шаг 10: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
-        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql
+        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Qt 5.15.2 via aqtinstall"
+          exit 1
+        }
         Write-Host "Qt installation completed."
       shell: powershell
 
+    # Шаг 11: Проверка установки Qt
     - name: Verify Qt installation
       run: |
         Write-Host "Verifying Qt installation..."
-        $qmakePath = "C:/Qt/Qt/5.15.2/win64_mingw81/bin/qmake.exe"
-        $uicPath = "C:/Qt/Qt/5.15.2/win64_mingw81/bin/uic.exe"
+        $qmakePath = "C:/Qt/5.15.2/win64_mingw81/bin/qmake.exe"
+        $uicPath = "C:/Qt/5.15.2/win64_mingw81/bin/uic.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath"
           dir C:/Qt -Recurse
@@ -132,7 +194,7 @@ jobs:
           dir C:/Qt -Recurse
           exit 1
         }
-        $env:Path = "C:/tools/msys64/mingw64/bin;C:/Qt/Qt/5.15.2/win64_mingw81/bin;" + $env:Path
+        $env:Path = "C:/tools/msys64/mingw64/bin;C:/Qt/5.15.2/win64_mingw81/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Verifying qmake..."
         & $qmakePath --version
@@ -143,6 +205,7 @@ jobs:
         Write-Host "Qt installation verified"
       shell: powershell
 
+    # Шаг 12: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -151,11 +214,16 @@ jobs:
         restore-keys: |
           vcpkg-
 
+    # Шаг 13: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         if (-not (Test-Path C:/vcpkg)) {
           Write-Host "Cloning vcpkg..."
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to clone vcpkg repository"
+            exit 1
+          }
         }
         Write-Host "Running bootstrap-vcpkg..."
         & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
@@ -181,6 +249,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
+    # Шаг 14: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -189,6 +258,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
+    # Шаг 15: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
@@ -215,6 +285,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as static"
       shell: powershell
 
+    # Шаг 16: Проверка структуры проекта
     - name: Verify project structure
       run: |
         cd Stealer-DeadCode
@@ -252,6 +323,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
+    # Шаг 17: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         cd Stealer-DeadCode
@@ -261,11 +333,12 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
+    # Шаг 18: Генерация UI-файлов
     - name: Verify and generate UI files
       run: |
         cd Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
-        $uicPath = "C:/Qt/Qt/5.15.2/win64_mingw81/bin/uic.exe"
+        $uicPath = "C:/Qt/5.15.2/win64_mingw81/bin/uic.exe"
         $outputPath = "$(Get-Location)/release/ui_mainwindow.h"
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
@@ -280,6 +353,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
+    # Шаг 19: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         cd Stealer-DeadCode
@@ -293,7 +367,7 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        $env:Path = "C:/Qt/Qt/5.15.2/win64_mingw81/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/win64_mingw81/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
 
@@ -308,7 +382,7 @@ jobs:
 
         cd build
         Write-Host "Running qmake..."
-        C:/Qt/Qt/5.15.2/win64_mingw81/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        C:/Qt/5.15.2/win64_mingw81/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           Get-Content ../qmake_output.log
@@ -331,6 +405,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
+    # Шаг 20: Проверка зависимостей DeadCode.exe
     - name: Check DeadCode.exe dependencies
       run: |
         cd Stealer-DeadCode/build
@@ -351,17 +426,16 @@ jobs:
         }
       shell: powershell
 
+    # Шаг 21: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies to build directory
       run: |
         cd Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to build directory..."
-        $qtBinDir = "C:/Qt/Qt/5.15.2/win64_mingw81/bin"
-        $qtPluginsDir = "C:/Qt/Qt/5.15.2/win64_mingw81/plugins"
+        $qtBinDir = "C:/Qt/5.15.2/win64_mingw81/bin"
+        $qtPluginsDir = "C:/Qt/5.15.2/win64_mingw81/plugins"
         $mingwBinDir = "C:/tools/msys64/mingw64/bin"
-        $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-static/bin"
-        $system32Dir = "C:/Windows/System32"
 
-        # Основные и дополнительные Qt DLL
+        # Основные Qt DLL
         $requiredQtDlls = @(
           "Qt5Core.dll",
           "Qt5Gui.dll",
@@ -373,7 +447,6 @@ jobs:
           "Qt5QuickControls2.dll",
           "Qt5QuickWidgets.dll",
           "Qt5Sql.dll",
-          "Qt5GraphicalEffects.dll",
           "Qt5Qml.dll",
           "Qt5QmlModels.dll",
           "Qt5QmlWorkerScript.dll"
@@ -384,36 +457,6 @@ jobs:
           "libwinpthread-1.dll",
           "libgcc_s_seh-1.dll",
           "libstdc++-6.dll"
-        )
-
-        # vcpkg DLL (OpenSSL, zlib, bzip2, curl и т.д.)
-        $requiredVcpkgDlls = @(
-          "libssl-1_1-x64.dll",
-          "libcrypto-1_1-x64.dll",
-          "zlib1.dll",
-          "bz2.dll",
-          "libcurl.dll"
-        )
-
-        # Системные DLL для совместимости
-        $requiredSystemDlls = @(
-          "msvcr120.dll",
-          "vcruntime140.dll",
-          "ucrtbase.dll",
-          "msvcp140.dll",
-          "api-ms-win-crt-runtime-l1-1-0.dll",
-          "api-ms-win-crt-heap-l1-1-0.dll",
-          "api-ms-win-crt-stdio-l1-1-0.dll",
-          "api-ms-win-crt-locale-l1-1-0.dll",
-          "api-ms-win-crt-math-l1-1-0.dll",
-          "api-ms-win-crt-filesystem-l1-1-0.dll",
-          "api-ms-win-crt-time-l1-1-0.dll",
-          "api-ms-win-crt-environment-l1-1-0.dll",
-          "api-ms-win-crt-string-l1-1-0.dll",
-          "api-ms-win-core-file-l1-2-0.dll",
-          "api-ms-win-core-timezone-l1-1-0.dll",
-          "api-ms-win-core-processthreads-l1-1-1.dll",
-          "api-ms-win-core-localization-l1-2-0.dll"
         )
 
         # Копируем Qt DLL
@@ -433,26 +476,6 @@ jobs:
             Write-Host "Copied $dll to build directory"
           } else {
             Write-Host "Warning: $dll not found in $mingwBinDir"
-          }
-        }
-
-        # Копируем vcpkg DLL
-        foreach ($dll in $requiredVcpkgDlls) {
-          if (Test-Path "$vcpkgBinDir/$dll") {
-            Copy-Item -Path "$vcpkgBinDir/$dll" -Destination .
-            Write-Host "Copied $dll to build directory"
-          } else {
-            Write-Host "Warning: $dll not found in $vcpkgBinDir"
-          }
-        }
-
-        # Копируем системные DLL
-        foreach ($dll in $requiredSystemDlls) {
-          if (Test-Path "$system32Dir/$dll") {
-            Copy-Item -Path "$system32Dir/$dll" -Destination .
-            Write-Host "Copied $dll to build directory"
-          } else {
-            Write-Host "Warning: $dll not found in $system32Dir"
           }
         }
 
@@ -493,13 +516,6 @@ jobs:
             Write-Host "Copied Qt QML tooling plugins"
           }
 
-          # Qt Graphical Effects
-          if (Test-Path "$qtPluginsDir/effects") {
-            New-Item -Path "effects" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/effects/*.dll" -Destination "effects/" -ErrorAction SilentlyContinue
-            Write-Host "Copied Qt Graphical Effects plugins"
-          }
-
           # Qt SQL драйверы
           if (Test-Path "$qtPluginsDir/sqldrivers") {
             New-Item -Path "sqldrivers" -ItemType Directory -Force
@@ -517,10 +533,10 @@ jobs:
         dir imageformats -ErrorAction SilentlyContinue
         dir quick -ErrorAction SilentlyContinue
         dir qmltooling -ErrorAction SilentlyContinue
-        dir effects -ErrorAction SilentlyContinue
         dir sqldrivers -ErrorAction SilentlyContinue
       shell: powershell
 
+    # Шаг 22: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -533,6 +549,7 @@ jobs:
           Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
+    # Шаг 23: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -549,44 +566,21 @@ jobs:
           Stealer-DeadCode/build/Qt5QuickControls2.dll
           Stealer-DeadCode/build/Qt5QuickWidgets.dll
           Stealer-DeadCode/build/Qt5Sql.dll
-          Stealer-DeadCode/build/Qt5GraphicalEffects.dll
           Stealer-DeadCode/build/Qt5Qml.dll
           Stealer-DeadCode/build/Qt5QmlModels.dll
           Stealer-DeadCode/build/Qt5QmlWorkerScript.dll
           Stealer-DeadCode/build/libwinpthread-1.dll
           Stealer-DeadCode/build/libgcc_s_seh-1.dll
           Stealer-DeadCode/build/libstdc++-6.dll
-          Stealer-DeadCode/build/libssl-1_1-x64.dll
-          Stealer-DeadCode/build/libcrypto-1_1-x64.dll
-          Stealer-DeadCode/build/zlib1.dll
-          Stealer-DeadCode/build/bz2.dll
-          Stealer-DeadCode/build/libcurl.dll
-          Stealer-DeadCode/build/msvcr120.dll
-          Stealer-DeadCode/build/vcruntime140.dll
-          Stealer-DeadCode/build/ucrtbase.dll
-          Stealer-DeadCode/build/msvcp140.dll
-          Stealer-DeadCode/build/api-ms-win-crt-runtime-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-crt-heap-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-crt-stdio-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-crt-locale-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-crt-math-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-crt-filesystem-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-crt-time-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-crt-environment-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-crt-string-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-core-file-l1-2-0.dll
-          Stealer-DeadCode/build/api-ms-win-core-timezone-l1-1-0.dll
-          Stealer-DeadCode/build/api-ms-win-core-processthreads-l1-1-1.dll
-          Stealer-DeadCode/build/api-ms-win-core-localization-l1-2-0.dll
           Stealer-DeadCode/build/platforms/qwindows.dll
           Stealer-DeadCode/build/styles/qwindowsvistastyle.dll
           Stealer-DeadCode/build/imageformats/*.dll
           Stealer-DeadCode/build/quick/*.dll
           Stealer-DeadCode/build/qmltooling/*.dll
-          Stealer-DeadCode/build/effects/*.dll
           Stealer-DeadCode/build/sqldrivers/*.dll
         if-no-files-found: error
 
+    # Шаг 24: Очистка
     - name: Cleanup
       if: always()
       run: |
