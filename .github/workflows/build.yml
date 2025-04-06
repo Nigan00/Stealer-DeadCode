@@ -265,8 +265,8 @@ jobs:
     - name: Verify Qt installation
       run: |
         Write-Host "Verifying Qt installation..."
-        $qmakePath = "C:/Qt/5.15.2/win64_mingw81/bin/qmake.exe"
-        $uicPath = "C:/Qt/5.15.2/win64_mingw81/bin/uic.exe"
+        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath"
           dir C:/Qt -Recurse
@@ -277,7 +277,7 @@ jobs:
           dir C:/Qt -Recurse
           exit 1
         }
-        $env:Path = "C:/tools/msys64/mingw64/bin;C:/Qt/5.15.2/win64_mingw81/bin;" + $env:Path
+        $env:Path = "C:/tools/msys64/mingw64/bin;C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Verifying qmake..."
         & $qmakePath --version
@@ -438,7 +438,7 @@ jobs:
       run: |
         cd Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
-        $uicPath = "C:/Qt/5.15.2/win64_mingw81/bin/uic.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         $outputPath = "$(Get-Location)/release/ui_mainwindow.h"
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
@@ -467,12 +467,12 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        $env:Path = "C:/Qt/5.15.2/win64_mingw81/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
 
         # Устанавливаем QML2_IMPORT_PATH
-        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/win64_mingw81/qml"
+        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml"
         [System.Environment]::SetEnvironmentVariable("QML2_IMPORT_PATH", $env:QML2_IMPORT_PATH, [System.EnvironmentVariableTarget]::Process)
         Write-Host "QML2_IMPORT_PATH set to: $env:QML2_IMPORT_PATH"
 
@@ -487,7 +487,7 @@ jobs:
 
         cd build
         Write-Host "Running qmake..."
-        C:/Qt/5.15.2/win64_mingw81/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        C:/Qt/5.15.2/mingw81_64/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           Get-Content ../qmake_output.log
@@ -517,8 +517,8 @@ jobs:
         cd Stealer-DeadCode/build
         Write-Host "Setting up QML debugging..."
         $env:QT_LOGGING_RULES = "qt5core.debug=true;qml.debug=true;qt5qml.debug=true"
-        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/win64_mingw81/qml;release"
-        $env:Path = "C:/Qt/5.15.2/win64_mingw81/bin;C:/tools/msys64/mingw64/bin;" + $env:Path
+        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml;release"
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/tools/msys64/mingw64/bin;" + $env:Path
         Write-Host "Running DeadCode.exe with QML debugging..."
         try {
           Start-Process -FilePath "release/DeadCode.exe" -NoNewWindow -Wait -RedirectStandardOutput "deadcode_output.log" -RedirectStandardError "deadcode_error.log"
@@ -563,9 +563,9 @@ jobs:
       run: |
         cd Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
-        $qtBinDir = "C:/Qt/5.15.2/win64_mingw81/bin"
-        $qtPluginsDir = "C:/Qt/5.15.2/win64_mingw81/plugins"
-        $qtQmlDir = "C:/Qt/5.15.2/win64_mingw81/qml"
+        $qtBinDir = "C:/Qt/5.15.2/mingw81_64/bin"
+        $qtPluginsDir = "C:/Qt/5.15.2/mingw81_64/plugins"
+        $qtQmlDir = "C:/Qt/5.15.2/mingw81_64/qml"
         $mingwBinDir = "C:/tools/msys64/mingw64/bin"
 
         # Основные Qt DLL
