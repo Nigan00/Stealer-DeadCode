@@ -80,7 +80,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 7: Установка MSYS2 и MinGW (исправленный)
+    # Шаг 7: Установка MSYS2 и MinGW
     - name: Install MinGW via MSYS2
       run: |
         Write-Host "Installing MSYS2 and MinGW..."
@@ -211,15 +211,15 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-5.15.2-${{ runner.os }}-${{ github.event.inputs.cache-buster || '1' }}
+        key: qt-5.15.2-${{ runner.os }}-mingw81_64-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
-          qt-5.15.2-${{ runner.os }}-
+          qt-5.15.2-${{ runner.os }}-mingw81_64-
 
     # Шаг 10: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
-        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql
+        python -m aqt install-qt windows desktop 5.15.2 mingw81_64 -O C:/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2 via aqtinstall"
           exit 1
@@ -231,8 +231,8 @@ jobs:
     - name: Verify Qt installation
       run: |
         Write-Host "Verifying Qt installation..."
-        $qmakePath = "C:/Qt/5.15.2/win64_mingw81/bin/qmake.exe"
-        $uicPath = "C:/Qt/5.15.2/win64_mingw81/bin/uic.exe"
+        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         if (-not (Test-Path $qmakePath)) {
           Write-Host "Error: qmake.exe not found at $qmakePath"
           dir C:/Qt -Recurse
@@ -243,7 +243,7 @@ jobs:
           dir C:/Qt -Recurse
           exit 1
         }
-        $env:Path = "C:/tools/msys64/mingw64/bin;C:/Qt/5.15.2/win64_mingw81/bin;" + $env:Path
+        $env:Path = "C:/tools/msys64/mingw64/bin;C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Verifying qmake..."
         & $qmakePath --version
@@ -387,7 +387,7 @@ jobs:
       run: |
         cd Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
-        $uicPath = "C:/Qt/5.15.2/win64_mingw81/bin/uic.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         $outputPath = "$(Get-Location)/release/ui_mainwindow.h"
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
@@ -416,7 +416,7 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        $env:Path = "C:/Qt/5.15.2/win64_mingw81/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;C:/tools/msys64/mingw64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
 
@@ -431,7 +431,7 @@ jobs:
 
         cd build
         Write-Host "Running qmake..."
-        C:/Qt/5.15.2/win64_mingw81/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        C:/Qt/5.15.2/mingw81_64/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           Get-Content ../qmake_output.log
@@ -480,8 +480,8 @@ jobs:
       run: |
         cd Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to build directory..."
-        $qtBinDir = "C:/Qt/5.15.2/win64_mingw81/bin"
-        $qtPluginsDir = "C:/Qt/5.15.2/win64_mingw81/plugins"
+        $qtBinDir = "C:/Qt/5.15.2/mingw81_64/bin"
+        $qtPluginsDir = "C:/Qt/5.15.2/mingw81_64/plugins"
         $mingwBinDir = "C:/tools/msys64/mingw64/bin"
 
         # Основные Qt DLL
