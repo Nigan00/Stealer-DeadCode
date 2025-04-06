@@ -418,8 +418,8 @@ jobs:
         }
         Write-Host "Creating build directory if it doesn't exist..."
         New-Item -Path build -ItemType Directory -Force
-        Write-Host "Creating release directory if it doesn't exist..."
-        New-Item -Path release -ItemType Directory -Force
+        Write-Host "Creating build/release directory if it doesn't exist..."
+        New-Item -Path build/release -ItemType Directory -Force
         Write-Host "Project structure verified"
       shell: powershell
 
@@ -439,7 +439,7 @@ jobs:
         cd Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
         $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
-        $outputPath = "$(Get-Location)/release/ui_mainwindow.h"
+        $outputPath = "$(Get-Location)/build/release/ui_mainwindow.h"
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: uic.exe failed. Check uic_output.log for details."
@@ -487,7 +487,14 @@ jobs:
 
         cd build
         Write-Host "Running qmake..."
-        C:/Qt/5.15.2/mingw81_64/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_CXXFLAGS+=-Wno-attributes "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"" "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\"" 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        $qmakeArgs = @(
+          "../ui/DeadCode.pro",
+          "CONFIG+=release",
+          "QMAKE_CXXFLAGS+=-Wno-attributes",
+          "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"",
+          "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\""
+        )
+        & "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe" $qmakeArgs 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           Get-Content ../qmake_output.log
@@ -764,5 +771,4 @@ jobs:
       if: always()
       run: |
         Remove-Item -Path "Stealer-DeadCode/build" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "Stealer-DeadCode/release" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell

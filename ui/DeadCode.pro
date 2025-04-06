@@ -4,10 +4,8 @@ QT += core gui network widgets qml quick
 TARGET = DeadCode
 TEMPLATE = app
 
-# Конфигурация для статической сборки
-CONFIG += static
-# Убрали staticlib, так как это приложение, а не библиотека
-# Убрали QTPLUGIN += -, чтобы не отключать плагины
+# Конфигурация для релиза (убрали static, предполагаем динамическую сборку Qt)
+CONFIG += release
 
 SOURCES += \
     ../src/main.cpp \
@@ -68,35 +66,33 @@ QMAKE_CXXFLAGS += -O2 \
 
 QMAKE_LFLAGS = -static-libgcc -static-libstdc++ -O2 -Wl,-s -Wl,-subsystem,windows -mthreads
 
-# Убрали определение BUILD_DATE и BUILD_VERSION, так как они задаются в workflow
-# Если нужно локально, можно раскомментировать:
-# BUILD_DATE = $$system(powershell -Command "Get-Date -Format 'yyyy-MM-dd'")
-# isEmpty(BUILD_DATE) {
-#     BUILD_DATE = "unknown"
-# }
-# BUILD_VERSION = $$system(git rev-parse --short HEAD 2> nul)
-# isEmpty(BUILD_VERSION) {
-#     BUILD_VERSION = "unknown"
-# }
-# DEFINES += BUILD_DATE=\\\"$${BUILD_DATE}\\\" \
-#            BUILD_VERSION=\\\"$${BUILD_VERSION}\\\"
+# Директории для сборки
+DESTDIR = ../build/release
+OBJECTS_DIR = ../build/release
+MOC_DIR = ../build/release
+UI_DIR = ../build/release
 
-DESTDIR = ../build
-OBJECTS_DIR = ../release
-MOC_DIR = ../release
-UI_DIR = ../release
-
-# Расширили список файлов для очистки
+# Расширенный список файлов для очистки
 QMAKE_CLEAN += \
-    ../build/DeadCode.exe \
-    ../release/*.o \
-    ../release/moc_*.cpp \
-    ../release/ui_*.h
+    ../build/release/DeadCode.exe \
+    ../build/release/*.o \
+    ../build/release/moc_*.cpp \
+    ../build/release/ui_*.h
 
+# Настройки для Windows
 win32 {
     CONFIG(debug, debug|release) {
         QMAKE_CXXFLAGS += -g
         QMAKE_LFLAGS -= -O2
+        DESTDIR = ../build/debug
+        OBJECTS_DIR = ../build/debug
+        MOC_DIR = ../build/debug
+        UI_DIR = ../build/debug
+        QMAKE_CLEAN += \
+            ../build/debug/DeadCode.exe \
+            ../build/debug/*.o \
+            ../build/debug/moc_*.cpp \
+            ../build/debug/ui_*.h
     }
 }
 
