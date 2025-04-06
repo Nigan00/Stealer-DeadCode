@@ -98,15 +98,15 @@ jobs:
         $success = $false
 
         # Проверяем, не установлен ли уже MSYS2 (через кэш или ранее)
-        if (Test-Path "C:\tools\msys64\usr\bin\bash.exe") {
-          Write-Host "MSYS2 already exists at C:\tools\msys64. Skipping Chocolatey installation."
+        if (Test-Path "C:/tools/msys64/usr/bin/bash.exe") {
+          Write-Host "MSYS2 already exists at C:/tools/msys64. Skipping Chocolatey installation."
           $success = $true
         } else {
           Write-Host "MSYS2 not found. Attempting to install via Chocolatey..."
           for ($i = 1; $i -le $attempts; $i++) {
             Write-Host "Attempt $i/$attempts : Installing MSYS2 via Chocolatey..."
             # Увеличиваем тайм-аут до 20 минут (1200 секунд)
-            choco install msys2 --version 20240727.0.0 -y --timeout 1200 --params "/NoUpdate /InstallDir:C:\tools\msys64"
+            choco install msys2 --version 20240727.0.0 -y --timeout 1200 --params "/NoUpdate /InstallDir:C:/tools/msys64"
             $exitCode = $LASTEXITCODE
             if ($exitCode -eq 0 -or $exitCode -eq 3010) {
               Write-Host "MSYS2 installed successfully via Chocolatey."
@@ -121,8 +121,8 @@ jobs:
                 Invoke-WebRequest -Uri "https://github.com/msys2/msys2-installer/releases/download/2024-07-27/msys2-x86_64-20240727.exe" -OutFile "msys2-installer.exe"
                 if ($LASTEXITCODE -eq 0 -and (Test-Path "msys2-installer.exe")) {
                   Write-Host "Running MSYS2 installer..."
-                  Start-Process -FilePath "msys2-installer.exe" -ArgumentList "--accept-licenses --accept-messages --root C:\tools\msys64" -Wait
-                  if (Test-Path "C:\tools\msys64\usr\bin\bash.exe") {
+                  Start-Process -FilePath "msys2-installer.exe" -ArgumentList "--accept-licenses --accept-messages --root C:/tools/msys64" -Wait
+                  if (Test-Path "C:/tools/msys64/usr/bin/bash.exe") {
                     Write-Host "MSYS2 installed successfully via direct download."
                     $success = $true
                   } else {
@@ -145,24 +145,24 @@ jobs:
         }
 
         Write-Host "Refreshing environment variables after MSYS2 installation..."
-        Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1"
         refreshenv
 
         Write-Host "Terminating any running MSYS2 processes..."
         try {
-          C:\tools\msys64\usr\bin\bash.exe -lc "ps -ef | grep '[m]sys' | grep -v grep | awk '{print \$2}' | while read pid; do kill -9 \$pid 2>/dev/null; done"
+          C:/tools/msys64/usr/bin/bash.exe -lc "ps -ef | grep '[m]sys' | grep -v grep | awk '{print \$2}' | while read pid; do kill -9 \$pid 2>/dev/null; done"
           Write-Host "MSYS2 processes terminated successfully (if any were running)."
         } catch {
           Write-Host "Warning: Could not terminate MSYS2 processes. This may not be an issue if no processes were running."
         }
 
         Write-Host "Updating MSYS2 and installing MinGW..."
-        C:\tools\msys64\usr\bin\bash.exe -lc "pacman -Syu --noconfirm --disable-download-timeout"
+        C:/tools/msys64/usr/bin/bash.exe -lc "pacman -Syu --noconfirm --disable-download-timeout"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: pacman -Syu failed (exit code: $LASTEXITCODE)"
           exit 1
         }
-        C:\tools\msys64\usr\bin\bash.exe -lc "pacman -Su --noconfirm --disable-download-timeout"
+        C:/tools/msys64/usr/bin/bash.exe -lc "pacman -Su --noconfirm --disable-download-timeout"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: pacman -Su failed (exit code: $LASTEXITCODE)"
           exit 1
@@ -172,7 +172,7 @@ jobs:
         $mingwSuccess = $false
         for ($i = 1; $i -le $attempts; $i++) {
           Write-Host "Attempt $i/$attempts : Installing MinGW packages..."
-          C:\tools\msys64\usr\bin\bash.exe -lc "pacman -S --noconfirm --disable-download-timeout mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
+          C:/tools/msys64/usr/bin/bash.exe -lc "pacman -S --noconfirm --disable-download-timeout mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
           if ($LASTEXITCODE -eq 0) {
             Write-Host "MinGW packages installed successfully."
             $mingwSuccess = $true
@@ -193,17 +193,17 @@ jobs:
         }
 
         Write-Host "Adding MinGW to PATH..."
-        $env:Path = "C:\tools\msys64\mingw64\bin;" + $env:Path
+        $env:Path = "C:/tools/msys64/mingw64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
         Write-Host "Current PATH: $env:Path"
 
         Write-Host "Verifying MinGW installation..."
         Write-Host "Checking g++..."
-        $gppPath = "C:\tools\msys64\mingw64\bin\g++.exe"
+        $gppPath = "C:/tools/msys64/mingw64/bin/g++.exe"
         if (-not (Test-Path $gppPath)) {
           Write-Host "Error: g++.exe not found at $gppPath"
-          dir C:\tools\msys64\mingw64\bin -ErrorAction SilentlyContinue
+          dir C:/tools/msys64/mingw64/bin -ErrorAction SilentlyContinue
           exit 1
         }
         g++ --version
@@ -213,10 +213,10 @@ jobs:
         }
 
         Write-Host "Checking mingw32-make..."
-        $makePath = "C:\tools\msys64\mingw64\bin\mingw32-make.exe"
+        $makePath = "C:/tools/msys64/mingw64/bin/mingw32-make.exe"
         if (-not (Test-Path $makePath)) {
           Write-Host "Error: mingw32-make.exe not found at $makePath"
-          dir C:\tools\msys64\mingw64\bin -ErrorAction SilentlyContinue
+          dir C:/tools/msys64/mingw64/bin -ErrorAction SilentlyContinue
           exit 1
         }
         mingw32-make --version
@@ -236,7 +236,7 @@ jobs:
           exit 1
         }
         Write-Host "Refreshing environment variables..."
-        Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1"
         refreshenv
       shell: powershell
 
@@ -388,7 +388,7 @@ jobs:
     # Шаг 17: Проверка структуры проекта
     - name: Verify project structure
       run: |
-        cd Stealer-DeadCode
+        Set-Location -Path Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         $requiredFiles = @(
           "ui/DeadCode.pro",
@@ -426,7 +426,7 @@ jobs:
     # Шаг 18: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
-        cd Stealer-DeadCode
+        Set-Location -Path Stealer-DeadCode
         Write-Host "Fixing encoding of icon.rc..."
         $content = Get-Content -Path icon.rc -Raw -Encoding UTF8
         Set-Content -Path icon.rc -Value $content -NoNewline -Encoding ASCII
@@ -436,10 +436,14 @@ jobs:
     # Шаг 19: Генерация UI-файлов
     - name: Verify and generate UI files
       run: |
-        cd Stealer-DeadCode
+        Set-Location -Path Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
         $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         $outputPath = "$(Get-Location)/build/release/ui_mainwindow.h"
+        if (-not (Test-Path $uicPath)) {
+          Write-Host "Error: uic.exe not found at $uicPath"
+          exit 1
+        }
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: uic.exe failed. Check uic_output.log for details."
@@ -456,7 +460,7 @@ jobs:
     # Шаг 20: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
-        cd Stealer-DeadCode
+        Set-Location -Path Stealer-DeadCode
         Write-Host "Setting up temporary directory..."
         $tempDir = "C:/Temp"
         if (-not (Test-Path $tempDir)) {
@@ -485,16 +489,32 @@ jobs:
         Write-Host "Build Date: $buildDate"
         Write-Host "Build Version: $buildVersion"
 
-        cd build
+        # Проверяем значения переменных
+        if (-not $buildDate) {
+          Write-Host "Error: buildDate is empty"
+          exit 1
+        }
+        if (-not $buildVersion) {
+          Write-Host "Error: buildVersion is empty"
+          exit 1
+        }
+
+        Set-Location -Path build
         Write-Host "Running qmake..."
+        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
+        if (-not (Test-Path $qmakePath)) {
+          Write-Host "Error: qmake.exe not found at $qmakePath"
+          exit 1
+        }
         $qmakeArgs = @(
           "../ui/DeadCode.pro",
           "CONFIG+=release",
           "QMAKE_CXXFLAGS+=-Wno-attributes",
-          "DEFINES+=BUILD_DATE=\\\"$buildDate\\\"",
-          "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\""
+          "DEFINES+=BUILD_DATE=`"$buildDate`"",  # Исправленное экранирование
+          "DEFINES+=BUILD_VERSION=`"$buildVersion`""
         )
-        & "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe" $qmakeArgs 2>&1 | Tee-Object -FilePath "../qmake_output.log"
+        Write-Host "qmake arguments: $qmakeArgs"
+        & $qmakePath $qmakeArgs 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
           Get-Content ../qmake_output.log
@@ -502,7 +522,12 @@ jobs:
         }
 
         Write-Host "Running mingw32-make..."
-        C:/tools/msys64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
+        $makePath = "C:/tools/msys64/mingw64/bin/mingw32-make.exe"
+        if (-not (Test-Path $makePath)) {
+          Write-Host "Error: mingw32-make.exe not found at $makePath"
+          exit 1
+        }
+        & $makePath -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
           Get-Content ../make_output.log
@@ -521,7 +546,7 @@ jobs:
     # Шаг 20.1: Тестирование запуска DeadCode.exe с отладкой QML
     - name: Test run DeadCode.exe with QML debugging
       run: |
-        cd Stealer-DeadCode/build
+        Set-Location -Path Stealer-DeadCode/build
         Write-Host "Setting up QML debugging..."
         $env:QT_LOGGING_RULES = "qt5core.debug=true;qml.debug=true;qt5qml.debug=true"
         $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml;release"
@@ -547,7 +572,7 @@ jobs:
     # Шаг 21: Проверка зависимостей DeadCode.exe
     - name: Check DeadCode.exe dependencies
       run: |
-        cd Stealer-DeadCode/build
+        Set-Location -Path Stealer-DeadCode/build
         Write-Host "Checking dependencies of DeadCode.exe..."
         $env:Path += ";C:/tools/msys64/mingw64/bin"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
@@ -568,7 +593,7 @@ jobs:
     # Шаг 22: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies to build directory
       run: |
-        cd Stealer-DeadCode/build
+        Set-Location -Path Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
         $qtBinDir = "C:/Qt/5.15.2/mingw81_64/bin"
         $qtPluginsDir = "C:/Qt/5.15.2/mingw81_64/plugins"
