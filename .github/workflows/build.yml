@@ -50,23 +50,29 @@ jobs:
           msys2-${{ runner.os }}-
 
     - name: Test network connectivity
-      continue-on-error: true  # Добавляем, чтобы продолжить выполнение при ошибке
+      continue-on-error: true
       run: |
         Write-Host "Testing network connectivity to Chocolatey..."
-        ping -n 4 community.chocolatey.org
+        try {
+          Invoke-WebRequest -Uri "https://community.chocolatey.org" -Method Head -ErrorAction Stop
+          Write-Host "Successfully connected to community.chocolatey.org"
+        } catch {
+          Write-Host "Warning: Could not connect to community.chocolatey.org. Proceeding anyway..."
+        }
       shell: powershell
 
     - name: Install MinGW via MSYS2
       run: |
         Write-Host "Installing MSYS2 and MinGW..."
         choco install msys2 -y --timeout 600
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MSYS2 via Chocolatey"
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Failed to install MSYS2 via Chocolatey (exit code: $LASTEXITCODE)"
           exit 1
         }
         Write-Host "Updating MSYS2 and installing MinGW..."
-        C:\tools\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm"
-        C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
+        C:\tools\msys64\usr\bin\bash -lc "pacman -Syu --noconfirm --disable-download-timeout"
+        C:\tools\msys64\usr\bin\bash -lc "pacman -Su --noconfirm --disable-download-timeout"
+        C:\tools\msys64\usr\bin\bash -lc "pacman -S --noconfirm --disable-download-timeout mingw-w64-x86_64-gcc mingw-w64-x86_64-make"
         Write-Host "Adding MinGW to PATH..."
         $env:Path = "C:\tools\msys64\mingw64\bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
@@ -86,7 +92,7 @@ jobs:
     - name: Install Perl (required for Qt)
       run: |
         Write-Host "Installing Perl via Chocolatey..."
-        choco install strawberryperl -y
+        choco install strawberryperl -y --force
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install Perl via Chocolatey (exit code: $LASTEXITCODE)"
           exit 1
@@ -107,7 +113,7 @@ jobs:
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
-        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql --noarchives
+        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql
         Write-Host "Qt installation completed."
       shell: powershell
 
