@@ -427,6 +427,7 @@ jobs:
     - name: Verify icon.rc content
       run: |
         Set-Location -Path Stealer-DeadCode
+        Write-Host "Current directory: $(Get-Location)"
         Write-Host "Checking icon.rc content..."
         if (-not (Test-Path icon.rc)) {
           Write-Host "Error: icon.rc not found"
@@ -439,6 +440,7 @@ jobs:
         if ($iconRcContent -match 'ICON\s+"([^"]+)"') {
           $iconPath = $matches[1]
           Write-Host "Icon file specified in icon.rc: $iconPath"
+          Write-Host "Resolved icon path: $(Resolve-Path $iconPath -ErrorAction SilentlyContinue)"
           if (-not (Test-Path $iconPath)) {
             Write-Host "Error: Icon file $iconPath not found"
             dir .
@@ -446,7 +448,7 @@ jobs:
           }
           Write-Host "Icon file $iconPath exists"
         } else {
-          Write-Host "Error: Could not parse icon path from icon.rc. Expected format: IDI_ICON1 ICON \"../icon.ico\""
+          Write-Host "Error: Could not parse icon path from icon.rc. Expected format: IDI_ICON1 ICON \"icon.ico\""
           exit 1
         }
       shell: powershell
