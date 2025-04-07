@@ -55,7 +55,8 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lwininet \
         -lshell32 \
         -lurlmon \
-        -lole32
+        -lole32 \
+        -lmsvcrt
 
 # Флаги компилятора
 QMAKE_CXXFLAGS += -O2 \
@@ -73,9 +74,7 @@ QMAKE_CXXFLAGS += -O2 \
                   -Wno-cast-function-type
 
 # Флаги линковщика
-QMAKE_LFLAGS += -static-libgcc \
-                -static-libstdc++ \
-                -O2 \
+QMAKE_LFLAGS += -O2 \
                 -Wl,-s \
                 -Wl,-subsystem,windows \
                 -mthreads

