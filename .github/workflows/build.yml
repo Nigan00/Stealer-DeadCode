@@ -108,16 +108,22 @@ jobs:
             try {
               Invoke-WebRequest -Uri "https://github.com/msys2/msys2-installer/releases/download/2024-07-27/msys2-x86_64-20240727.exe" -OutFile "msys2-installer.exe" -ErrorAction Stop
               Write-Host "Download successful. Installing MSYS2..."
-              Start-Process -FilePath "msys2-installer.exe" -ArgumentList "--accept-licenses --accept-messages --root C:/tools/msys64" -Wait
+              $process = Start-Process -FilePath "msys2-installer.exe" -ArgumentList "--accept-licenses --accept-messages --root C:/tools/msys64" -PassThru -NoNewWindow
+              $timeout = 600  # Тайм-аут 10 минут (600 секунд)
+              $process | Wait-Process -Timeout $timeout -ErrorAction Stop
+              if ($process.ExitCode -ne 0) {
+                Write-Host "Attempt $i/$attempts : MSYS2 installer exited with code: $($process.ExitCode)"
+                continue
+              }
               if (Test-Path "C:/tools/msys64/usr/bin/bash.exe") {
                 Write-Host "MSYS2 installed successfully via direct download."
                 $success = $true
                 break
               } else {
-                Write-Host "Attempt $i/$attempts : MSYS2 installation failed via direct download."
+                Write-Host "Attempt $i/$attempts : MSYS2 installation failed via direct download (bash.exe not found)."
               }
             } catch {
-              Write-Host "Attempt $i/$attempts : Failed to download MSYS2 installer. Error: $_"
+              Write-Host "Attempt $i/$attempts : Failed to download or install MSYS2 installer. Error: $_"
               if ($i -eq $attempts) {
                 Write-Host "Direct download failed after all attempts. Falling back to Chocolatey..."
               }
