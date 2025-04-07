@@ -1,1 +1,1 @@
-RC_ICONS = ../icon.ico
+IDI_ICON1 ICON "../icon.ico"
