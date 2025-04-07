@@ -31,7 +31,8 @@ RC_FILE = $$PWD/../icon.rc
 INCLUDEPATH += \
     $$PWD/../src \
     $$PWD \
-    C:/vcpkg/installed/x64-mingw-static/include
+    C:/vcpkg/installed/x64-mingw-static/include \
+    C:/Qt/5.15.2/mingw81_64/include
 
 # Библиотеки для линковки
 LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
@@ -56,6 +57,7 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lshell32 \
         -lurlmon \
         -lole32 \
+        -loleaut32 \
         -lmsvcrt
 
 # Флаги компилятора
@@ -71,7 +73,9 @@ QMAKE_CXXFLAGS += -O2 \
                   -DQT_NO_DEBUG \
                   -D_CRT_SECURE_NO_WARNINGS \
                   -Wno-deprecated-declarations \
-                  -Wno-cast-function-type
+                  -Wno-cast-function-type \
+                  -Wno-unused-parameter \
+                  -Wno-sign-compare
 
 # Флаги линковщика
 QMAKE_LFLAGS += -O2 \
@@ -79,22 +83,20 @@ QMAKE_LFLAGS += -O2 \
                 -Wl,-subsystem,windows \
                 -mthreads
 
-# Определения для BUILD_DATE и BUILD_VERSION
-DEFINES += BUILD_DATE=\\\"2025-04-06\\\" \
-           BUILD_VERSION=\\\"f7bdaed\\\"
-
 # Директории для сборки
 DESTDIR = $$PWD/../build/release
 OBJECTS_DIR = $$PWD/../build/release
 MOC_DIR = $$PWD/../build/release
 UI_DIR = $$PWD/../build/release
+RCC_DIR = $$PWD/../build/release
 
 # Расширенный список файлов для очистки
 QMAKE_CLEAN += \
     $$DESTDIR/DeadCode.exe \
     $$OBJECTS_DIR/*.o \
     $$MOC_DIR/moc_*.cpp \
-    $$UI_DIR/ui_*.h
+    $$UI_DIR/ui_*.h \
+    $$RCC_DIR/qrc_*.cpp
 
 # Настройки для Windows
 win32 {
@@ -105,11 +107,13 @@ win32 {
         OBJECTS_DIR = $$PWD/../build/debug
         MOC_DIR = $$PWD/../build/debug
         UI_DIR = $$PWD/../build/debug
+        RCC_DIR = $$PWD/../build/debug
         QMAKE_CLEAN += \
             $$DESTDIR/DeadCode.exe \
             $$OBJECTS_DIR/*.o \
             $$MOC_DIR/moc_*.cpp \
-            $$UI_DIR/ui_*.h
+            $$UI_DIR/ui_*.h \
+            $$RCC_DIR/qrc_*.cpp
     }
 }
 
