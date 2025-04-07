@@ -3,6 +3,7 @@
 #include "build_key.h"
 #include "polymorphic_code.h"
 #include "junk_code.h"
+#include "compat.h"
 
 #include <QMessageBox>
 #include <QProcess>

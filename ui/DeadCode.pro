@@ -18,7 +18,8 @@ HEADERS += \
     $$PWD/../src/build_key.h \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
-    $$PWD/../src/stealerworker.h
+    $$PWD/../src/stealerworker.h \
+    $$PWD/../src/compat.h
 
 # Формы Qt Designer
 FORMS += \
@@ -55,8 +56,7 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lwininet \
         -lshell32 \
         -lurlmon \
-        -lole32 \
-        -lmsvcrt
+        -lole32
 
 # Флаги компилятора
 QMAKE_CXXFLAGS += -O2 \
@@ -119,4 +119,5 @@ PRE_TARGETDEPS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
     $$PWD/../src/stealerworker.h \
+    $$PWD/../src/compat.h \
     $$UI_DIR/ui_mainwindow.h
