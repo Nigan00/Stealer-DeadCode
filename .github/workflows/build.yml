@@ -416,6 +416,7 @@ jobs:
           "src/polymorphic_code.h",
           "src/junk_code.h",
           "src/stealerworker.h",
+          "src/compat.h",  # Добавляем compat.h в список обязательных файлов
           "icon.rc",
           "icon.ico"
         )
