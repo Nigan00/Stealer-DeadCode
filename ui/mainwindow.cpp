@@ -1580,7 +1580,7 @@ bool MainWindow::compileBuild(const std::string& polymorphicCode, const std::str
 }
 
 // Реализация archiveData
-#include "miniz.h"
+#include "../src/miniz.h"
 
 std::string MainWindow::archiveData(const std::string& dir, const std::vector<std::string>& files) {
     emitLog("Создание ZIP-архива в директории: " + QString::fromStdString(dir));

@@ -23,13 +23,24 @@ jobs:
         path: Stealer-DeadCode
         fetch-depth: 0
 
-    # Шаг 2: Установка Python
+    # Шаг 2: Проверка содержимого директорий
+    - name: List directory contents
+      run: |
+        Write-Host "Listing contents of Stealer-DeadCode/src..."
+        dir Stealer-DeadCode/src
+        Write-Host "Listing contents of Stealer-DeadCode/ui..."
+        dir Stealer-DeadCode/ui
+        Write-Host "Listing contents of Stealer-DeadCode root..."
+        dir Stealer-DeadCode
+      shell: powershell
+
+    # Шаг 3: Установка Python
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    # Шаг 3: Установка зависимостей Python для aqtinstall
+    # Шаг 4: Установка зависимостей Python для aqtinstall
     - name: Install Python dependencies for aqtinstall
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
@@ -38,21 +49,21 @@ jobs:
         python -m aqt version
       shell: powershell
 
-    # Шаг 4: Проверка доступных архитектур Qt
+    # Шаг 5: Проверка доступных архитектур Qt
     - name: Check available Qt architectures
       run: |
         Write-Host "Checking available architectures for Qt 5.15.2..."
         python -m aqt list-qt windows desktop --arch 5.15.2
       shell: powershell
 
-    # Шаг 5: Проверка дискового пространства
+    # Шаг 6: Проверка дискового пространства
     - name: Check disk space
       run: |
         Write-Host "Checking available disk space..."
         Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
       shell: powershell
 
-    # Шаг 6: Кэширование MSYS2
+    # Шаг 7: Кэширование MSYS2
     - name: Cache MSYS2
       uses: actions/cache@v4
       with:
@@ -61,7 +72,7 @@ jobs:
         restore-keys: |
           msys2-${{ runner.os }}-20240727-
 
-    # Шаг 7: Проверка сетевого подключения и скорости к Chocolatey
+    # Шаг 8: Проверка сетевого подключения и скорости к Chocolatey
     - name: Test network connectivity and speed to Chocolatey
       continue-on-error: true
       run: |
@@ -90,7 +101,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 8: Установка MSYS2 и MinGW с альтернативным методом
+    # Шаг 9: Установка MSYS2 и MinGW с альтернативным методом
     - name: Install MinGW via MSYS2
       run: |
         Write-Host "Installing MSYS2 and MinGW..."
@@ -226,7 +237,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 9: Установка Perl (требуется для Qt)
+    # Шаг 10: Установка Perl (требуется для Qt)
     - name: Install Perl (required for Qt)
       run: |
         Write-Host "Installing Perl via Chocolatey..."
@@ -240,7 +251,7 @@ jobs:
         refreshenv
       shell: powershell
 
-    # Шаг 10: Кэширование Qt
+    # Шаг 11: Кэширование Qt
     - name: Cache Qt
       uses: actions/cache@v4
       with:
@@ -249,7 +260,7 @@ jobs:
         restore-keys: |
           qt-5.15.2-${{ runner.os }}-mingw81_64-
 
-    # Шаг 11: Установка Qt 5.15.2 через aqtinstall
+    # Шаг 12: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
@@ -261,7 +272,7 @@ jobs:
         Write-Host "Qt installation completed."
       shell: powershell
 
-    # Шаг 12: Проверка установки Qt
+    # Шаг 13: Проверка установки Qt
     - name: Verify Qt installation
       run: |
         Write-Host "Verifying Qt installation..."
@@ -288,7 +299,7 @@ jobs:
         Write-Host "Qt installation verified"
       shell: powershell
 
-    # Шаг 13: Кэширование vcpkg
+    # Шаг 14: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -297,7 +308,7 @@ jobs:
         restore-keys: |
           vcpkg-
 
-    # Шаг 14: Установка vcpkg и зависимостей
+    # Шаг 15: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         if (-not (Test-Path C:/vcpkg)) {
@@ -325,7 +336,7 @@ jobs:
         $success = $false
         for ($i = 1; $i -le $attempts; $i++) {
           Write-Host "Attempt $i/$attempts : Installing vcpkg dependencies..."
-          & $vcpkgExe install sqlite3 libzip zlib bzip2 curl openssl --triplet x64-mingw-static --clean-after-build 2>&1 | Tee-Object -FilePath "Stealer-DeadCode/vcpkg_install.log"
+          & $vcpkgExe install sqlite3 zlib bzip2 curl openssl --triplet x64-mingw-static --clean-after-build 2>&1 | Tee-Object -FilePath "Stealer-DeadCode/vcpkg_install.log"
           if ($LASTEXITCODE -eq 0) {
             Write-Host "vcpkg dependencies installed successfully."
             $success = $true
@@ -349,7 +360,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 15: Загрузка логов vcpkg в случае ошибки
+    # Шаг 16: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -358,13 +369,13 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 16: Проверка установки vcpkg
+    # Шаг 17: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-static/lib"
         $includeDir = "C:/vcpkg/installed/x64-mingw-static/include"
-        $libs = @("libsqlite3.a", "libzip.a", "libzlib.a", "libbz2.a", "libcurl.a", "libssl.a", "libcrypto.a")
-        $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
+        $libs = @("libsqlite3.a", "libzlib.a", "libbz2.a", "libcurl.a", "libssl.a", "libcrypto.a")
+        $headers = @("sqlite3.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib")) {
@@ -385,7 +396,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as static"
       shell: powershell
 
-    # Шаг 17: Проверка структуры проекта
+    # Шаг 18: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -400,6 +411,8 @@ jobs:
           "src/polymorphic_code.h",
           "src/junk_code.h",
           "src/stealerworker.h",
+          "src/miniz.h",
+          "src/miniz.c",
           "icon.rc",
           "icon.ico"
         )
@@ -423,7 +436,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 18: Проверка содержимого icon.rc
+    # Шаг 19: Проверка содержимого icon.rc
     - name: Verify icon.rc content
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -453,7 +466,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 19: Генерация UI-файлов
+    # Шаг 20: Генерация UI-файлов
     - name: Verify and generate UI files
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -477,7 +490,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 20: Конфигурация и сборка проекта
+    # Шаг 21: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -542,7 +555,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 21: Тестирование запуска DeadCode.exe с отладкой QML
+    # Шаг 22: Тестирование запуска DeadCode.exe с отладкой QML
     - name: Test run DeadCode.exe with QML debugging
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -568,7 +581,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 22: Проверка зависимостей DeadCode.exe
+    # Шаг 23: Проверка зависимостей DeadCode.exe
     - name: Check DeadCode.exe dependencies
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -589,7 +602,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 23: Копирование необходимых DLL и плагинов Qt
+    # Шаг 24: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies to build directory
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -734,7 +747,7 @@ jobs:
         dir release/QtQuick.Controls.2 -ErrorAction SilentlyContinue
       shell: powershell
 
-    # Шаг 24: Загрузка логов сборки в случае ошибки
+    # Шаг 25: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -749,7 +762,7 @@ jobs:
           Stealer-DeadCode/build/deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 25: Загрузка артефакта
+    # Шаг 26: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -790,7 +803,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 26: Очистка
+    # Шаг 27: Очистка
     - name: Cleanup
       if: always()
       run: |
