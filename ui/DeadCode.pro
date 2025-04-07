@@ -55,7 +55,8 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lwininet \
         -lshell32 \
         -lurlmon \
-        -lole32
+        -lole32 \
+        -lmsvcrt
 
 # Флаги компилятора
 QMAKE_CXXFLAGS += -O2 \

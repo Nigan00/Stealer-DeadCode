@@ -423,32 +423,14 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 18: Проверка содержимого icon.rc
-    - name: Verify icon.rc content
+    # Шаг 18: Исправление кодировки icon.rc
+    - name: Fix icon.rc encoding
       run: |
         Set-Location -Path Stealer-DeadCode
-        Write-Host "Checking icon.rc content..."
-        if (-not (Test-Path icon.rc)) {
-          Write-Host "Error: icon.rc not found"
-          exit 1
-        }
-        Write-Host "Contents of icon.rc (raw):"
-        Get-Content -Path icon.rc -Raw | ForEach-Object { Write-Host $_ }
-        Write-Host "Checking for icon.ico..."
-        $iconRcContent = Get-Content -Path icon.rc -Raw
-        if ($iconRcContent -match 'ICON\s+"([^"]+)"') {
-          $iconPath = $matches[1]
-          Write-Host "Icon file specified in icon.rc: $iconPath"
-          if (-not (Test-Path $iconPath)) {
-            Write-Host "Error: Icon file $iconPath not found"
-            dir .
-            exit 1
-          }
-          Write-Host "Icon file $iconPath exists"
-        } else {
-          Write-Host "Error: Could not parse icon path from icon.rc. Expected format: IDI_ICON1 ICON \"../icon.ico\""
-          exit 1
-        }
+        Write-Host "Fixing encoding of icon.rc..."
+        $content = Get-Content -Path icon.rc -Raw -Encoding UTF8
+        Set-Content -Path icon.rc -Value $content -NoNewline -Encoding ASCII
+        Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
     # Шаг 19: Генерация UI-файлов
@@ -498,6 +480,25 @@ jobs:
         [System.Environment]::SetEnvironmentVariable("QML2_IMPORT_PATH", $env:QML2_IMPORT_PATH, [System.EnvironmentVariableTarget]::Process)
         Write-Host "QML2_IMPORT_PATH set to: $env:QML2_IMPORT_PATH"
 
+        # Устанавливаем BUILD_DATE и BUILD_VERSION
+        $buildDate = Get-Date -Format "yyyy-MM-dd"
+        $buildVersion = git rev-parse --short HEAD
+        if (-not $buildVersion) {
+          $buildVersion = "unknown"
+        }
+        Write-Host "Build Date: $buildDate"
+        Write-Host "Build Version: $buildVersion"
+
+        # Проверяем значения переменных
+        if (-not $buildDate) {
+          Write-Host "Error: buildDate is empty"
+          exit 1
+        }
+        if (-not $buildVersion) {
+          Write-Host "Error: buildVersion is empty"
+          exit 1
+        }
+
         Set-Location -Path build
         Write-Host "Running qmake..."
         $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
@@ -508,7 +509,9 @@ jobs:
         $qmakeArgs = @(
           "../ui/DeadCode.pro",
           "CONFIG+=release",
-          "QMAKE_CXXFLAGS+=-Wno-attributes"
+          "QMAKE_CXXFLAGS+=-Wno-attributes",
+          "DEFINES+=BUILD_DATE=`"$buildDate`"",  # Исправленное экранирование
+          "DEFINES+=BUILD_VERSION=`"$buildVersion`""
         )
         Write-Host "qmake arguments: $qmakeArgs"
         & $qmakePath $qmakeArgs 2>&1 | Tee-Object -FilePath "../qmake_output.log"
@@ -540,7 +543,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 21: Тестирование запуска DeadCode.exe с отладкой QML
+    # Шаг 20.1: Тестирование запуска DeadCode.exe с отладкой QML
     - name: Test run DeadCode.exe with QML debugging
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -566,7 +569,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 22: Проверка зависимостей DeadCode.exe
+    # Шаг 21: Проверка зависимостей DeadCode.exe
     - name: Check DeadCode.exe dependencies
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -587,7 +590,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 23: Копирование необходимых DLL и плагинов Qt
+    # Шаг 22: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies to build directory
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -732,7 +735,7 @@ jobs:
         dir release/QtQuick.Controls.2 -ErrorAction SilentlyContinue
       shell: powershell
 
-    # Шаг 24: Загрузка логов сборки в случае ошибки
+    # Шаг 23: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -747,7 +750,7 @@ jobs:
           Stealer-DeadCode/build/deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 25: Загрузка артефакта
+    # Шаг 24: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -788,7 +791,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 26: Очистка
+    # Шаг 25: Очистка
     - name: Cleanup
       if: always()
       run: |
