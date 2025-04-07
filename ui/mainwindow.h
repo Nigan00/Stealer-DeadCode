@@ -43,6 +43,7 @@
 #include <windows.h>
 #include <bcrypt.h>
 #include <sqlite3.h>
+#include <zip.h>
 #include <curl/curl.h>
 #include <shlwapi.h>
 #include <tlhelp32.h>

