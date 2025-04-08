@@ -1,0 +1,15 @@
+{
+  "name": "deadcode",
+  "version-string": "1.0.0",
+  "dependencies": [
+    {
+      "name": "libzip",
+      "version>=": "1.9.2"
+    },
+    "sqlite3",
+    "zlib",
+    "bzip2",
+    "curl",
+    "openssl"
+  ]
+}
