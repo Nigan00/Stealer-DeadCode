@@ -1,7 +1,7 @@
 {
     "name": "deadcode",
     "version-string": "1.0.0",
-    "builtin-baseline": "f9a99aa79c1309001e36572fa42d7d8edebfc451",
+    "builtin-baseline": "0adbcbd6e88bc7d73bff75b82ca93a57e0716f9b",
     "dependencies": [
         {
             "name": "libzip",

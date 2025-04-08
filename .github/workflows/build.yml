@@ -174,36 +174,34 @@ jobs:
         Write-Host "Current vcpkg.json content:"
         Get-Content vcpkg.json
 
-        Write-Host "Updating vcpkg.json to use modern syntax and baseline..."
-        $jsonContent = Get-Content vcpkg.json -Raw | ConvertFrom-Json
+        Write-Host "Reformatting vcpkg.json without changing baseline..."
+        $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
 
-        # Проверяем и добавляем builtin-baseline, если его нет
-        if (-not $jsonContent.PSObject.Properties.Match('builtin-baseline')) {
-          $jsonContent | Add-Member -MemberType NoteProperty -Name 'builtin-baseline' -Value 'bec4296bf5289dc9ce83b4f5095943e44162f9c2'
-          Write-Host "Added builtin-baseline to vcpkg.json"
-        } else {
-          $jsonContent.'builtin-baseline' = 'bec4296bf5289dc9ce83b4f5095943e44162f9c2'
-          Write-Host "Updated builtin-baseline in vcpkg.json"
+        # Проверяем наличие builtin-baseline
+        if (-not $vcpkgJson.PSObject.Properties.Match('builtin-baseline')) {
+          Write-Host "Error: builtin-baseline not found in vcpkg.json. Please add it manually."
+          exit 1
         }
 
-        # Сохраняем обновлённый vcpkg.json
-        $jsonContent | ConvertTo-Json -Depth 10 | Set-Content vcpkg.json -Encoding UTF8
+        # Сохраняем обновлённый vcpkg.json (без изменения baseline)
+        $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
         Write-Host "Updated vcpkg.json content:"
         Get-Content vcpkg.json
       shell: powershell
 
-    # Шаг 11: Установка vcpkg и зависимостей
-    - name: Install vcpkg and dependencies
+    # Шаг 11: Очистка и обновление vcpkg
+    - name: Clean and update vcpkg
       run: |
-        if (-not (Test-Path C:/vcpkg)) {
-          Write-Host "Cloning vcpkg repository..."
-          & git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to clone vcpkg repository"
-            exit 1
-          }
+        if (Test-Path C:/vcpkg) {
+          Write-Host "Cleaning existing vcpkg directory..."
+          Remove-Item -Path C:/vcpkg -Recurse -Force
         }
-
+        Write-Host "Cloning vcpkg repository..."
+        & git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to clone vcpkg repository"
+          exit 1
+        }
         Set-Location -Path C:/vcpkg
         Write-Host "Running bootstrap-vcpkg..."
         & ./bootstrap-vcpkg.bat -disableMetrics
@@ -211,14 +209,34 @@ jobs:
           Write-Host "Error: Bootstrap failed. Check the logs."
           exit 1
         }
-
         Write-Host "vcpkg version:"
         & ./vcpkg.exe --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to get vcpkg version"
           exit 1
         }
+      shell: powershell
 
+    # Шаг 12: Проверка доступных версий библиотек
+    - name: Check available library versions
+      run: |
+        Set-Location -Path C:/vcpkg
+        Write-Host "Checking available versions of required libraries..."
+        $libraries = @("libzip", "sqlite3", "zlib", "bzip2", "curl", "openssl")
+        foreach ($lib in $libraries) {
+          Write-Host "Searching for $lib..."
+          & ./vcpkg.exe search $lib
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to search for $lib"
+            exit 1
+          }
+        }
+      shell: powershell
+
+    # Шаг 13: Установка vcpkg и зависимостей
+    - name: Install vcpkg and dependencies
+      run: |
+        Set-Location -Path C:/vcpkg
         Write-Host "Integrating vcpkg..."
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
         & $vcpkgExe integrate install
@@ -245,7 +263,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 12: Загрузка логов vcpkg в случае ошибки
+    # Шаг 14: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -254,7 +272,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 13: Проверка установки vcpkg
+    # Шаг 15: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-dynamic/lib"
@@ -299,7 +317,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 14: Проверка структуры проекта
+    # Шаг 16: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -338,7 +356,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 15: Исправление кодировки icon.rc
+    # Шаг 17: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -348,7 +366,7 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 16: Генерация UI-файлов
+    # Шаг 18: Генерация UI-файлов
     - name: Generate UI files
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -372,7 +390,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 17: Конфигурация и сборка проекта
+    # Шаг 19: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -439,7 +457,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 18: Тестирование запуска DeadCode.exe
+    # Шаг 20: Тестирование запуска DeadCode.exe
     - name: Test run DeadCode.exe
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
@@ -462,7 +480,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 19: Копирование необходимых DLL и плагинов Qt
+    # Шаг 21: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
@@ -597,7 +615,7 @@ jobs:
         dir release -Recurse
       shell: powershell
 
-    # Шаг 20: Загрузка логов сборки в случае ошибки
+    # Шаг 22: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -612,7 +630,7 @@ jobs:
           Stealer-DeadCode/build/deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 21: Загрузка артефакта
+    # Шаг 23: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -638,7 +656,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 22: Очистка
+    # Шаг 24: Очистка
     - name: Cleanup
       if: always()
       run: |
