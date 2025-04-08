@@ -11,6 +11,5 @@
     "bzip2",
     "curl",
     "openssl"
-  ],
-  "builtin-baseline": "bec4296bf5289dc9ce83b4f5095943e44162f9c2"
+  ]
 }
