@@ -163,8 +163,8 @@ jobs:
         $jsonContent = Get-Content vcpkg.json -Raw | ConvertFrom-Json
         if (-not $jsonContent.'builtin-baseline') {
           Write-Host "builtin-baseline not found, adding it..."
-          # Используем коммит vcpkg от июля 2023 года (примерный, замените на реальный)
-          $jsonContent | Add-Member -MemberType NoteProperty -Name 'builtin-baseline' -Value 'a1b2c3d' -Force
+          # Используем коммит vcpkg от 28 июля 2023 года
+          $jsonContent | Add-Member -MemberType NoteProperty -Name 'builtin-baseline' -Value '8b04a7bd93bef991818fc372bb83ce00ec1c1c16' -Force
           $jsonContent | ConvertTo-Json -Depth 10 | Set-Content vcpkg.json -Encoding UTF8
           Write-Host "Updated vcpkg.json with builtin-baseline:"
           Get-Content vcpkg.json
@@ -177,16 +177,8 @@ jobs:
     - name: Install vcpkg and dependencies
       run: |
         if (-not (Test-Path C:/vcpkg)) {
-          Write-Host "Cloning vcpkg..."
-          # Фиксируем версию vcpkg на коммите от июля 2023 года
-          git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
-          Set-Location -Path C:/vcpkg
-          git checkout a1b2c3d  # Замените на реальный коммит
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to checkout vcpkg commit"
-            exit 1
-          }
-          Set-Location -Path ../..
+          Write-Host "Creating vcpkg directory..."
+          New-Item -Path C:/vcpkg -ItemType Directory -Force
         }
         Write-Host "Running bootstrap-vcpkg..."
         & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
@@ -536,7 +528,7 @@ jobs:
             @{ Source = "qmltooling/*.dll"; Dest = "qmltooling" },
             @{ Source = "sqldrivers/*.dll"; Dest = "sqldrivers" }
           )
-          foreach ($plugin in $plugin21Dirs) {
+          foreach ($plugin in $pluginDirs) {
             if (Test-Path "$qtPluginsDir/$($plugin.Source)") {
               New-Item -Path "release/$($plugin.Dest)" -ItemType Directory -Force
               Copy-Item -Path "$qtPluginsDir/$($plugin.Source)" -Destination "release/$($plugin.Dest)/" -Force -ErrorAction SilentlyContinue
