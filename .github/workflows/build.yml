@@ -111,33 +111,34 @@ jobs:
         Write-Host "Qt is dynamically linked"
 
         Write-Host "Setting up MinGW 8.1.0 from Qt..."
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
+        $mingwBinPath = "C:/Qt/Tools/mingw810_64/bin"
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;$mingwBinPath;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
         Write-Host "Verifying MinGW installation..."
         Write-Host "Checking g++..."
-        $gppPath = "C:/Qt/5.15.2/mingw81_64/bin/g++.exe"
+        $gppPath = "$mingwBinPath/g++.exe"
         if (-not (Test-Path $gppPath)) {
           Write-Host "Error: g++.exe not found at $gppPath"
+          dir $mingwBinPath -ErrorAction SilentlyContinue
           dir C:/Qt/5.15.2/mingw81_64/bin -ErrorAction SilentlyContinue
-          dir C:/Qt/Tools/mingw810_64/bin -ErrorAction SilentlyContinue
           exit 1
         }
-        g++ --version
+        & $gppPath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ --version failed (exit code: $LASTEXITCODE)"
           exit 1
         }
 
         Write-Host "Checking mingw32-make..."
-        $makePath = "C:/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
+        $makePath = "$mingwBinPath/mingw32-make.exe"
         if (-not (Test-Path $makePath)) {
           Write-Host "Error: mingw32-make.exe not found at $makePath"
+          dir $mingwBinPath -ErrorAction SilentlyContinue
           dir C:/Qt/5.15.2/mingw81_64/bin -ErrorAction SilentlyContinue
-          dir C:/Qt/Tools/mingw810_64/bin -ErrorAction SilentlyContinue
           exit 1
         }
-        mingw32-make --version
+        & $makePath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make --version failed (exit code: $LASTEXITCODE)"
           exit 1
@@ -371,7 +372,7 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/vcpkg;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
 
@@ -422,7 +423,7 @@ jobs:
         }
 
         Write-Host "Running mingw32-make..."
-        $makePath = "C:/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
+        $makePath = "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe"
         if (-not (Test-Path $makePath)) {
           Write-Host "Error: mingw32-make.exe not found at $makePath"
           exit 1
@@ -450,7 +451,7 @@ jobs:
         Write-Host "Setting up QML debugging..."
         $env:QT_LOGGING_RULES = "qt5core.debug=true;qml.debug=true;qt5qml.debug=true"
         $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml;release"
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
         Write-Host "Running DeadCode.exe with QML debugging..."
         try {
           Start-Process -FilePath "release/DeadCode.exe" -NoNewWindow -Wait -RedirectStandardOutput "deadcode_output.log" -RedirectStandardError "deadcode_error.log"
@@ -496,6 +497,7 @@ jobs:
         Set-Location -Path Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
         $qtBinDir = "C:/Qt/5.15.2/mingw81_64/bin"
+        $mingwBinDir = "C:/Qt/Tools/mingw810_64/bin"
         $qtPluginsDir = "C:/Qt/5.15.2/mingw81_64/plugins"
         $qtQmlDir = "C:/Qt/5.15.2/mingw81_64/qml"
         $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
@@ -547,11 +549,11 @@ jobs:
 
         # Копируем MinGW DLL в release/
         foreach ($dll in $requiredMingwDlls) {
-          if (Test-Path "$qtBinDir/$dll") {
-            Copy-Item -Path "$qtBinDir/$dll" -Destination release/
+          if (Test-Path "$mingwBinDir/$dll") {
+            Copy-Item -Path "$mingwBinDir/$dll" -Destination release/
             Write-Host "Copied $dll to release directory"
           } else {
-            Write-Host "Warning: $dll not found in $qtBinDir"
+            Write-Host "Warning: $dll not found in $mingwBinDir"
           }
         }
 
