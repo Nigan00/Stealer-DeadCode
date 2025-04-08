@@ -159,36 +159,50 @@ jobs:
         Write-Host "Current vcpkg.json content:"
         Get-Content vcpkg.json
 
-        Write-Host "Checking for builtin-baseline in vcpkg.json..."
+        Write-Host "Updating vcpkg.json to use modern syntax and baseline..."
         $jsonContent = Get-Content vcpkg.json -Raw | ConvertFrom-Json
-        if (-not $jsonContent.'builtin-baseline') {
-          Write-Host "builtin-baseline not found, adding it..."
-          # Используем коммит vcpkg от 28 июля 2023 года
-          $jsonContent | Add-Member -MemberType NoteProperty -Name 'builtin-baseline' -Value '8b04a7bd93bef991818fc372bb83ce00ec1c1c16' -Force
-          $jsonContent | ConvertTo-Json -Depth 10 | Set-Content vcpkg.json -Encoding UTF8
-          Write-Host "Updated vcpkg.json with builtin-baseline:"
-          Get-Content vcpkg.json
-        } else {
-          Write-Host "builtin-baseline already present in vcpkg.json"
+
+        # Обновляем builtin-baseline до версии 2025-02-11
+        $jsonContent.'builtin-baseline' = 'bec4296bf5289dc9ce83b4f5095943e44162f9c2'
+
+        # Обновляем зависимости: заменяем "version" на "version>=" для libzip
+        foreach ($dep in $jsonContent.dependencies) {
+          if ($dep.name -eq "libzip" -and $dep.version) {
+            $versionValue = $dep.version
+            $dep | Add-Member -MemberType NoteProperty -Name 'version>=' -Value $versionValue -Force
+            $dep.PSObject.Properties.Remove('version')
+            Write-Host "Updated libzip dependency to use 'version>=': $versionValue"
+          }
         }
+
+        # Сохраняем обновлённый vcpkg.json
+        $jsonContent | ConvertTo-Json -Depth 10 | Set-Content vcpkg.json -Encoding UTF8
+        Write-Host "Updated vcpkg.json content:"
+        Get-Content vcpkg.json
       shell: powershell
 
     # Шаг 11: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         if (-not (Test-Path C:/vcpkg)) {
-          Write-Host "Creating vcpkg directory..."
-          New-Item -Path C:/vcpkg -ItemType Directory -Force
+          Write-Host "Cloning vcpkg repository..."
+          & git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to clone vcpkg repository"
+            exit 1
+          }
         }
+
+        Set-Location -Path C:/vcpkg
         Write-Host "Running bootstrap-vcpkg..."
-        & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+        & ./bootstrap-vcpkg.bat -disableMetrics
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Bootstrap failed. Check the logs."
           exit 1
         }
 
         Write-Host "vcpkg version:"
-        & C:/vcpkg/vcpkg.exe --version
+        & ./vcpkg.exe --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to get vcpkg version"
           exit 1
@@ -205,7 +219,7 @@ jobs:
         $env:Path = "C:/vcpkg;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
-        Set-Location -Path Stealer-DeadCode
+        Set-Location -Path ../Stealer-DeadCode
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
         $attempts = 3
         $success = $false
