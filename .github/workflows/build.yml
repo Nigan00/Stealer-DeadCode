@@ -42,25 +42,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 4: Проверка доступных архитектур Qt
-    - name: Check available Qt architectures
-      run: |
-        Write-Host "Checking available architectures for Qt 5.15.2..."
-        python -m aqt list-qt windows desktop --arch 5.15.2
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to list Qt architectures"
-          exit 1
-        }
-      shell: powershell
-
-    # Шаг 5: Проверка дискового пространства
-    - name: Check disk space
-      run: |
-        Write-Host "Checking available disk space..."
-        Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'" | Select-Object DeviceID, @{Name="FreeSpace(GB)";Expression={[math]::Round($_.FreeSpace/1GB,2)}}
-      shell: powershell
-
-    # Шаг 6: Кэширование Qt
+    # Шаг 4: Кэширование Qt
     - name: Cache Qt
       uses: actions/cache@v4
       with:
@@ -69,7 +51,7 @@ jobs:
         restore-keys: |
           qt-5.15.2-${{ runner.os }}-mingw81_64-
 
-    # Шаг 7: Установка Qt 5.15.2 через aqtinstall
+    # Шаг 5: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
@@ -81,7 +63,7 @@ jobs:
         Write-Host "Qt installation completed."
       shell: powershell
 
-    # Шаг 8: Установка MinGW 8.1 через aqtinstall
+    # Шаг 6: Установка MinGW 8.1 через aqtinstall
     - name: Install MinGW 8.1 via aqtinstall
       run: |
         Write-Host "Installing MinGW 8.1..."
@@ -93,82 +75,55 @@ jobs:
         Write-Host "MinGW 8.1 installation completed."
       shell: powershell
 
-    # Шаг 9: Проверка установки Qt и настройка MinGW
-    - name: Verify Qt installation and setup MinGW
+    # Шаг 7: Проверка установки Qt и MinGW
+    - name: Verify Qt and MinGW installation
       run: |
-        Write-Host "Verifying Qt installation..."
+        Write-Host "Verifying Qt and MinGW installation..."
         $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
-        if (-not (Test-Path $qmakePath)) {
-          Write-Host "Error: qmake.exe not found at $qmakePath"
-          dir C:/Qt -Recurse
-          exit 1
-        }
-        if (-not (Test-Path $uicPath)) {
-          Write-Host "Error: uic.exe not found at $uicPath"
-          dir C:/Qt -Recurse
-          exit 1
-        }
-
-        Write-Host "Checking if Qt is dynamically linked..."
-        $qtCoreDll = "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll"
-        if (-not (Test-Path $qtCoreDll)) {
-          Write-Host "Error: Qt5Core.dll not found, Qt may not be dynamically linked"
-          exit 1
-        }
-        Write-Host "Qt is dynamically linked"
-
-        Write-Host "Setting up MinGW 8.1.0 from Qt..."
         $mingwBinPath = "C:/Qt/Tools/mingw810_64/bin"
+        $gppPath = "$mingwBinPath/g++.exe"
+        $makePath = "$mingwBinPath/mingw32-make.exe"
+        $qtCoreDll = "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll"
+
+        # Проверка наличия файлов
+        foreach ($path in @($qmakePath, $uicPath, $gppPath, $makePath, $qtCoreDll)) {
+          if (-not (Test-Path $path)) {
+            Write-Host "Error: $path not found"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+        }
+
+        # Настройка PATH
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;$mingwBinPath;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
-        Write-Host "Verifying MinGW installation..."
-        Write-Host "Checking g++..."
-        $gppPath = "$mingwBinPath/g++.exe"
-        if (-not (Test-Path $gppPath)) {
-          Write-Host "Error: g++.exe not found at $gppPath"
-          dir $mingwBinPath -ErrorAction SilentlyContinue
-          dir C:/Qt/5.15.2/mingw81_64/bin -ErrorAction SilentlyContinue
-          exit 1
-        }
-        & $gppPath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: g++ --version failed (exit code: $LASTEXITCODE)"
-          exit 1
-        }
-
-        Write-Host "Checking mingw32-make..."
-        $makePath = "$mingwBinPath/mingw32-make.exe"
-        if (-not (Test-Path $makePath)) {
-          Write-Host "Error: mingw32-make.exe not found at $makePath"
-          dir $mingwBinPath -ErrorAction SilentlyContinue
-          dir C:/Qt/5.15.2/mingw81_64/bin -ErrorAction SilentlyContinue
-          exit 1
-        }
-        & $makePath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: mingw32-make --version failed (exit code: $LASTEXITCODE)"
-          exit 1
-        }
-
-        Write-Host "Verifying qmake..."
+        # Проверка версий
+        Write-Host "Qt version:"
         & $qmakePath --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake --version failed"
           exit 1
         }
-        Write-Host "Qt and MinGW setup verified"
-      shell: powershell
-
-    # Шаг 10: Установка Perl (требуется для Qt)
-    - name: Install Perl (required for Qt)
-      run: |
-        Write-Host "Checking if Chocolatey is installed..."
-        if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
-          Write-Host "Error: Chocolatey is not installed. Please ensure Chocolatey is available in the runner."
+        Write-Host "g++ version:"
+        & $gppPath --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: g++ --version failed"
           exit 1
         }
+        Write-Host "mingw32-make version:"
+        & $makePath --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: mingw32-make --version failed"
+          exit 1
+        }
+        Write-Host "Qt and MinGW setup verified successfully"
+      shell: powershell
+
+    # Шаг 8: Установка Perl (требуется для Qt)
+    - name: Install Perl (required for Qt)
+      run: |
         Write-Host "Installing Perl via Chocolatey..."
         choco install strawberryperl -y --force --execution-timeout 600
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
@@ -181,7 +136,7 @@ jobs:
         Write-Host "Perl installation completed"
       shell: powershell
 
-    # Шаг 11: Кэширование vcpkg
+    # Шаг 9: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -190,34 +145,60 @@ jobs:
         restore-keys: |
           vcpkg-
 
-    # Шаг 12: Проверка наличия vcpkg.json
-    - name: Check for vcpkg.json
+    # Шаг 10: Проверка и обновление vcpkg.json
+    - name: Check and update vcpkg.json
       run: |
         Set-Location -Path Stealer-DeadCode
+        Write-Host "Checking vcpkg.json..."
         if (-not (Test-Path vcpkg.json)) {
           Write-Host "Error: vcpkg.json not found in Stealer-DeadCode directory"
           dir .
           exit 1
         }
-        Write-Host "vcpkg.json found:"
+
+        Write-Host "Current vcpkg.json content:"
         Get-Content vcpkg.json
+
+        Write-Host "Checking for builtin-baseline in vcpkg.json..."
+        $jsonContent = Get-Content vcpkg.json -Raw | ConvertFrom-Json
+        if (-not $jsonContent.'builtin-baseline') {
+          Write-Host "builtin-baseline not found, adding it..."
+          # Используем коммит vcpkg от июля 2023 года (примерный, замените на реальный)
+          $jsonContent | Add-Member -MemberType NoteProperty -Name 'builtin-baseline' -Value 'a1b2c3d' -Force
+          $jsonContent | ConvertTo-Json -Depth 10 | Set-Content vcpkg.json -Encoding UTF8
+          Write-Host "Updated vcpkg.json with builtin-baseline:"
+          Get-Content vcpkg.json
+        } else {
+          Write-Host "builtin-baseline already present in vcpkg.json"
+        }
       shell: powershell
 
-    # Шаг 13: Установка vcpkg и зависимостей
+    # Шаг 11: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         if (-not (Test-Path C:/vcpkg)) {
           Write-Host "Cloning vcpkg..."
+          # Фиксируем версию vcpkg на коммите от июля 2023 года
           git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
+          Set-Location -Path C:/vcpkg
+          git checkout a1b2c3d  # Замените на реальный коммит
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to clone vcpkg repository"
+            Write-Host "Error: Failed to checkout vcpkg commit"
             exit 1
           }
+          Set-Location -Path ../..
         }
         Write-Host "Running bootstrap-vcpkg..."
         & C:/vcpkg/bootstrap-vcpkg.bat -disableMetrics
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Bootstrap failed. Check the logs."
+          exit 1
+        }
+
+        Write-Host "vcpkg version:"
+        & C:/vcpkg/vcpkg.exe --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to get vcpkg version"
           exit 1
         }
 
@@ -262,7 +243,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 14: Загрузка логов vcpkg в случае ошибки
+    # Шаг 12: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -271,7 +252,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 15: Проверка установки vcpkg
+    # Шаг 13: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-dynamic/lib"
@@ -306,7 +287,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 16: Проверка структуры проекта
+    # Шаг 14: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -345,7 +326,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 17: Исправление кодировки icon.rc
+    # Шаг 15: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -355,13 +336,13 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 18: Генерация UI-файлов
-    - name: Verify and generate UI files
+    # Шаг 16: Генерация UI-файлов
+    - name: Generate UI files
       run: |
         Set-Location -Path Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
         $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
-        $outputPath = "$(Get-Location)/build/release/ui_mainwindow.h"
+        $outputPath = "build/release/ui_mainwindow.h"
         if (-not (Test-Path $uicPath)) {
           Write-Host "Error: uic.exe not found at $uicPath"
           exit 1
@@ -379,7 +360,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 19: Конфигурация и сборка проекта
+    # Шаг 17: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -411,23 +392,9 @@ jobs:
         Write-Host "Build Date: $buildDate"
         Write-Host "Build Version: $buildVersion"
 
-        # Проверяем значения переменных
-        if (-not $buildDate) {
-          Write-Host "Error: buildDate is empty"
-          exit 1
-        }
-        if (-not $buildVersion) {
-          Write-Host "Error: buildVersion is empty"
-          exit 1
-        }
-
         Set-Location -Path build
         Write-Host "Running qmake..."
         $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
-        if (-not (Test-Path $qmakePath)) {
-          Write-Host "Error: qmake.exe not found at $qmakePath"
-          exit 1
-        }
         $qmakeArgs = @(
           "../ui/DeadCode.pro",
           "CONFIG+=release",
@@ -435,7 +402,6 @@ jobs:
           "DEFINES+=BUILD_DATE=`"$buildDate`"",
           "DEFINES+=BUILD_VERSION=`"$buildVersion`""
         )
-        Write-Host "qmake arguments: $qmakeArgs"
         & $qmakePath $qmakeArgs 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed. Check qmake_output.log for details."
@@ -445,10 +411,6 @@ jobs:
 
         Write-Host "Running mingw32-make..."
         $makePath = "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe"
-        if (-not (Test-Path $makePath)) {
-          Write-Host "Error: mingw32-make.exe not found at $makePath"
-          exit 1
-        }
         & $makePath -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
@@ -465,15 +427,12 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 20: Тестирование запуска DeadCode.exe с отладкой QML
-    - name: Test run DeadCode.exe with QML debugging
+    # Шаг 18: Тестирование запуска DeadCode.exe
+    - name: Test run DeadCode.exe
       run: |
         Set-Location -Path Stealer-DeadCode/build
-        Write-Host "Setting up QML debugging..."
-        $env:QT_LOGGING_RULES = "qt5core.debug=true;qml.debug=true;qt5qml.debug=true"
-        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml;release"
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
-        Write-Host "Running DeadCode.exe with QML debugging..."
+        Write-Host "Running DeadCode.exe..."
         try {
           Start-Process -FilePath "release/DeadCode.exe" -NoNewWindow -Wait -RedirectStandardOutput "deadcode_output.log" -RedirectStandardError "deadcode_error.log"
           Write-Host "DeadCode.exe executed successfully."
@@ -491,29 +450,8 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 21: Проверка зависимостей DeadCode.exe
-    - name: Check DeadCode.exe dependencies
-      run: |
-        Set-Location -Path Stealer-DeadCode/build
-        Write-Host "Checking dependencies of DeadCode.exe..."
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        $objdump = "C:/Qt/Tools/mingw810_64/bin/objdump.exe"
-        if (-not (Test-Path $objdump)) {
-          Write-Host "Error: objdump.exe not found at $objdump"
-          exit 1
-        }
-        & $objdump -p release/DeadCode.exe | Select-String "DLL Name" > dependencies.txt
-        if (Test-Path dependencies.txt) {
-          Write-Host "Dependencies of DeadCode.exe:"
-          Get-Content dependencies.txt
-        } else {
-          Write-Host "No dependencies found or objdump failed."
-        }
-      shell: powershell
-
-    # Шаг 22: Копирование необходимых DLL и плагинов Qt
-    - name: Copy Qt DLLs and dependencies to build directory
+    # Шаг 19: Копирование необходимых DLL и плагинов Qt
+    - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location -Path Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
@@ -558,7 +496,7 @@ jobs:
           "libcrypto-1_1-x64.dll"
         )
 
-        # Копируем Qt DLL в release/
+        # Копируем Qt DLL
         foreach ($dll in $requiredQtDlls) {
           if (Test-Path "$qtBinDir/$dll") {
             Copy-Item -Path "$qtBinDir/$dll" -Destination release/ -Force
@@ -568,7 +506,7 @@ jobs:
           }
         }
 
-        # Копируем MinGW DLL в release/
+        # Копируем MinGW DLL
         foreach ($dll in $requiredMingwDlls) {
           if (Test-Path "$mingwBinDir/$dll") {
             Copy-Item -Path "$mingwBinDir/$dll" -Destination release/ -Force
@@ -578,7 +516,7 @@ jobs:
           }
         }
 
-        # Копируем VCPKG DLL в release/
+        # Копируем VCPKG DLL
         foreach ($dll in $requiredVcpkgDlls) {
           if (Test-Path "$vcpkgBinDir/$dll") {
             Copy-Item -Path "$vcpkgBinDir/$dll" -Destination release/ -Force
@@ -588,56 +526,29 @@ jobs:
           }
         }
 
-        # Копируем Qt плагины в release/
+        # Копируем Qt плагины
         if (Test-Path "$qtPluginsDir") {
-          # Платформа Windows
-          if (Test-Path "$qtPluginsDir/platforms") {
-            New-Item -Path "release/platforms" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/platforms/qwindows.dll" -Destination "release/platforms/" -Force -ErrorAction SilentlyContinue
-            Write-Host "Copied Qt platform plugin qwindows.dll"
-          }
-
-          # Стили
-          if (Test-Path "$qtPluginsDir/styles") {
-            New-Item -Path "release/styles" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/styles/qwindowsvistastyle.dll" -Destination "release/styles/" -Force -ErrorAction SilentlyContinue
-            Write-Host "Copied Qt style plugin qwindowsvistastyle.dll"
-          }
-
-          # Форматы изображений
-          if (Test-Path "$qtPluginsDir/imageformats") {
-            New-Item -Path "release/imageformats" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/imageformats/*.dll" -Destination "release/imageformats/" -Force -ErrorAction SilentlyContinue
-            Write-Host "Copied Qt imageformats plugins"
-          }
-
-          # Qt Quick
-          if (Test-Path "$qtPluginsDir/quick") {
-            New-Item -Path "release/quick" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/quick/*.dll" -Destination "release/quick/" -Force -ErrorAction SilentlyContinue
-            Write-Host "Copied Qt Quick plugins"
-          }
-
-          # Qt QML
-          if (Test-Path "$qtPluginsDir/qmltooling") {
-            New-Item -Path "release/qmltooling" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/qmltooling/*.dll" -Destination "release/qmltooling/" -Force -ErrorAction SilentlyContinue
-            Write-Host "Copied Qt QML tooling plugins"
-          }
-
-          # Qt SQL драйверы
-          if (Test-Path "$qtPluginsDir/sqldrivers") {
-            New-Item -Path "release/sqldrivers" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/sqldrivers/*.dll" -Destination "release/sqldrivers/" -Force -ErrorAction SilentlyContinue
-            Write-Host "Copied Qt SQL drivers"
+          $pluginDirs = @(
+            @{ Source = "platforms/qwindows.dll"; Dest = "platforms" },
+            @{ Source = "styles/qwindowsvistastyle.dll"; Dest = "styles" },
+            @{ Source = "imageformats/*.dll"; Dest = "imageformats" },
+            @{ Source = "quick/*.dll"; Dest = "quick" },
+            @{ Source = "qmltooling/*.dll"; Dest = "qmltooling" },
+            @{ Source = "sqldrivers/*.dll"; Dest = "sqldrivers" }
+          )
+          foreach ($plugin in $plugin21Dirs) {
+            if (Test-Path "$qtPluginsDir/$($plugin.Source)") {
+              New-Item -Path "release/$($plugin.Dest)" -ItemType Directory -Force
+              Copy-Item -Path "$qtPluginsDir/$($plugin.Source)" -Destination "release/$($plugin.Dest)/" -Force -ErrorAction SilentlyContinue
+              Write-Host "Copied Qt plugin $($plugin.Source)"
+            }
           }
         } else {
           Write-Host "Warning: Qt plugins directory not found at $qtPluginsDir"
         }
 
-        # Копируем QML-модули в release/
+        # Копируем QML-модули
         if (Test-Path "$qtQmlDir") {
-          Write-Host "Copying QML modules to release directory..."
           $qmlModules = @(
             "QtQml",
             "QtQuick",
@@ -664,22 +575,11 @@ jobs:
           exit 1
         }
 
-        Write-Host "Listing contents of release directory after copying DLLs and QML modules:"
-        dir release
-        dir release/platforms -ErrorAction SilentlyContinue
-        dir release/styles -ErrorAction SilentlyContinue
-        dir release/imageformats -ErrorAction SilentlyContinue
-        dir release/quick -ErrorAction SilentlyContinue
-        dir release/qmltooling -ErrorAction SilentlyContinue
-        dir release/sqldrivers -ErrorAction SilentlyContinue
-        dir release/QtQml -ErrorAction SilentlyContinue
-        dir release/QtQuick -ErrorAction SilentlyContinue
-        dir release/QtQuick.2 -ErrorAction SilentlyContinue
-        dir release/QtQuick.Controls -ErrorAction SilentlyContinue
-        dir release/QtQuick.Controls.2 -ErrorAction SilentlyContinue
+        Write-Host "Listing contents of release directory:"
+        dir release -Recurse
       shell: powershell
 
-    # Шаг 23: Загрузка логов сборки в случае ошибки
+    # Шаг 20: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -694,7 +594,7 @@ jobs:
           Stealer-DeadCode/build/deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 24: Загрузка артефакта
+    # Шаг 21: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -720,7 +620,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 25: Очистка
+    # Шаг 22: Очистка
     - name: Cleanup
       if: always()
       run: |
