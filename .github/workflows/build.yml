@@ -60,6 +60,15 @@ jobs:
           Write-Host "Error: Failed to install Qt 5.15.2 via aqtinstall"
           exit 1
         }
+        # Проверка наличия ключевых файлов Qt
+        $qtFiles = @("C:/Qt/5.15.2/mingw81_64/bin/qmake.exe", "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll")
+        foreach ($file in $qtFiles) {
+          if (-not (Test-Path $file)) {
+            Write-Host "Error: Qt installation incomplete, $file not found"
+            dir C:/Qt -Recurse
+            exit 1
+          }
+        }
         Write-Host "Qt installation completed."
       shell: powershell
 
@@ -70,6 +79,12 @@ jobs:
         python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install MinGW 8.1 via aqtinstall"
+          exit 1
+        }
+        # Проверка наличия g++.exe
+        if (-not (Test-Path "C:/Qt/Tools/mingw810_64/bin/g++.exe")) {
+          Write-Host "Error: MinGW installation incomplete, g++.exe not found"
+          dir C:/Qt/Tools -Recurse
           exit 1
         }
         Write-Host "MinGW 8.1 installation completed."
@@ -162,17 +177,13 @@ jobs:
         Write-Host "Updating vcpkg.json to use modern syntax and baseline..."
         $jsonContent = Get-Content vcpkg.json -Raw | ConvertFrom-Json
 
-        # Обновляем builtin-baseline до версии 2025-02-11
-        $jsonContent.'builtin-baseline' = 'bec4296bf5289dc9ce83b4f5095943e44162f9c2'
-
-        # Обновляем зависимости: заменяем "version" на "version>=" для libzip
-        foreach ($dep in $jsonContent.dependencies) {
-          if ($dep.name -eq "libzip" -and $dep.version) {
-            $versionValue = $dep.version
-            $dep | Add-Member -MemberType NoteProperty -Name 'version>=' -Value $versionValue -Force
-            $dep.PSObject.Properties.Remove('version')
-            Write-Host "Updated libzip dependency to use 'version>=': $versionValue"
-          }
+        # Проверяем и добавляем builtin-baseline, если его нет
+        if (-not $jsonContent.PSObject.Properties.Match('builtin-baseline')) {
+          $jsonContent | Add-Member -MemberType NoteProperty -Name 'builtin-baseline' -Value 'bec4296bf5289dc9ce83b4f5095943e44162f9c2'
+          Write-Host "Added builtin-baseline to vcpkg.json"
+        } else {
+          $jsonContent.'builtin-baseline' = 'bec4296bf5289dc9ce83b4f5095943e44162f9c2'
+          Write-Host "Updated builtin-baseline in vcpkg.json"
         }
 
         # Сохраняем обновлённый vcpkg.json
@@ -224,9 +235,10 @@ jobs:
         Write-Host "Current directory: $(Get-Location)"
 
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
-        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build
+        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: vcpkg install failed. Check the logs."
+          Write-Host "Error: vcpkg install failed. Check vcpkg_install.log for details."
+          Get-Content vcpkg_install.log
           exit 1
         }
 
@@ -252,26 +264,36 @@ jobs:
         $dlls = @("sqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl-1_1-x64.dll", "libcrypto-1_1-x64.dll")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
+
+        Write-Host "Checking libraries in $libDir..."
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib")) {
             $missing += "$lib"
           }
         }
+
+        Write-Host "Checking DLLs in $binDir..."
         foreach ($dll in $dlls) {
           if (-not (Test-Path "$binDir/$dll")) {
             $missing += "$dll"
           }
         }
+
+        Write-Host "Checking headers in $includeDir..."
         foreach ($header in $headers) {
           if (-not (Test-Path "$includeDir/$header")) {
             $missing += $header
           }
         }
+
         if ($missing) {
           Write-Host "Error: Missing libraries, DLLs, or header files: $missing"
+          Write-Host "Listing contents of $libDir:"
           dir $libDir -ErrorAction SilentlyContinue
+          Write-Host "Listing contents of $binDir:"
           dir $binDir -ErrorAction SilentlyContinue
-          dir $includeDir -ErrorAction SilentlyContinue
+          Write-Host "Listing contents of $includeDir:"
+          dir $includeDir -Recurse -ErrorAction SilentlyContinue
           exit 1
         }
         Write-Host "All vcpkg dependencies verified as dynamic"
@@ -492,7 +514,8 @@ jobs:
             Copy-Item -Path "$qtBinDir/$dll" -Destination release/ -Force
             Write-Host "Copied $dll to release directory"
           } else {
-            Write-Host "Warning: $dll not found in $qtBinDir"
+            Write-Host "Error: $dll not found in $qtBinDir"
+            exit 1
           }
         }
 
@@ -502,7 +525,8 @@ jobs:
             Copy-Item -Path "$mingwBinDir/$dll" -Destination release/ -Force
             Write-Host "Copied $dll to release directory"
           } else {
-            Write-Host "Warning: $dll not found in $mingwBinDir"
+            Write-Host "Error: $dll not found in $mingwBinDir"
+            exit 1
           }
         }
 
@@ -512,7 +536,8 @@ jobs:
             Copy-Item -Path "$vcpkgBinDir/$dll" -Destination release/ -Force
             Write-Host "Copied $dll to release directory"
           } else {
-            Write-Host "Warning: $dll not found in $vcpkgBinDir"
+            Write-Host "Error: $dll not found in $vcpkgBinDir"
+            exit 1
           }
         }
 
@@ -531,10 +556,13 @@ jobs:
               New-Item -Path "release/$($plugin.Dest)" -ItemType Directory -Force
               Copy-Item -Path "$qtPluginsDir/$($plugin.Source)" -Destination "release/$($plugin.Dest)/" -Force -ErrorAction SilentlyContinue
               Write-Host "Copied Qt plugin $($plugin.Source)"
+            } else {
+              Write-Host "Warning: Qt plugin $($plugin.Source) not found in $qtPluginsDir"
             }
           }
         } else {
-          Write-Host "Warning: Qt plugins directory not found at $qtPluginsDir"
+          Write-Host "Error: Qt plugins directory not found at $qtPluginsDir"
+          exit 1
         }
 
         # Копируем QML-модули
