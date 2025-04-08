@@ -73,7 +73,19 @@ jobs:
         Write-Host "Qt installation completed."
       shell: powershell
 
-    # Шаг 8: Проверка установки Qt и настройка MinGW
+    # Шаг 8: Установка MinGW 8.1 через aqtinstall
+    - name: Install MinGW 8.1 via aqtinstall
+      run: |
+        Write-Host "Installing MinGW 8.1..."
+        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install MinGW 8.1 via aqtinstall"
+          exit 1
+        }
+        Write-Host "MinGW 8.1 installation completed."
+      shell: powershell
+
+    # Шаг 9: Проверка установки Qt и настройка MinGW
     - name: Verify Qt installation and setup MinGW
       run: |
         Write-Host "Verifying Qt installation..."
@@ -108,6 +120,7 @@ jobs:
         if (-not (Test-Path $gppPath)) {
           Write-Host "Error: g++.exe not found at $gppPath"
           dir C:/Qt/5.15.2/mingw81_64/bin -ErrorAction SilentlyContinue
+          dir C:/Qt/Tools/mingw810_64/bin -ErrorAction SilentlyContinue
           exit 1
         }
         g++ --version
@@ -121,6 +134,7 @@ jobs:
         if (-not (Test-Path $makePath)) {
           Write-Host "Error: mingw32-make.exe not found at $makePath"
           dir C:/Qt/5.15.2/mingw81_64/bin -ErrorAction SilentlyContinue
+          dir C:/Qt/Tools/mingw810_64/bin -ErrorAction SilentlyContinue
           exit 1
         }
         mingw32-make --version
@@ -138,7 +152,7 @@ jobs:
         Write-Host "Qt and MinGW setup verified"
       shell: powershell
 
-    # Шаг 9: Установка Perl (требуется для Qt)
+    # Шаг 10: Установка Perl (требуется для Qt)
     - name: Install Perl (required for Qt)
       run: |
         Write-Host "Installing Perl via Chocolatey..."
@@ -152,7 +166,7 @@ jobs:
         refreshenv
       shell: powershell
 
-    # Шаг 10: Кэширование vcpkg
+    # Шаг 11: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -161,7 +175,7 @@ jobs:
         restore-keys: |
           vcpkg-
 
-    # Шаг 11: Проверка наличия vcpkg.json
+    # Шаг 12: Проверка наличия vcpkg.json
     - name: Check for vcpkg.json
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -174,7 +188,7 @@ jobs:
         Get-Content vcpkg.json
       shell: powershell
 
-    # Шаг 12: Установка vcpkg и зависимостей
+    # Шаг 13: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         if (-not (Test-Path C:/vcpkg)) {
@@ -226,7 +240,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 13: Загрузка логов vcpkg в случае ошибки
+    # Шаг 14: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -235,7 +249,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 14: Проверка установки vcpkg
+    # Шаг 15: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-dynamic/lib"
@@ -270,7 +284,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 15: Проверка структуры проекта
+    # Шаг 16: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -309,7 +323,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 16: Исправление кодировки icon.rc
+    # Шаг 17: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -319,7 +333,7 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 17: Генерация UI-файлов
+    # Шаг 18: Генерация UI-файлов
     - name: Verify and generate UI files
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -343,7 +357,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 18: Конфигурация и сборка проекта
+    # Шаг 19: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path Stealer-DeadCode
@@ -429,7 +443,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 19: Тестирование запуска DeadCode.exe с отладкой QML
+    # Шаг 20: Тестирование запуска DeadCode.exe с отладкой QML
     - name: Test run DeadCode.exe with QML debugging
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -455,7 +469,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 20: Проверка зависимостей DeadCode.exe
+    # Шаг 21: Проверка зависимостей DeadCode.exe
     - name: Check DeadCode.exe dependencies
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -476,7 +490,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 21: Копирование необходимых DLL и плагинов Qt
+    # Шаг 22: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies to build directory
       run: |
         Set-Location -Path Stealer-DeadCode/build
@@ -642,7 +656,7 @@ jobs:
         dir release/QtQuick.Controls.2 -ErrorAction SilentlyContinue
       shell: powershell
 
-    # Шаг 22: Загрузка логов сборки в случае ошибки
+    # Шаг 23: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -657,7 +671,7 @@ jobs:
           Stealer-DeadCode/build/deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 23: Загрузка артефакта
+    # Шаг 24: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -683,7 +697,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 24: Очистка
+    # Шаг 25: Очистка
     - name: Cleanup
       if: always()
       run: |
