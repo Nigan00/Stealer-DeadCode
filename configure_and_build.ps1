@@ -3,7 +3,7 @@
 # Проверка зависимостей g++
 Write-Host "Checking g++ dependencies..."
 $requiredDlls = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
-$mingwBinPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin"
+$mingwBinPath = "C:/Qt/5.15.2/mingw81_64/bin"  # Обновлен путь для соответствия build.yml
 foreach ($dll in $requiredDlls) {
     if (-not (Test-Path "$mingwBinPath/$dll")) {
         Write-Host "Error: $dll not found in $mingwBinPath/"
@@ -41,11 +41,25 @@ foreach ($util in $requiredUtils) {
     }
 }
 
+# Проверка зависимостей vcpkg
+Write-Host "Checking vcpkg dependencies..."
+$vcpkgBinPath = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
+$requiredVcpkgDlls = @("sqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl-1_1-x64.dll", "libcrypto-1_1-x64.dll")
+foreach ($dll in $requiredVcpkgDlls) {
+    if (-not (Test-Path "$vcpkgBinPath/$dll")) {
+        Write-Host "Error: $dll not found in $vcpkgBinPath/"
+        Write-Host "Please ensure vcpkg is installed and dependencies are built with triplet x64-mingw-dynamic"
+        exit 1
+    } else {
+        Write-Host "$dll found in $vcpkgBinPath/"
+    }
+}
+
 # Установка путей
-$qmakePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/qmake.exe"
-$makePath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"
-$gppPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/g++.exe"
-$gccPath = "C:/Qt/Qt/5.15.2/mingw81_64/bin/gcc.exe"
+$qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"  # Обновлен путь
+$makePath = "C:/Qt/5.15.2/mingw81_64/bin/mingw32-make.exe"  # Обновлен путь
+$gppPath = "C:/Qt/5.15.2/mingw81_64/bin/g++.exe"  # Обновлен путь
+$gccPath = "C:/Qt/5.15.2/mingw81_64/bin/gcc.exe"  # Обновлен путь
 $proFile = "DeadCode.pro"
 
 # Проверка наличия qmake и mingw32-make
@@ -64,8 +78,12 @@ Write-Host "Содержимое корневой директории:"
 Get-ChildItem -Path . | ForEach-Object { Write-Host $_.Name }
 
 # Проверка PATH
-$env:Path = "$mingwBinPath;" + $env:Path
+$env:Path = "$mingwBinPath;$vcpkgBinPath;" + $env:Path  # Добавлен vcpkgBinPath
 Write-Host "PATH: $env:Path"
+
+# Установка QML2_IMPORT_PATH
+$env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml"
+Write-Host "QML2_IMPORT_PATH set to: $env:QML2_IMPORT_PATH"
 
 # Проверка доступности g++
 Write-Host "Verifying g++ is accessible..."
@@ -83,13 +101,13 @@ Write-Host "Detected MinGW version: $gppVersion"
 
 # Проверка наличия cc1plus.exe
 Write-Host "Checking for cc1plus.exe..."
-$cc1plusPath = "C:/Qt/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/cc1plus.exe"
+$cc1plusPath = "C:/Qt/5.15.2/mingw81_64/libexec/gcc/x86_64-w64-mingw32/$gppVersion/cc1plus.exe"  # Обновлен путь
 if (-not (Test-Path $cc1plusPath)) {
     Write-Host "Error: cc1plus.exe not found at $cc1plusPath"
     $cc1plusPath = (Get-ChildItem -Path "C:/Qt" -Filter cc1plus.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
     if (-not $cc1plusPath) {
         Write-Host "Error: cc1plus.exe not found in C:/Qt"
-        dir "C:/Qt/Qt/5.15.2/mingw81_64/libexec" -Recurse
+        dir "C:/Qt/5.15.2/mingw81_64/libexec" -Recurse
         exit 1
     }
     Write-Host "Found cc1plus.exe at $cc1plusPath"
@@ -122,8 +140,8 @@ if (-not (Test-Path $customCommonDir)) {
 
 # Копируем win32-g++ и common
 try {
-    Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/*" -Destination $customWin32GppDir -Recurse -Force -ErrorAction Stop
-    Copy-Item -Path "C:/Qt/Qt/5.15.2/mingw81_64/mkspecs/common/*" -Destination $customCommonDir -Recurse -Force -ErrorAction Stop
+    Copy-Item -Path "C:/Qt/5.15.2/mingw81_64/mkspecs/win32-g++/*" -Destination $customWin32GppDir -Recurse -Force -ErrorAction Stop  # Обновлен путь
+    Copy-Item -Path "C:/Qt/5.15.2/mingw81_64/mkspecs/common/*" -Destination $customCommonDir -Recurse -Force -ErrorAction Stop  # Обновлен путь
 } catch {
     Write-Host "Error: Failed to copy mkspec files. Error: $($_.Exception.Message)"
     exit 1

@@ -157,7 +157,7 @@ jobs:
     - name: Install Perl (required for Qt)
       run: |
         Write-Host "Installing Perl via Chocolatey..."
-        choco install strawberryperl -y --force --timeout 600
+        choco install strawberryperl -y --force --execution-timeout 600
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install Perl via Chocolatey (exit code: $LASTEXITCODE)"
           exit 1
@@ -172,7 +172,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/vcpkg
-        key: vcpkg-${{ hashFiles('**/vcpkg.json') }}-${{ github.event.inputs.cache-buster || '1' }}
+        key: vcpkg-${{ hashFiles('Stealer-DeadCode/vcpkg.json') }}-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
           vcpkg-
 
@@ -206,28 +206,35 @@ jobs:
           Write-Host "Error: Bootstrap failed. Check the logs."
           exit 1
         }
+
+        Write-Host "Integrating vcpkg..."
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
+        & $vcpkgExe integrate install
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: vcpkg integrate install failed"
+          exit 1
+        }
+
         $env:Path = "C:/vcpkg;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        Write-Host "Cleaning vcpkg buildtrees and installed directories..."
-        Remove-Item -Path "C:/vcpkg/buildtrees" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:/vcpkg/installed" -Recurse -Force -ErrorAction SilentlyContinue
+
+        Set-Location -Path Stealer-DeadCode
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
         $attempts = 3
         $success = $false
         for ($i = 1; $i -le $attempts; $i++) {
-          Write-Host "Attempt $i/$attempts : Installing vcpkg dependencies..."
-          & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "Stealer-DeadCode/vcpkg_install.log"
+          Write-Host "Attempt $i/$attempts: Installing vcpkg dependencies..."
+          & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
           if ($LASTEXITCODE -eq 0) {
             Write-Host "vcpkg dependencies installed successfully."
             $success = $true
             break
           } else {
-            Write-Host "Attempt $i/$attempts : Failed to install vcpkg dependencies (exit code: $LASTEXITCODE)"
+            Write-Host "Attempt $i/$attempts: Failed to install vcpkg dependencies (exit code: $LASTEXITCODE)"
             if ($i -eq $attempts) {
               Write-Host "Error: vcpkg install failed after $attempts attempts. Check the logs for details."
-              if (Test-Path Stealer-DeadCode/vcpkg_install.log) {
-                Get-Content Stealer-DeadCode/vcpkg_install.log
+              if (Test-Path vcpkg_install.log) {
+                Get-Content vcpkg_install.log
               }
               exit 1
             }
@@ -540,7 +547,7 @@ jobs:
         # Копируем Qt DLL в release/
         foreach ($dll in $requiredQtDlls) {
           if (Test-Path "$qtBinDir/$dll") {
-            Copy-Item -Path "$qtBinDir/$dll" -Destination release/
+            Copy-Item -Path "$qtBinDir/$dll" -Destination release/ -Force
             Write-Host "Copied $dll to release directory"
           } else {
             Write-Host "Warning: $dll not found in $qtBinDir"
@@ -550,7 +557,7 @@ jobs:
         # Копируем MinGW DLL в release/
         foreach ($dll in $requiredMingwDlls) {
           if (Test-Path "$mingwBinDir/$dll") {
-            Copy-Item -Path "$mingwBinDir/$dll" -Destination release/
+            Copy-Item -Path "$mingwBinDir/$dll" -Destination release/ -Force
             Write-Host "Copied $dll to release directory"
           } else {
             Write-Host "Warning: $dll not found in $mingwBinDir"
@@ -560,7 +567,7 @@ jobs:
         # Копируем VCPKG DLL в release/
         foreach ($dll in $requiredVcpkgDlls) {
           if (Test-Path "$vcpkgBinDir/$dll") {
-            Copy-Item -Path "$vcpkgBinDir/$dll" -Destination release/
+            Copy-Item -Path "$vcpkgBinDir/$dll" -Destination release/ -Force
             Write-Host "Copied $dll to release directory"
           } else {
             Write-Host "Warning: $dll not found in $vcpkgBinDir"
@@ -572,42 +579,42 @@ jobs:
           # Платформа Windows
           if (Test-Path "$qtPluginsDir/platforms") {
             New-Item -Path "release/platforms" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/platforms/qwindows.dll" -Destination "release/platforms/" -ErrorAction SilentlyContinue
+            Copy-Item -Path "$qtPluginsDir/platforms/qwindows.dll" -Destination "release/platforms/" -Force -ErrorAction SilentlyContinue
             Write-Host "Copied Qt platform plugin qwindows.dll"
           }
 
           # Стили
           if (Test-Path "$qtPluginsDir/styles") {
             New-Item -Path "release/styles" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/styles/qwindowsvistastyle.dll" -Destination "release/styles/" -ErrorAction SilentlyContinue
+            Copy-Item -Path "$qtPluginsDir/styles/qwindowsvistastyle.dll" -Destination "release/styles/" -Force -ErrorAction SilentlyContinue
             Write-Host "Copied Qt style plugin qwindowsvistastyle.dll"
           }
 
           # Форматы изображений
           if (Test-Path "$qtPluginsDir/imageformats") {
             New-Item -Path "release/imageformats" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/imageformats/*.dll" -Destination "release/imageformats/" -ErrorAction SilentlyContinue
+            Copy-Item -Path "$qtPluginsDir/imageformats/*.dll" -Destination "release/imageformats/" -Force -ErrorAction SilentlyContinue
             Write-Host "Copied Qt imageformats plugins"
           }
 
           # Qt Quick
           if (Test-Path "$qtPluginsDir/quick") {
             New-Item -Path "release/quick" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/quick/*.dll" -Destination "release/quick/" -ErrorAction SilentlyContinue
+            Copy-Item -Path "$qtPluginsDir/quick/*.dll" -Destination "release/quick/" -Force -ErrorAction SilentlyContinue
             Write-Host "Copied Qt Quick plugins"
           }
 
           # Qt QML
           if (Test-Path "$qtPluginsDir/qmltooling") {
             New-Item -Path "release/qmltooling" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/qmltooling/*.dll" -Destination "release/qmltooling/" -ErrorAction SilentlyContinue
+            Copy-Item -Path "$qtPluginsDir/qmltooling/*.dll" -Destination "release/qmltooling/" -Force -ErrorAction SilentlyContinue
             Write-Host "Copied Qt QML tooling plugins"
           }
 
           # Qt SQL драйверы
           if (Test-Path "$qtPluginsDir/sqldrivers") {
             New-Item -Path "release/sqldrivers" -ItemType Directory -Force
-            Copy-Item -Path "$qtPluginsDir/sqldrivers/*.dll" -Destination "release/sqldrivers/" -ErrorAction SilentlyContinue
+            Copy-Item -Path "$qtPluginsDir/sqldrivers/*.dll" -Destination "release/sqldrivers/" -Force -ErrorAction SilentlyContinue
             Write-Host "Copied Qt SQL drivers"
           }
         } else {
@@ -632,7 +639,7 @@ jobs:
           foreach ($module in $qmlModules) {
             if (Test-Path "$qtQmlDir/$module") {
               New-Item -Path "release/$module" -ItemType Directory -Force
-              Copy-Item -Path "$qtQmlDir/$module/*" -Destination "release/$module/" -Recurse -ErrorAction SilentlyContinue
+              Copy-Item -Path "$qtQmlDir/$module/*" -Destination "release/$module/" -Recurse -Force -ErrorAction SilentlyContinue
               Write-Host "Copied QML module $module"
             } else {
               Write-Host "Warning: QML module $module not found in $qtQmlDir"
