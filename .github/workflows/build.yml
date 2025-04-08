@@ -148,7 +148,7 @@ jobs:
     # Шаг 10: Проверка и обновление vcpkg.json
     - name: Check and update vcpkg.json
       run: |
-        Set-Location -Path Stealer-DeadCode
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Checking vcpkg.json..."
         if (-not (Test-Path vcpkg.json)) {
           Write-Host "Error: vcpkg.json not found in Stealer-DeadCode directory"
@@ -219,33 +219,17 @@ jobs:
         $env:Path = "C:/vcpkg;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
-        Set-Location -Path ../Stealer-DeadCode
+        # Возвращаемся в корень проекта
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Write-Host "Current directory: $(Get-Location)"
+
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
-        $attempts = 3
-        $success = $false
-        for ($i = 1; $i -le $attempts; $i++) {
-          Write-Host ("Attempt {0}/{1}: Installing vcpkg dependencies..." -f $i, $attempts)
-          & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
-          if ($LASTEXITCODE -eq 0) {
-            Write-Host "vcpkg dependencies installed successfully."
-            $success = $true
-            break
-          } else {
-            Write-Host ("Attempt {0}/{1}: Failed to install vcpkg dependencies (exit code: {2})" -f $i, $attempts, $LASTEXITCODE)
-            if ($i -eq $attempts) {
-              Write-Host "Error: vcpkg install failed after $attempts attempts. Check the logs for details."
-              if (Test-Path vcpkg_install.log) {
-                Get-Content vcpkg_install.log
-              }
-              exit 1
-            }
-            Start-Sleep -Seconds 10
-          }
-        }
-        if (-not $success) {
-          Write-Host "Error: vcpkg installation failed after all attempts."
+        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: vcpkg install failed. Check the logs."
           exit 1
         }
+
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
@@ -296,7 +280,7 @@ jobs:
     # Шаг 14: Проверка структуры проекта
     - name: Verify project structure
       run: |
-        Set-Location -Path Stealer-DeadCode
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         $requiredFiles = @(
           "ui/DeadCode.pro",
@@ -335,7 +319,7 @@ jobs:
     # Шаг 15: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
-        Set-Location -Path Stealer-DeadCode
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Fixing encoding of icon.rc..."
         $content = Get-Content -Path icon.rc -Raw -Encoding UTF8
         Set-Content -Path icon.rc -Value $content -NoNewline -Encoding ASCII
@@ -345,7 +329,7 @@ jobs:
     # Шаг 16: Генерация UI-файлов
     - name: Generate UI files
       run: |
-        Set-Location -Path Stealer-DeadCode
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
         $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         $outputPath = "build/release/ui_mainwindow.h"
@@ -369,7 +353,7 @@ jobs:
     # Шаг 17: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
-        Set-Location -Path Stealer-DeadCode
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Setting up temporary directory..."
         $tempDir = "C:/Temp"
         if (-not (Test-Path $tempDir)) {
@@ -436,7 +420,7 @@ jobs:
     # Шаг 18: Тестирование запуска DeadCode.exe
     - name: Test run DeadCode.exe
       run: |
-        Set-Location -Path Stealer-DeadCode/build
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
         Write-Host "Running DeadCode.exe..."
         try {
@@ -459,7 +443,7 @@ jobs:
     # Шаг 19: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
-        Set-Location -Path Stealer-DeadCode/build
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
         $qtBinDir = "C:/Qt/5.15.2/mingw81_64/bin"
         $mingwBinDir = "C:/Qt/Tools/mingw810_64/bin"
