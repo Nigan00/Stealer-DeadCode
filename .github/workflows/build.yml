@@ -36,6 +36,10 @@ jobs:
         python -m pip install --upgrade pip setuptools wheel
         python -m pip install py7zr aqtinstall requests beautifulsoup4
         python -m aqt version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Python dependencies"
+          exit 1
+        }
       shell: powershell
 
     # Шаг 4: Проверка доступных архитектур Qt
@@ -43,6 +47,10 @@ jobs:
       run: |
         Write-Host "Checking available architectures for Qt 5.15.2..."
         python -m aqt list-qt windows desktop --arch 5.15.2
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to list Qt architectures"
+          exit 1
+        }
       shell: powershell
 
     # Шаг 5: Проверка дискового пространства
@@ -156,6 +164,11 @@ jobs:
     # Шаг 10: Установка Perl (требуется для Qt)
     - name: Install Perl (required for Qt)
       run: |
+        Write-Host "Checking if Chocolatey is installed..."
+        if (-not (Get-Command choco -ErrorAction SilentlyContinue)) {
+          Write-Host "Error: Chocolatey is not installed. Please ensure Chocolatey is available in the runner."
+          exit 1
+        }
         Write-Host "Installing Perl via Chocolatey..."
         choco install strawberryperl -y --force --execution-timeout 600
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
@@ -163,8 +176,9 @@ jobs:
           exit 1
         }
         Write-Host "Refreshing environment variables..."
-        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1"
+        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
         refreshenv
+        Write-Host "Perl installation completed"
       shell: powershell
 
     # Шаг 11: Кэширование vcpkg
@@ -223,14 +237,14 @@ jobs:
         $attempts = 3
         $success = $false
         for ($i = 1; $i -le $attempts; $i++) {
-          Write-Host "Attempt $i/$attempts: Installing vcpkg dependencies..."
+          Write-Host ("Attempt {0}/{1}: Installing vcpkg dependencies..." -f $i, $attempts)
           & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
           if ($LASTEXITCODE -eq 0) {
             Write-Host "vcpkg dependencies installed successfully."
             $success = $true
             break
           } else {
-            Write-Host "Attempt $i/$attempts: Failed to install vcpkg dependencies (exit code: $LASTEXITCODE)"
+            Write-Host ("Attempt {0}/{1}: Failed to install vcpkg dependencies (exit code: {2})" -f $i, $attempts, $LASTEXITCODE)
             if ($i -eq $attempts) {
               Write-Host "Error: vcpkg install failed after $attempts attempts. Check the logs for details."
               if (Test-Path vcpkg_install.log) {
@@ -284,9 +298,9 @@ jobs:
         }
         if ($missing) {
           Write-Host "Error: Missing libraries, DLLs, or header files: $missing"
-          dir $libDir
-          dir $binDir
-          dir $includeDir
+          dir $libDir -ErrorAction SilentlyContinue
+          dir $binDir -ErrorAction SilentlyContinue
+          dir $includeDir -ErrorAction SilentlyContinue
           exit 1
         }
         Write-Host "All vcpkg dependencies verified as dynamic"
@@ -484,7 +498,7 @@ jobs:
         Write-Host "Checking dependencies of DeadCode.exe..."
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        $objdump = "C:/Qt/5.15.2/mingw81_64/bin/objdump.exe"
+        $objdump = "C:/Qt/Tools/mingw810_64/bin/objdump.exe"
         if (-not (Test-Path $objdump)) {
           Write-Host "Error: objdump.exe not found at $objdump"
           exit 1
