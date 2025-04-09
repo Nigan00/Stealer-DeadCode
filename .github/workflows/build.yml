@@ -347,21 +347,21 @@ jobs:
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
 
-        Write-Host "Checking libraries in $libDir..."
+        Write-Host "Checking libraries in ${libDir}..."
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib")) {
             $missing += "$lib"
           }
         }
 
-        Write-Host "Checking DLLs in $binDir..."
+        Write-Host "Checking DLLs in ${binDir}..."
         foreach ($dll in $dlls) {
           if (-not (Test-Path "$binDir/$dll")) {
             $missing += "$dll"
           }
         }
 
-        Write-Host "Checking headers in $includeDir..."
+        Write-Host "Checking headers in ${includeDir}..."
         foreach ($header in $headers) {
           if (-not (Test-Path "$includeDir/$header")) {
             $missing += $header
@@ -370,11 +370,11 @@ jobs:
 
         if ($missing) {
           Write-Host "Error: Missing libraries, DLLs, or header files: $missing"
-          Write-Host "Listing contents of $libDir:"
+          Write-Host "Listing contents of ${libDir}:"
           dir $libDir -ErrorAction SilentlyContinue
-          Write-Host "Listing contents of $binDir:"
+          Write-Host "Listing contents of ${binDir}:"
           dir $binDir -ErrorAction SilentlyContinue
-          Write-Host "Listing contents of $includeDir:"
+          Write-Host "Listing contents of ${includeDir}:"
           dir $includeDir -Recurse -ErrorAction SilentlyContinue
           exit 1
         }
