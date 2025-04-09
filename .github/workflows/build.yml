@@ -11,7 +11,7 @@ on:
         default: '1'
 
 env:
-  VCPKG_TAG: "2025.03.19"  # Исправляем формат тега с дефисов на точки
+  VCPKG_TAG: "2024.10.16"  # Исправляем на существующий тег
 
 jobs:
   build-windows:
@@ -165,64 +165,7 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_TAG }}-
 
-    # Шаг 10: Проверка и обновление vcpkg.json
-    - name: Check and update vcpkg.json
-      run: |
-        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
-        Write-Host "Checking vcpkg.json..."
-        if (-not (Test-Path vcpkg.json)) {
-          Write-Host "Error: vcpkg.json not found in Stealer-DeadCode directory"
-          dir .
-          exit 1
-        }
-
-        Write-Host "Current vcpkg.json content:"
-        Get-Content vcpkg.json
-
-        Write-Host "Updating builtin-baseline in vcpkg.json..."
-        $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
-
-        # Проверяем наличие builtin-baseline
-        if (-not $vcpkgJson.PSObject.Properties.Match('builtin-baseline')) {
-          Write-Host "Error: builtin-baseline not found in vcpkg.json. Please add it manually."
-          exit 1
-        }
-
-        # Получаем SHA-коммит для тега VCPKG_TAG
-        Set-Location -Path C:/vcpkg
-        $tag = $env:VCPKG_TAG
-        Write-Host "Fetching SHA for tag $tag..."
-        $commitSha = & git rev-parse $tag
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to fetch SHA for tag $tag"
-          exit 1
-        }
-        Write-Host "SHA for tag $tag is $commitSha"
-
-        # Обновляем builtin-baseline на SHA-коммит
-        $vcpkgJson.'builtin-baseline' = $commitSha
-        Write-Host "Updated builtin-baseline to $commitSha"
-
-        # Добавляем overrides для bzip2
-        Write-Host "Adding override for bzip2 to resolve version conflict..."
-        $override = @(
-          @{
-            "name" = "bzip2"
-            "version" = "1.0.8#6"
-          }
-        )
-        $vcpkgJson | Add-Member -MemberType NoteProperty -Name "overrides" -Value $override -Force
-
-        # Сохраняем обновлённый vcpkg.json
-        $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
-        Write-Host "Updated vcpkg.json content:"
-        Get-Content vcpkg.json
-
-        # Возвращаемся в корень проекта
-        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
-      shell: powershell
-
-    # Шаг 11: Очистка и обновление vcpkg
+    # Шаг 10: Очистка и обновление vcpkg (перемещён выше)
     - name: Clean and update vcpkg
       run: |
         if (Test-Path C:/vcpkg) {
@@ -243,7 +186,7 @@ jobs:
           exit 1
         }
         # Проверяем доступность тега
-        $tag = $env:VCPKG_TAG  # Используем переменную окружения
+        $tag = $env:VCPKG_TAG
         Write-Host "Checking if tag $tag exists..."
         $tagExists = & git tag -l $tag
         if (-not $tagExists) {
@@ -279,6 +222,65 @@ jobs:
           Write-Host "Error: Failed to get vcpkg version"
           exit 1
         }
+      shell: powershell
+
+    # Шаг 11: Проверка и обновление vcpkg.json (перемещён ниже)
+    - name: Check and update vcpkg.json
+      run: |
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Write-Host "Checking vcpkg.json..."
+        if (-not (Test-Path vcpkg.json)) {
+          Write-Host "Error: vcpkg.json not found in Stealer-DeadCode directory"
+          dir .
+          exit 1
+        }
+
+        Write-Host "Current vcpkg.json content:"
+        Get-Content vcpkg.json
+
+        Write-Host "Updating builtin-baseline in vcpkg.json..."
+        $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
+
+        # Проверяем наличие builtin-baseline
+        if (-not $vcpkgJson.PSObject.Properties.Match('builtin-baseline')) {
+          Write-Host "Error: builtin-baseline not found in vcpkg.json. Please add it manually."
+          exit 1
+        }
+
+        # Получаем SHA-коммит для тега VCPKG_TAG
+        Set-Location -Path C:/vcpkg
+        $tag = $env:VCPKG_TAG
+        Write-Host "Fetching SHA for tag $tag..."
+        $commitSha = & git rev-parse $tag
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to fetch SHA for tag $tag"
+          Write-Host "Available tags:"
+          & git tag -l
+          exit 1
+        }
+        Write-Host "SHA for tag $tag is $commitSha"
+
+        # Обновляем builtin-baseline на SHA-коммит
+        $vcpkgJson.'builtin-baseline' = $commitSha
+        Write-Host "Updated builtin-baseline to $commitSha"
+
+        # Добавляем overrides для bzip2
+        Write-Host "Adding override for bzip2 to resolve version conflict..."
+        $override = @(
+          @{
+            "name" = "bzip2"
+            "version" = "1.0.8#6"
+          }
+        )
+        $vcpkgJson | Add-Member -MemberType NoteProperty -Name "overrides" -Value $override -Force
+
+        # Сохраняем обновлённый vcpkg.json
+        $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
+        Write-Host "Updated vcpkg.json content:"
+        Get-Content vcpkg.json
+
+        # Возвращаемся в корень проекта
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
       shell: powershell
 
     # Шаг 12: Проверка доступных версий библиотек
@@ -347,21 +349,21 @@ jobs:
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
 
-        Write-Host "Checking libraries in ${libDir}..."
+        Write-Host "Checking libraries in $libDir..."
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib")) {
             $missing += "$lib"
           }
         }
 
-        Write-Host "Checking DLLs in ${binDir}..."
+        Write-Host "Checking DLLs in $binDir..."
         foreach ($dll in $dlls) {
           if (-not (Test-Path "$binDir/$dll")) {
             $missing += "$dll"
           }
         }
 
-        Write-Host "Checking headers in ${includeDir}..."
+        Write-Host "Checking headers in $includeDir..."
         foreach ($header in $headers) {
           if (-not (Test-Path "$includeDir/$header")) {
             $missing += $header
@@ -370,11 +372,11 @@ jobs:
 
         if ($missing) {
           Write-Host "Error: Missing libraries, DLLs, or header files: $missing"
-          Write-Host "Listing contents of ${libDir}:"
+          Write-Host "Listing contents of $libDir:"
           dir $libDir -ErrorAction SilentlyContinue
-          Write-Host "Listing contents of ${binDir}:"
+          Write-Host "Listing contents of $binDir:"
           dir $binDir -ErrorAction SilentlyContinue
-          Write-Host "Listing contents of ${includeDir}:"
+          Write-Host "Listing contents of $includeDir:"
           dir $includeDir -Recurse -ErrorAction SilentlyContinue
           exit 1
         }
