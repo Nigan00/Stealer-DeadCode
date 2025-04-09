@@ -72,13 +72,13 @@ jobs:
             exit 1
           }
         }
-        Write-Host "Qt installation completed."
+        Write-Host "Qt 5.15.2 installation completed."
       shell: powershell
 
     # Шаг 6: Установка MinGW 9.0 через aqtinstall
     - name: Install MinGW 9.0 via aqtinstall
       run: |
-        Write-Host "Installing MinGW 9.0..."
+        Write-Host "Installing MinGW 9.0 (GCC 9) for C++17 support..."
         python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw900 -O C:/Qt
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install MinGW 9.0 via aqtinstall"
@@ -139,10 +139,33 @@ jobs:
         Write-Host "Qt and MinGW setup verified successfully"
       shell: powershell
 
-    # Шаг 8: Установка Perl (требуется для Qt)
-    - name: Install Perl (required for Qt)
+    # Шаг 8: Установка Chocolatey
+    - name: Install Chocolatey
       run: |
-        Write-Host "Installing Perl via Chocolatey..."
+        Write-Host "Installing Chocolatey..."
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Chocolatey"
+          exit 1
+        }
+        Write-Host "Chocolatey installation completed"
+      shell: powershell
+
+    # Шаг 9: Кэширование Strawberry Perl
+    - name: Cache Strawberry Perl
+      uses: actions/cache@v4
+      with:
+        path: C:/Strawberry
+        key: strawberry-perl-${{ runner.os }}-${{ github.event.inputs.cache-buster || '1' }}
+        restore-keys: |
+          strawberry-perl-${{ runner.os }}-
+
+    # Шаг 10: Установка Perl (требуется для Qt)
+    - name: Install Perl via Chocolatey
+      run: |
+        Write-Host "Installing Strawberry Perl via Chocolatey..."
         choco install strawberryperl -y --force --execution-timeout 600
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install Perl via Chocolatey (exit code: $LASTEXITCODE)"
@@ -154,7 +177,7 @@ jobs:
         Write-Host "Perl installation completed"
       shell: powershell
 
-    # Шаг 9: Кэширование vcpkg
+    # Шаг 11: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -165,7 +188,7 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
-    # Шаг 10: Очистка и обновление vcpkg
+    # Шаг 12: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
       run: |
         if (-not (Test-Path C:/vcpkg)) {
@@ -204,7 +227,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 11: Проверка и обновление vcpkg.json
+    # Шаг 13: Проверка и обновление vcpkg.json
     - name: Check and update vcpkg.json
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -254,7 +277,7 @@ jobs:
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
       shell: powershell
 
-    # Шаг 12: Проверка доступных версий библиотек
+    # Шаг 14: Проверка доступных версий библиотек
     - name: Check available library versions
       run: |
         Set-Location -Path C:/vcpkg
@@ -270,7 +293,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 13: Установка vcpkg и зависимостей
+    # Шаг 15: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         Set-Location -Path C:/vcpkg
@@ -307,32 +330,29 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 14: Переименование DLL
+    # Шаг 16: Переименование DLL
     - name: Rename vcpkg DLLs
       run: |
         Set-Location -Path C:/vcpkg/installed/x64-mingw-dynamic/bin
         Write-Host "Renaming vcpkg DLLs to match expected names..."
-        if (Test-Path "libzlib1.dll") {
-          Rename-Item -Path "libzlib1.dll" -NewName "zlib1.dll"
-          Write-Host "Renamed libzlib1.dll to zlib1.dll"
+        $dllRenames = @{
+          "libzlib1.dll" = "zlib1.dll"
+          "libbz2.dll" = "bz2.dll"
+          "libssl-1_1-x64.dll" = "libssl.dll"
+          "libcrypto-1_1-x64.dll" = "libcrypto.dll"
         }
-        if (Test-Path "libbz2.dll") {
-          Rename-Item -Path "libbz2.dll" -NewName "bz2.dll"
-          Write-Host "Renamed libbz2.dll to bz2.dll"
-        }
-        if (Test-Path "libssl-1_1-x64.dll") {
-          Rename-Item -Path "libssl-1_1-x64.dll" -NewName "libssl.dll"
-          Write-Host "Renamed libssl-1_1-x64.dll to libssl.dll"
-        }
-        if (Test-Path "libcrypto-1_1-x64.dll") {
-          Rename-Item -Path "libcrypto-1_1-x64.dll" -NewName "libcrypto.dll"
-          Write-Host "Renamed libcrypto-1_1-x64.dll to libcrypto.dll"
+        foreach ($oldName in $dllRenames.Keys) {
+          $newName = $dllRenames[$oldName]
+          if (Test-Path $oldName) {
+            Rename-Item -Path $oldName -NewName $newName
+            Write-Host "Renamed $oldName to $newName"
+          }
         }
         Write-Host "Listing contents of bin directory after renaming:"
         dir
       shell: powershell
 
-    # Шаг 15: Загрузка логов vcpkg в случае ошибки
+    # Шаг 17: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -341,7 +361,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 16: Проверка установки vcpkg
+    # Шаг 18: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-dynamic/lib"
@@ -386,7 +406,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 17: Проверка структуры проекта
+    # Шаг 19: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -425,7 +445,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 18: Исправление кодировки icon.rc
+    # Шаг 20: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -435,7 +455,7 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 19: Генерация UI-файлов
+    # Шаг 21: Генерация UI-файлов
     - name: Generate UI files
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -459,7 +479,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 20: Конфигурация и сборка проекта
+    # Шаг 22: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -513,9 +533,9 @@ jobs:
           exit 1
         }
 
-        Write-Host "Running mingw32-make..."
+        Write-Host "Running mingw32-make with parallel jobs..."
         $makePath = "C:/Qt/Tools/mingw900_64/bin/mingw32-make.exe"
-        & $makePath -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
+        & $makePath -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
           Get-Content ../make_output.log
@@ -531,7 +551,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 21: Тестирование запуска DeadCode.exe
+    # Шаг 23: Тестирование запуска DeadCode.exe
     - name: Test run DeadCode.exe
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
@@ -555,7 +575,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 22: Копирование необходимых DLL и плагинов Qt
+    # Шаг 24: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
@@ -601,36 +621,21 @@ jobs:
           "libcrypto.dll"
         )
 
-        # Копируем Qt DLL
-        foreach ($dll in $requiredQtDlls) {
-          if (Test-Path "$qtBinDir/$dll") {
-            Copy-Item -Path "$qtBinDir/$dll" -Destination release/ -Force
-            Write-Host "Copied $dll to release directory"
-          } else {
-            Write-Host "Error: $dll not found in $qtBinDir"
-            exit 1
-          }
-        }
-
-        # Копируем MinGW DLL
-        foreach ($dll in $requiredMingwDlls) {
-          if (Test-Path "$mingwBinDir/$dll") {
-            Copy-Item -Path "$mingwBinDir/$dll" -Destination release/ -Force
-            Write-Host "Copied $dll to release directory"
-          } else {
-            Write-Host "Error: $dll not found in $mingwBinDir"
-            exit 1
-          }
-        }
-
-        # Копируем VCPKG DLL
-        foreach ($dll in $requiredVcpkgDlls) {
-          if (Test-Path "$vcpkgBinDir/$dll") {
-            Copy-Item -Path "$vcpkgBinDir/$dll" -Destination release/ -Force
-            Write-Host "Copied $dll to release directory"
-          } else {
-            Write-Host "Error: $dll not found in $vcpkgBinDir"
-            exit 1
+        # Копирование DLL с проверкой
+        $dirs = @(
+          @{ Dlls = $requiredQtDlls; Source = $qtBinDir },
+          @{ Dlls = $requiredMingwDlls; Source = $mingwBinDir },
+          @{ Dlls = $requiredVcpkgDlls; Source = $vcpkgBinDir }
+        )
+        foreach ($dir in $dirs) {
+          foreach ($dll in $dir.Dlls) {
+            if (Test-Path "$($dir.Source)/$dll") {
+              Copy-Item -Path "$($dir.Source)/$dll" -Destination release/ -Force
+              Write-Host "Copied $dll to release directory"
+            } else {
+              Write-Host "Error: $dll not found in $($dir.Source)"
+              exit 1
+            }
           }
         }
 
@@ -690,7 +695,7 @@ jobs:
         dir release -Recurse
       shell: powershell
 
-    # Шаг 23: Загрузка логов сборки в случае ошибки
+    # Шаг 25: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -705,7 +710,7 @@ jobs:
           Stealer-DeadCode/build/deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 24: Загрузка артефакта
+    # Шаг 26: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -731,7 +736,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 25: Очистка
+    # Шаг 27: Очистка
     - name: Cleanup
       if: always()
       run: |
