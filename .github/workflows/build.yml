@@ -283,7 +283,8 @@ jobs:
         Write-Host "Current directory: $(Get-Location)"
 
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
-        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build --no-hardlinks --debug 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        # Удаляем неподдерживаемый флаг --no-hardlinks
+        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build --x-install-root=C:/vcpkg/installed --debug 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check vcpkg_install.log for details."
           Get-Content vcpkg_install.log
