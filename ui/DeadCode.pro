@@ -36,12 +36,12 @@ INCLUDEPATH += \
     $$PWD/../src \
     $$PWD \
     C:/vcpkg/installed/x64-mingw-dynamic/include \
-    C:/Qt/5.15.2/mingw81_64/include
+    C:/Qt/5.15.2/mingw90_64/include  # Обновлено для MinGW 9.0.0
 
 # Пути для поиска QML-модулей (используется Qt Creator для автодополнения)
 # Для runtime нужно установить QML2_IMPORT_PATH в переменных окружения
 QML_IMPORT_PATH += \
-    C:/Qt/5.15.2/mingw81_64/qml
+    C:/Qt/5.15.2/mingw90_64/qml  # Обновлено для MinGW 9.0.0
 
 # Библиотеки для линковки
 LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
@@ -52,22 +52,13 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
         -lcurl \
         -lssl \
         -lcrypto \
-        -lbcrypt \
-        -lws2_32 \
-        -lgdiplus \
-        -liphlpapi \
-        -lpsapi \
-        -lshlwapi \
-        -lcrypt32 \
-        -lgdi32 \
-        -luser32 \
-        -ladvapi32 \
-        -lwininet \
-        -lshell32 \
-        -lurlmon \
-        -lole32 \
-        -loleaut32 \
-        -lmsvcrt
+        -lstdc++fs \  # Добавлено для поддержки <filesystem>
+        # Системные библиотеки Windows (оставлены только необходимые)
+        -lws2_32 \    # Для сетевых функций (требуется curl)
+        -lcrypt32 \   # Для криптографии (требуется openssl)
+        -lgdi32 \     # Для графики (требуется Qt)
+        -luser32 \    # Для работы с окнами (требуется Qt)
+        -ladvapi32    # Для системных функций (требуется openssl)
 
 # Флаги компилятора
 QMAKE_CXXFLAGS += -O2 \
