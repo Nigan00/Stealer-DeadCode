@@ -46,7 +46,7 @@ QML_IMPORT_PATH += \
 # Библиотеки для линковки
 LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
         -lsqlite3 \
-        -llibzip \
+        -lzip \
         -lzlib \
         -lbz2 \
         -lcurl \
