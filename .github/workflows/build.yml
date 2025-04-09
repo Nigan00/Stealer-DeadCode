@@ -11,7 +11,7 @@ on:
         default: '1'
 
 env:
-  VCPKG_TAG: "2025.03.19"  # Исправляем формат тега с дефисов на точки
+  VCPKG_TAG: "2024.10.16"  # Исправленный тег на существующий
 
 jobs:
   build-windows:
@@ -165,64 +165,7 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_TAG }}-
 
-    # Шаг 10: Проверка и обновление vcpkg.json
-    - name: Check and update vcpkg.json
-      run: |
-        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
-        Write-Host "Checking vcpkg.json..."
-        if (-not (Test-Path vcpkg.json)) {
-          Write-Host "Error: vcpkg.json not found in Stealer-DeadCode directory"
-          dir .
-          exit 1
-        }
-
-        Write-Host "Current vcpkg.json content:"
-        Get-Content vcpkg.json
-
-        Write-Host "Updating builtin-baseline in vcpkg.json..."
-        $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
-
-        # Проверяем наличие builtin-baseline
-        if (-not $vcpkgJson.PSObject.Properties.Match('builtin-baseline')) {
-          Write-Host "Error: builtin-baseline not found in vcpkg.json. Please add it manually."
-          exit 1
-        }
-
-        # Получаем SHA-коммит для тега VCPKG_TAG
-        Set-Location -Path C:/vcpkg
-        $tag = $env:VCPKG_TAG
-        Write-Host "Fetching SHA for tag $tag..."
-        $commitSha = & git rev-parse $tag
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to fetch SHA for tag $tag"
-          exit 1
-        }
-        Write-Host "SHA for tag $tag is $commitSha"
-
-        # Обновляем builtin-baseline на SHA-коммит
-        $vcpkgJson.'builtin-baseline' = $commitSha
-        Write-Host "Updated builtin-baseline to $commitSha"
-
-        # Добавляем overrides для bzip2
-        Write-Host "Adding override for bzip2 to resolve version conflict..."
-        $override = @(
-          @{
-            "name" = "bzip2"
-            "version" = "1.0.8#6"
-          }
-        )
-        $vcpkgJson | Add-Member -MemberType NoteProperty -Name "overrides" -Value $override -Force
-
-        # Сохраняем обновлённый vcpkg.json
-        $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
-        Write-Host "Updated vcpkg.json content:"
-        Get-Content vcpkg.json
-
-        # Возвращаемся в корень проекта
-        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
-      shell: powershell
-
-    # Шаг 11: Очистка и обновление vcpkg
+    # Шаг 10: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
       run: |
         if (Test-Path C:/vcpkg) {
@@ -243,7 +186,7 @@ jobs:
           exit 1
         }
         # Проверяем доступность тега
-        $tag = $env:VCPKG_TAG  # Используем переменную окружения
+        $tag = $env:VCPKG_TAG
         Write-Host "Checking if tag $tag exists..."
         $tagExists = & git tag -l $tag
         if (-not $tagExists) {
@@ -281,6 +224,77 @@ jobs:
         }
       shell: powershell
 
+    # Шаг 11: Проверка и обновление vcpkg.json (исправлено)
+    - name: Check and update vcpkg.json
+      run: |
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Write-Host "Checking vcpkg.json..."
+        if (-not (Test-Path vcpkg.json)) {
+          Write-Host "Error: vcpkg.json not found in Stealer-DeadCode directory"
+          dir .
+          exit 1
+        }
+
+        Write-Host "Current vcpkg.json content:"
+        Get-Content vcpkg.json
+
+        Write-Host "Updating builtin-baseline in vcpkg.json..."
+        $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
+
+        # Получаем SHA-коммит для тега VCPKG_TAG
+        Set-Location -Path C:/vcpkg
+        $tag = $env:VCPKG_TAG
+        Write-Host "Fetching SHA for tag $tag..."
+        $commitSha = & git rev-parse $tag
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to fetch SHA for tag $tag"
+          exit 1
+        }
+        Write-Host "SHA for tag $tag is $commitSha"
+
+        # Обновляем или добавляем builtin-baseline
+        if ($vcpkgJson.PSObject.Properties.Match('builtin-baseline')) {
+          $vcpkgJson.'builtin-baseline' = $commitSha
+          Write-Host "Updated builtin-baseline to $commitSha"
+        } else {
+          $vcpkgJson | Add-Member -MemberType NoteProperty -Name "builtin-baseline" -Value $commitSha
+          Write-Host "Added builtin-baseline with value $commitSha"
+        }
+
+        # Добавляем overrides для bzip2, если его нет
+        if (-not ($vcpkgJson.PSObject.Properties.Match('overrides'))) {
+          Write-Host "Adding overrides section for bzip2 to resolve version conflict..."
+          $override = @(
+            @{
+              "name" = "bzip2"
+              "version" = "1.0.8#6"
+            }
+          )
+          $vcpkgJson | Add-Member -MemberType NoteProperty -Name "overrides" -Value $override -Force
+        } else {
+          # Проверяем, есть ли override для bzip2
+          $bzip2OverrideExists = $vcpkgJson.overrides | Where-Object { $_.name -eq "bzip2" }
+          if (-not $bzip2OverrideExists) {
+            Write-Host "Adding override for bzip2 to resolve version conflict..."
+            $override = @(
+              @{
+                "name" = "bzip2"
+                "version" = "1.0.8#6"
+              }
+            )
+            $vcpkgJson.overrides += $override
+          }
+        }
+
+        # Сохраняем обновлённый vcpkg.json
+        $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
+        Write-Host "Updated vcpkg.json content:"
+        Get-Content vcpkg.json
+
+        # Возвращаемся в корень проекта
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
+      shell: powershell
+
     # Шаг 12: Проверка доступных версий библиотек
     - name: Check available library versions
       run: |
@@ -297,7 +311,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 13: Установка vcpkg и зависимостей
+    # Шаг 13: Установка vcpkg и зависимостей (добавлена отладка)
     - name: Install vcpkg and dependencies
       run: |
         Set-Location -Path C:/vcpkg
@@ -309,8 +323,12 @@ jobs:
           exit 1
         }
 
+        # Настройка переменных окружения для vcpkg
         $env:Path = "C:/vcpkg;" + $env:Path
+        $env:VCPKG_ROOT = "C:/vcpkg"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
+        [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
+        Write-Host "VCPKG_ROOT set to: $env:VCPKG_ROOT"
 
         # Возвращаемся в корень проекта
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -324,6 +342,9 @@ jobs:
           exit 1
         }
 
+        Write-Host "Listing installed libraries:"
+        dir "C:/vcpkg/installed/x64-mingw-dynamic/lib" -ErrorAction SilentlyContinue
+        dir "C:/vcpkg/installed/x64-mingw-dynamic/bin" -ErrorAction SilentlyContinue
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
@@ -347,21 +368,21 @@ jobs:
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
 
-        Write-Host "Checking libraries in $libDir..."
+        Write-Host "Checking libraries in ${libDir}..."
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib")) {
             $missing += "$lib"
           }
         }
 
-        Write-Host "Checking DLLs in $binDir..."
+        Write-Host "Checking DLLs in ${binDir}..."
         foreach ($dll in $dlls) {
           if (-not (Test-Path "$binDir/$dll")) {
             $missing += "$dll"
           }
         }
 
-        Write-Host "Checking headers in $includeDir..."
+        Write-Host "Checking headers in ${includeDir}..."
         foreach ($header in $headers) {
           if (-not (Test-Path "$includeDir/$header")) {
             $missing += $header
@@ -370,11 +391,11 @@ jobs:
 
         if ($missing) {
           Write-Host "Error: Missing libraries, DLLs, or header files: $missing"
-          Write-Host "Listing contents of $libDir:"
+          Write-Host "Listing contents of ${libDir}:"
           dir $libDir -ErrorAction SilentlyContinue
-          Write-Host "Listing contents of $binDir:"
+          Write-Host "Listing contents of ${binDir}:"
           dir $binDir -ErrorAction SilentlyContinue
-          Write-Host "Listing contents of $includeDir:"
+          Write-Host "Listing contents of ${includeDir}:"
           dir $includeDir -Recurse -ErrorAction SilentlyContinue
           exit 1
         }
@@ -454,7 +475,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 19: Конфигурация и сборка проекта
+    # Шаг 19: Конфигурация и сборка проекта (добавлена интеграция с vcpkg)
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -468,9 +489,13 @@ jobs:
         Write-Host "TEMP set to: $env:TEMP"
         Write-Host "TMP set to: $env:TMP"
 
+        # Настройка переменных окружения
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg;" + $env:Path
+        $env:VCPKG_ROOT = "C:/vcpkg"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
+        [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Updated PATH: $env:Path"
+        Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT"
 
         # Устанавливаем QML2_IMPORT_PATH
         $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml"
@@ -487,14 +512,23 @@ jobs:
         Write-Host "Build Version: $buildVersion"
 
         Set-Location -Path build
-        Write-Host "Running qmake..."
+        Write-Host "Running qmake with vcpkg integration..."
         $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
+        $vcpkgToolchain = "C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        if (-not (Test-Path $vcpkgToolchain)) {
+          Write-Host "Error: vcpkg toolchain file not found at $vcpkgToolchain"
+          exit 1
+        }
         $qmakeArgs = @(
           "../ui/DeadCode.pro",
           "CONFIG+=release",
           "QMAKE_CXXFLAGS+=-Wno-attributes",
           "DEFINES+=BUILD_DATE=`"$buildDate`"",
-          "DEFINES+=BUILD_VERSION=`"$buildVersion`""
+          "DEFINES+=BUILD_VERSION=`"$buildVersion`"",
+          "-spec", "win32-g++",
+          "QMAKE_CMAKE_PREFIX_PATH=C:/vcpkg/installed/x64-mingw-dynamic",
+          "INCLUDEPATH+=C:/vcpkg/installed/x64-mingw-dynamic/include",
+          "LIBS+=-LC:/vcpkg/installed/x64-mingw-dynamic/lib"
         )
         & $qmakePath $qmakeArgs 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
@@ -526,6 +560,7 @@ jobs:
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
+        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Running DeadCode.exe..."
         try {
           Start-Process -FilePath "release/DeadCode.exe" -NoNewWindow -Wait -RedirectStandardOutput "deadcode_output.log" -RedirectStandardError "deadcode_error.log"
