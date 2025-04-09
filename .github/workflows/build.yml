@@ -285,7 +285,7 @@ jobs:
         Write-Host "Current directory: $(Get-Location)"
 
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
-        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build --debug 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check vcpkg_install.log for details."
           Get-Content vcpkg_install.log
@@ -293,8 +293,9 @@ jobs:
         }
 
         Write-Host "Listing installed libraries:"
-        dir "C:/vcpkg/installed/x64-mingw-dynamic/lib" -ErrorAction SilentlyContinue
-        dir "C:/vcpkg/installed/x64-mingw-dynamic/bin" -ErrorAction SilentlyContinue
+        dir "C:/vcpkg/installed/x64-mingw-dynamic/lib" -Recurse -ErrorAction SilentlyContinue
+        dir "C:/vcpkg/installed/x64-mingw-dynamic/bin" -Recurse -ErrorAction SilentlyContinue
+        dir "C:/vcpkg/installed/x64-mingw-dynamic/include" -Recurse -ErrorAction SilentlyContinue
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
@@ -314,7 +315,7 @@ jobs:
         $binDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
         $includeDir = "C:/vcpkg/installed/x64-mingw-dynamic/include"
         $libs = @("libsqlite3.lib", "libzip.lib", "zlib.lib", "bz2.lib", "libcurl.lib", "libssl.lib", "libcrypto.lib")
-        $dlls = @("sqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl-1_1-x64.dll", "libcrypto-1_1-x64.dll")
+        $dlls = @("sqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl-3-x64.dll", "libcrypto-3-x64.dll")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
 
@@ -342,9 +343,9 @@ jobs:
         if ($missing) {
           Write-Host "Error: Missing libraries, DLLs, or header files: $missing"
           Write-Host "Listing contents of ${libDir}:"
-          dir $libDir -ErrorAction SilentlyContinue
+          dir $libDir -Recurse -ErrorAction SilentlyContinue
           Write-Host "Listing contents of ${binDir}:"
-          dir $binDir -ErrorAction SilentlyContinue
+          dir $binDir -Recurse -ErrorAction SilentlyContinue
           Write-Host "Listing contents of ${includeDir}:"
           dir $includeDir -Recurse -ErrorAction SilentlyContinue
           exit 1
@@ -571,8 +572,8 @@ jobs:
           "zlib1.dll",
           "bz2.dll",
           "libcurl.dll",
-          "libssl-1_1-x64.dll",
-          "libcrypto-1_1-x64.dll"
+          "libssl-3-x64.dll",
+          "libcrypto-3-x64.dll"
         )
 
         # Копируем Qt DLL
