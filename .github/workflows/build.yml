@@ -207,12 +207,6 @@ jobs:
           exit 1
         }
         Set-Location -Path C:/vcpkg
-        Write-Host "Fetching all commits..."
-        & git fetch --unshallow
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to fetch vcpkg commits"
-          exit 1
-        }
         Write-Host "Checking out commit 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6..."
         & git checkout 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6
         if ($LASTEXITCODE -ne 0) {
