@@ -11,7 +11,7 @@ on:
         default: '1'
 
 env:
-  VCPKG_TAG: "2025-03-19"  # Обновляем тег на последний доступный
+  VCPKG_TAG: "2025.03.19"  # Исправляем формат тега с дефисов на точки
 
 jobs:
   build-windows:
@@ -246,7 +246,12 @@ jobs:
         & git checkout tags/$tag
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to checkout tag $tag"
-          exit 1
+          Write-Host "Attempting to checkout with full ref..."
+          & git checkout $tagExists
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to checkout tag $tag even with full ref"
+            exit 1
+          }
         }
         Write-Host "Running bootstrap-vcpkg..."
         & ./bootstrap-vcpkg.bat -disableMetrics
