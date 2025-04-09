@@ -4,6 +4,7 @@ QT += core gui network widgets qml quick
 # Указываем минимальную версию Qt
 requires(qtConfig(version >= 5.15))
 
+# Имя цели и тип приложения
 TARGET = DeadCode
 TEMPLATE = app
 
@@ -40,7 +41,7 @@ VCPKG_INCLUDE_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/include
 isEmpty(VCPKG_INCLUDE_DIR):VCPKG_INCLUDE_DIR = C:/vcpkg/installed/x64-mingw-dynamic/include
 
 QT_DIR = $$(QT_ROOT)
-isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/mingw90_64
+isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/mingw81_64  # Обновлено с mingw90_64 на mingw81_64
 
 INCLUDEPATH += \
     $$PWD/../src \
@@ -60,11 +61,11 @@ isEmpty(VCPKG_LIB_DIR):VCPKG_LIB_DIR = C:/vcpkg/installed/x64-mingw-dynamic/lib
 LIBS += -L$$VCPKG_LIB_DIR \
         -lsqlite3 \      # SQLite для работы с базами данных
         -lzip \          # Libzip для работы с архивами
-        -lzlib \         # Zlib для сжатия
-        -lbz2 \          # Bzip2 для сжатия
+        -lzlib \         # Zlib для сжатия (имя соответствует libzlib.dll.a)
+        -lbz2 \          # Bzip2 для сжатия (имя соответствует libbz2.dll.a)
         -lcurl \         # cURL для сетевых запросов
-        -lssl \          # OpenSSL для шифрования
-        -lcrypto \       # OpenSSL (криптография)
+        -lssl \          # OpenSSL для шифрования (после переименования в build.yml)
+        -lcrypto \       # OpenSSL (криптография, после переименования в build.yml)
         -lstdc++fs \     # Поддержка <filesystem> из C++17
         # Системные библиотеки Windows
         -lws2_32 \       # Для сетевых функций (требуется curl)
@@ -73,7 +74,7 @@ LIBS += -L$$VCPKG_LIB_DIR \
         -luser32 \       # Для работы с окнами (требуется Qt)
         -ladvapi32       # Для системных функций (требуется openssl)
 
-# Флаги компилятора
+# Флаги компилятора (синхронизированы с build.yml)
 QMAKE_CXXFLAGS += \
     -O2 \                        # Оптимизация уровня 2
     -std=c++17 \                 # Стандарт C++17 (требуется для <filesystem>)
@@ -92,7 +93,7 @@ QMAKE_CXXFLAGS += \
     -Wno-sign-compare \          # Подавление предупреждений о сравнении знаковых/беззнаковых типов
     -Wno-attributes              # Подавление предупреждений об атрибутах (синхронизация с build.yml)
 
-# Флаги линковщика
+# Флаги линковщика (синхронизированы с build.yml)
 QMAKE_LFLAGS += \
     -O2 \                        # Оптимизация уровня 2
     -Wl,-subsystem,windows \     # Указываем подсистему Windows (без консоли)
@@ -141,4 +142,5 @@ PRE_TARGETDEPS += \
     $$PWD/../src/compat.h
 
 # Поддержка параллельной сборки (например, -j4)
+# Это работает только при локальной сборке, в build.yml уже указано -j4
 QMAKE_MAKEFLAGS += -j4

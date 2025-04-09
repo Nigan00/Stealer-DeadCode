@@ -37,7 +37,7 @@ jobs:
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install py7zr aqtinstall requests beautifulsoup4
+        python -m pip install py7zr aqtinstall==3.2.2 requests beautifulsoup4
         python -m aqt version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Python dependencies"
@@ -50,21 +50,31 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-5.15.2-${{ runner.os }}-mingw90_64-${{ github.event.inputs.cache-buster || '1' }}
+        key: qt-5.15.2-${{ runner.os }}-mingw81_64-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
-          qt-5.15.2-${{ runner.os }}-mingw90_64-
+          qt-5.15.2-${{ runner.os }}-mingw81_64-
 
-    # Шаг 5: Установка Qt 5.15.2 через aqtinstall
+    # Шаг 5: Проверка доступных архитектур и модулей Qt
+    - name: Check available Qt architectures and modules
+      run: |
+        Write-Host "Checking available architectures for Qt 5.15.2..."
+        python -m aqt list-qt windows desktop --arch 5.15.2
+        Write-Host "Checking available modules for Qt 5.15.2 win64_mingw81..."
+        python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
+      shell: powershell
+
+    # Шаг 6: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
-        Write-Host "Installing Qt 5.15.2 with MinGW 9.0..."
-        python -m aqt install-qt windows desktop 5.15.2 win64_mingw90 -O C:/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras
+        Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
+        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras 2>&1 | Tee-Object -FilePath "qt_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2 via aqtinstall"
+          Get-Content qt_install.log
           exit 1
         }
         # Проверка наличия ключевых файлов Qt
-        $qtFiles = @("C:/Qt/5.15.2/mingw90_64/bin/qmake.exe", "C:/Qt/5.15.2/mingw90_64/bin/Qt5Core.dll")
+        $qtFiles = @("C:/Qt/5.15.2/mingw81_64/bin/qmake.exe", "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll")
         foreach ($file in $qtFiles) {
           if (-not (Test-Path $file)) {
             Write-Host "Error: Qt installation incomplete, $file not found"
@@ -75,34 +85,34 @@ jobs:
         Write-Host "Qt 5.15.2 installation completed."
       shell: powershell
 
-    # Шаг 6: Установка MinGW 9.0 через aqtinstall
-    - name: Install MinGW 9.0 via aqtinstall
+    # Шаг 7: Установка MinGW 8.1 через aqtinstall
+    - name: Install MinGW 8.1 via aqtinstall
       run: |
-        Write-Host "Installing MinGW 9.0 (GCC 9) for C++17 support..."
-        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw900 -O C:/Qt
+        Write-Host "Installing MinGW 8.1 (GCC 8) for C++17 support..."
+        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MinGW 9.0 via aqtinstall"
+          Write-Host "Error: Failed to install MinGW 8.1 via aqtinstall"
           exit 1
         }
         # Проверка наличия g++.exe
-        if (-not (Test-Path "C:/Qt/Tools/mingw900_64/bin/g++.exe")) {
+        if (-not (Test-Path "C:/Qt/Tools/mingw810_64/bin/g++.exe")) {
           Write-Host "Error: MinGW installation incomplete, g++.exe not found"
           dir C:/Qt/Tools -Recurse
           exit 1
         }
-        Write-Host "MinGW 9.0 installation completed."
+        Write-Host "MinGW 8.1 installation completed."
       shell: powershell
 
-    # Шаг 7: Проверка установки Qt и MinGW
+    # Шаг 8: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
       run: |
         Write-Host "Verifying Qt and MinGW installation..."
-        $qmakePath = "C:/Qt/5.15.2/mingw90_64/bin/qmake.exe"
-        $uicPath = "C:/Qt/5.15.2/mingw90_64/bin/uic.exe"
-        $mingwBinPath = "C:/Qt/Tools/mingw900_64/bin"
+        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
+        $mingwBinPath = "C:/Qt/Tools/mingw810_64/bin"
         $gppPath = "$mingwBinPath/g++.exe"
         $makePath = "$mingwBinPath/mingw32-make.exe"
-        $qtCoreDll = "C:/Qt/5.15.2/mingw90_64/bin/Qt5Core.dll"
+        $qtCoreDll = "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll"
 
         # Проверка наличия файлов
         foreach ($path in @($qmakePath, $uicPath, $gppPath, $makePath, $qtCoreDll)) {
@@ -114,7 +124,7 @@ jobs:
         }
 
         # Настройка PATH
-        $env:Path = "C:/Qt/5.15.2/mingw90_64/bin;$mingwBinPath;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;$mingwBinPath;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
         # Проверка версий
@@ -139,7 +149,7 @@ jobs:
         Write-Host "Qt and MinGW setup verified successfully"
       shell: powershell
 
-    # Шаг 8: Установка Chocolatey
+    # Шаг 9: Установка Chocolatey
     - name: Install Chocolatey
       run: |
         Write-Host "Installing Chocolatey..."
@@ -153,7 +163,7 @@ jobs:
         Write-Host "Chocolatey installation completed"
       shell: powershell
 
-    # Шаг 9: Кэширование Strawberry Perl
+    # Шаг 10: Кэширование Strawberry Perl
     - name: Cache Strawberry Perl
       uses: actions/cache@v4
       with:
@@ -162,7 +172,7 @@ jobs:
         restore-keys: |
           strawberry-perl-${{ runner.os }}-
 
-    # Шаг 10: Установка Perl (требуется для Qt)
+    # Шаг 11: Установка Perl (требуется для Qt)
     - name: Install Perl via Chocolatey
       run: |
         Write-Host "Installing Strawberry Perl via Chocolatey..."
@@ -177,7 +187,7 @@ jobs:
         Write-Host "Perl installation completed"
       shell: powershell
 
-    # Шаг 11: Кэширование vcpkg
+    # Шаг 12: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -188,7 +198,7 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
-    # Шаг 12: Очистка и обновление vcpkg
+    # Шаг 13: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
       run: |
         if (-not (Test-Path C:/vcpkg)) {
@@ -227,7 +237,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 13: Проверка и обновление vcpkg.json
+    # Шаг 14: Проверка и обновление vcpkg.json
     - name: Check and update vcpkg.json
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -277,7 +287,7 @@ jobs:
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
       shell: powershell
 
-    # Шаг 14: Проверка доступных версий библиотек
+    # Шаг 15: Проверка доступных версий библиотек
     - name: Check available library versions
       run: |
         Set-Location -Path C:/vcpkg
@@ -293,7 +303,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 15: Установка vcpkg и зависимостей
+    # Шаг 16: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         Set-Location -Path C:/vcpkg
@@ -330,7 +340,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 16: Переименование DLL
+    # Шаг 17: Переименование DLL
     - name: Rename vcpkg DLLs
       run: |
         Set-Location -Path C:/vcpkg/installed/x64-mingw-dynamic/bin
@@ -352,7 +362,7 @@ jobs:
         dir
       shell: powershell
 
-    # Шаг 17: Загрузка логов vcpkg в случае ошибки
+    # Шаг 18: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -361,7 +371,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 18: Проверка установки vcpkg
+    # Шаг 19: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-dynamic/lib"
@@ -406,7 +416,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 19: Проверка структуры проекта
+    # Шаг 20: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -445,7 +455,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 20: Исправление кодировки icon.rc
+    # Шаг 21: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -455,12 +465,12 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 21: Генерация UI-файлов
+    # Шаг 22: Генерация UI-файлов
     - name: Generate UI files
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
-        $uicPath = "C:/Qt/5.15.2/mingw90_64/bin/uic.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         $outputPath = "build/release/ui_mainwindow.h"
         if (-not (Test-Path $uicPath)) {
           Write-Host "Error: uic.exe not found at $uicPath"
@@ -479,7 +489,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 22: Конфигурация и сборка проекта
+    # Шаг 23: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -491,7 +501,7 @@ jobs:
         Write-Host "TMP set to: $env:TMP"
 
         # Настройка переменных окружения
-        $env:Path = "C:/Qt/5.15.2/mingw90_64/bin;C:/Qt/Tools/mingw900_64/bin;C:/vcpkg;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
@@ -499,7 +509,7 @@ jobs:
         Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT"
 
         # Устанавливаем QML2_IMPORT_PATH
-        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw90_64/qml"
+        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml"
         [System.Environment]::SetEnvironmentVariable("QML2_IMPORT_PATH", $env:QML2_IMPORT_PATH, [System.EnvironmentVariableTarget]::Process)
         Write-Host "QML2_IMPORT_PATH set to: $env:QML2_IMPORT_PATH"
 
@@ -514,7 +524,7 @@ jobs:
 
         Set-Location -Path build
         Write-Host "Running qmake with vcpkg integration..."
-        $qmakePath = "C:/Qt/5.15.2/mingw90_64/bin/qmake.exe"
+        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
         $qmakeArgs = @(
           "../ui/DeadCode.pro",
           "CONFIG+=release",
@@ -534,7 +544,7 @@ jobs:
         }
 
         Write-Host "Running mingw32-make with parallel jobs..."
-        $makePath = "C:/Qt/Tools/mingw900_64/bin/mingw32-make.exe"
+        $makePath = "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe"
         & $makePath -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
@@ -551,11 +561,11 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 23: Тестирование запуска DeadCode.exe
+    # Шаг 24: Тестирование запуска DeadCode.exe
     - name: Test run DeadCode.exe
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
-        $env:Path = "C:/Qt/5.15.2/mingw90_64/bin;C:/Qt/Tools/mingw900_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Running DeadCode.exe..."
         try {
@@ -575,15 +585,15 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 24: Копирование необходимых DLL и плагинов Qt
+    # Шаг 25: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
-        $qtBinDir = "C:/Qt/5.15.2/mingw90_64/bin"
-        $mingwBinDir = "C:/Qt/Tools/mingw900_64/bin"
-        $qtPluginsDir = "C:/Qt/5.15.2/mingw90_64/plugins"
-        $qtQmlDir = "C:/Qt/5.15.2/mingw90_64/qml"
+        $qtBinDir = "C:/Qt/5.15.2/mingw81_64/bin"
+        $mingwBinDir = "C:/Qt/Tools/mingw810_64/bin"
+        $qtPluginsDir = "C:/Qt/5.15.2/mingw81_64/plugins"
+        $qtQmlDir = "C:/Qt/5.15.2/mingw81_64/qml"
         $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
 
         # Основные Qt DLL
@@ -695,13 +705,14 @@ jobs:
         dir release -Recurse
       shell: powershell
 
-    # Шаг 25: Загрузка логов сборки в случае ошибки
+    # Шаг 26: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
       with:
         name: build-logs
         path: |
+          Stealer-DeadCode/qt_install.log
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
           Stealer-DeadCode/uic_output.log
@@ -710,7 +721,7 @@ jobs:
           Stealer-DeadCode/build/deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 26: Загрузка артефакта
+    # Шаг 27: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -736,7 +747,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 27: Очистка
+    # Шаг 28: Очистка
     - name: Cleanup
       if: always()
       run: |
