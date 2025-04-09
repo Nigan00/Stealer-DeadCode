@@ -27,5 +27,11 @@
             "name": "openssl",
             "version>=": "3.3.2"
         }
+    ],
+    "overrides": [
+        {
+            "name": "bzip2",
+            "version": "1.0.8#6"
+        }
     ]
 }

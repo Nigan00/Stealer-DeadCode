@@ -155,7 +155,9 @@ jobs:
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
-        path: C:/vcpkg
+        path: |
+          C:/vcpkg
+          C:/vcpkg/installed
         key: vcpkg-${{ hashFiles('Stealer-DeadCode/vcpkg.json') }}-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
           vcpkg-
@@ -183,9 +185,19 @@ jobs:
           exit 1
         }
 
-        # Обновляем builtin-baseline на новый коммит
-        $vcpkgJson.'builtin-baseline' = "0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6"
-        Write-Host "Updated builtin-baseline to 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6"
+        # Обновляем builtin-baseline на тег
+        $vcpkgJson.'builtin-baseline' = "2025-03-22"
+        Write-Host "Updated builtin-baseline to 2025-03-22"
+
+        # Добавляем overrides для bzip2
+        Write-Host "Adding override for bzip2 to resolve version conflict..."
+        $override = @(
+          @{
+            "name" = "bzip2"
+            "version" = "1.0.8#6"
+          }
+        )
+        $vcpkgJson | Add-Member -MemberType NoteProperty -Name "overrides" -Value $override -Force
 
         # Сохраняем обновлённый vcpkg.json
         $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
@@ -207,10 +219,10 @@ jobs:
           exit 1
         }
         Set-Location -Path C:/vcpkg
-        Write-Host "Checking out commit 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6..."
-        & git checkout 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6
+        Write-Host "Checking out tag 2025-03-22..."
+        & git checkout tags/2025-03-22
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to checkout commit 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6"
+          Write-Host "Error: Failed to checkout tag 2025-03-22"
           exit 1
         }
         Write-Host "Running bootstrap-vcpkg..."
