@@ -1,5 +1,5 @@
-# Основные модули Qt
-QT += core gui network widgets qml quick
+# Основные модули Qt (синхронизированы с build.yml)
+QT += core gui network widgets qml quick svg declarative quickcontrols quickcontrols2 graphicaleffects sql quicktimeline quick3d winextras
 
 # Указываем минимальную версию Qt
 requires(qtConfig(version >= 5.15))
@@ -41,7 +41,7 @@ VCPKG_INCLUDE_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/include
 isEmpty(VCPKG_INCLUDE_DIR):VCPKG_INCLUDE_DIR = C:/vcpkg/installed/x64-mingw-dynamic/include
 
 QT_DIR = $$(QT_ROOT)
-isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/mingw81_64  # Обновлено с mingw90_64 на mingw81_64
+isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/mingw81_64  # Соответствует архитектуре из build.yml
 
 INCLUDEPATH += \
     $$PWD/../src \
@@ -50,11 +50,11 @@ INCLUDEPATH += \
     $$QT_DIR/include
 
 # Пути для поиска QML-модулей (используется Qt Creator для автодополнения)
-# Для runtime нужно установить QML2_IMPORT_PATH в переменных окружения
+# Для runtime QML2_IMPORT_PATH устанавливается в build.yml
 QML_IMPORT_PATH += \
     $$QT_DIR/qml
 
-# Библиотеки для линковки
+# Библиотеки для линковки (синхронизированы с build.yml)
 VCPKG_LIB_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/lib
 isEmpty(VCPKG_LIB_DIR):VCPKG_LIB_DIR = C:/vcpkg/installed/x64-mingw-dynamic/lib
 
@@ -91,7 +91,7 @@ QMAKE_CXXFLAGS += \
     -Wno-cast-function-type \    # Подавление предупреждений о приведениях типов функций
     -Wno-unused-parameter \      # Подавление предупреждений о неиспользуемых параметрах
     -Wno-sign-compare \          # Подавление предупреждений о сравнении знаковых/беззнаковых типов
-    -Wno-attributes              # Подавление предупреждений об атрибутах (синхронизация с build.yml)
+    -Wno-attributes              # Подавление предупреждений об атрибутах
 
 # Флаги линковщика (синхронизированы с build.yml)
 QMAKE_LFLAGS += \
