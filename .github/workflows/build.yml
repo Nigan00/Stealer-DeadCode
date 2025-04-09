@@ -188,9 +188,20 @@ jobs:
           exit 1
         }
 
-        # Обновляем builtin-baseline на существующий тег
-        $vcpkgJson.'builtin-baseline' = $env:VCPKG_TAG  # Используем переменную окружения
-        Write-Host "Updated builtin-baseline to $env:VCPKG_TAG"
+        # Получаем SHA-коммит для тега VCPKG_TAG
+        Set-Location -Path C:/vcpkg
+        $tag = $env:VCPKG_TAG
+        Write-Host "Fetching SHA for tag $tag..."
+        $commitSha = & git rev-parse $tag
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to fetch SHA for tag $tag"
+          exit 1
+        }
+        Write-Host "SHA for tag $tag is $commitSha"
+
+        # Обновляем builtin-baseline на SHA-коммит
+        $vcpkgJson.'builtin-baseline' = $commitSha
+        Write-Host "Updated builtin-baseline to $commitSha"
 
         # Добавляем overrides для bzip2
         Write-Host "Adding override for bzip2 to resolve version conflict..."
@@ -206,6 +217,9 @@ jobs:
         $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
         Write-Host "Updated vcpkg.json content:"
         Get-Content vcpkg.json
+
+        # Возвращаемся в корень проекта
+        Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
       shell: powershell
 
     # Шаг 11: Очистка и обновление vcpkg
