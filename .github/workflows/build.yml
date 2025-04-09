@@ -11,7 +11,7 @@ on:
         default: '1'
 
 env:
-  VCPKG_TAG: "2025-02-14"  # Добавляем переменную для тега vcpkg
+  VCPKG_TAG: "2025-03-19"  # Обновляем тег на последний доступный
 
 jobs:
   build-windows:
@@ -222,6 +222,12 @@ jobs:
           exit 1
         }
         Set-Location -Path C:/vcpkg
+        Write-Host "Fetching all tags..."
+        & git fetch --tags --force
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to fetch tags"
+          exit 1
+        }
         # Проверяем доступность тега
         $tag = $env:VCPKG_TAG  # Используем переменную окружения
         Write-Host "Checking if tag $tag exists..."
@@ -230,6 +236,10 @@ jobs:
           Write-Host "Error: Tag $tag does not exist in vcpkg repository"
           Write-Host "Available tags:"
           & git tag -l
+          Write-Host "Current HEAD:"
+          & git rev-parse HEAD
+          Write-Host "Remote refs:"
+          & git ls-remote --tags origin
           exit 1
         }
         Write-Host "Checking out tag $tag..."
