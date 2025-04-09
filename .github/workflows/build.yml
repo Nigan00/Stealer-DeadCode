@@ -218,7 +218,7 @@ jobs:
         Write-Host "Current vcpkg.json content:"
         Get-Content vcpkg.json
 
-        Write-Host "Updating builtin-baseline in vcpkg.json..."
+        Write-Host "Updating builtin-baseline and OpenSSL version in vcpkg.json..."
         $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
 
         # Получаем SHA-коммит
@@ -233,6 +233,16 @@ jobs:
         } else {
           $vcpkgJson | Add-Member -MemberType NoteProperty -Name "builtin-baseline" -Value $commit
           Write-Host "Added builtin-baseline with value $commit"
+        }
+
+        # Обновляем версию OpenSSL до 1.1.1n
+        $opensslDependency = $vcpkgJson.dependencies | Where-Object { $_.name -eq "openssl" }
+        if ($opensslDependency) {
+          $opensslDependency.'version>=' = "1.1.1n"
+          Write-Host "Updated OpenSSL version to 1.1.1n"
+        } else {
+          Write-Host "Error: OpenSSL dependency not found in vcpkg.json"
+          exit 1
         }
 
         # Сохраняем обновлённый vcpkg.json
@@ -310,13 +320,13 @@ jobs:
           Rename-Item -Path "libbz2.dll" -NewName "bz2.dll"
           Write-Host "Renamed libbz2.dll to bz2.dll"
         }
-        if (Test-Path "libssl-3-x64.dll") {
-          Rename-Item -Path "libssl-3-x64.dll" -NewName "libssl.dll"
-          Write-Host "Renamed libssl-3-x64.dll to libssl.dll"
+        if (Test-Path "libssl-1_1-x64.dll") {
+          Rename-Item -Path "libssl-1_1-x64.dll" -NewName "libssl.dll"
+          Write-Host "Renamed libssl-1_1-x64.dll to libssl.dll"
         }
-        if (Test-Path "libcrypto-3-x64.dll") {
-          Rename-Item -Path "libcrypto-3-x64.dll" -NewName "libcrypto.dll"
-          Write-Host "Renamed libcrypto-3-x64.dll to libcrypto.dll"
+        if (Test-Path "libcrypto-1_1-x64.dll") {
+          Rename-Item -Path "libcrypto-1_1-x64.dll" -NewName "libcrypto.dll"
+          Write-Host "Renamed libcrypto-1_1-x64.dll to libcrypto.dll"
         }
         Write-Host "Listing contents of bin directory after renaming:"
         dir
