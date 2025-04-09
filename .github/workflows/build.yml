@@ -186,8 +186,8 @@ jobs:
         }
 
         # Обновляем builtin-baseline на тег
-        $vcpkgJson.'builtin-baseline' = "2025-03-22"
-        Write-Host "Updated builtin-baseline to 2025-03-22"
+        $vcpkgJson.'builtin-baseline' = "2025-03-27"  # Исправлено на существующий тег
+        Write-Host "Updated builtin-baseline to 2025-03-27"
 
         # Добавляем overrides для bzip2
         Write-Host "Adding override for bzip2 to resolve version conflict..."
@@ -219,10 +219,20 @@ jobs:
           exit 1
         }
         Set-Location -Path C:/vcpkg
-        Write-Host "Checking out tag 2025-03-22..."
-        & git checkout tags/2025-03-22
+        # Проверяем доступность тега
+        $tag = "2025-03-27"  # Исправлено на существующий тег
+        Write-Host "Checking if tag $tag exists..."
+        $tagExists = & git tag -l $tag
+        if (-not $tagExists) {
+          Write-Host "Error: Tag $tag does not exist in vcpkg repository"
+          Write-Host "Available tags:"
+          & git tag -l
+          exit 1
+        }
+        Write-Host "Checking out tag $tag..."
+        & git checkout tags/$tag
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to checkout tag 2025-03-22"
+          Write-Host "Error: Failed to checkout tag $tag"
           exit 1
         }
         Write-Host "Running bootstrap-vcpkg..."
