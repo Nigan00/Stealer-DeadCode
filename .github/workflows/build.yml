@@ -50,21 +50,21 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-5.15.2-${{ runner.os }}-mingw81_64-${{ github.event.inputs.cache-buster || '1' }}
+        key: qt-5.15.2-${{ runner.os }}-mingw90_64-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
-          qt-5.15.2-${{ runner.os }}-mingw81_64-
+          qt-5.15.2-${{ runner.os }}-mingw90_64-
 
     # Шаг 5: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
-        Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
-        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras
+        Write-Host "Installing Qt 5.15.2 with MinGW 9.0..."
+        python -m aqt install-qt windows desktop 5.15.2 win64_mingw90 -O C:/Qt --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2 via aqtinstall"
           exit 1
         }
         # Проверка наличия ключевых файлов Qt
-        $qtFiles = @("C:/Qt/5.15.2/mingw81_64/bin/qmake.exe", "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll")
+        $qtFiles = @("C:/Qt/5.15.2/mingw90_64/bin/qmake.exe", "C:/Qt/5.15.2/mingw90_64/bin/Qt5Core.dll")
         foreach ($file in $qtFiles) {
           if (-not (Test-Path $file)) {
             Write-Host "Error: Qt installation incomplete, $file not found"
@@ -75,34 +75,34 @@ jobs:
         Write-Host "Qt installation completed."
       shell: powershell
 
-    # Шаг 6: Установка MinGW 8.1 через aqtinstall
-    - name: Install MinGW 8.1 via aqtinstall
+    # Шаг 6: Установка MinGW 9.0 через aqtinstall
+    - name: Install MinGW 9.0 via aqtinstall
       run: |
-        Write-Host "Installing MinGW 8.1..."
-        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt
+        Write-Host "Installing MinGW 9.0..."
+        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw900 -O C:/Qt
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MinGW 8.1 via aqtinstall"
+          Write-Host "Error: Failed to install MinGW 9.0 via aqtinstall"
           exit 1
         }
         # Проверка наличия g++.exe
-        if (-not (Test-Path "C:/Qt/Tools/mingw810_64/bin/g++.exe")) {
+        if (-not (Test-Path "C:/Qt/Tools/mingw900_64/bin/g++.exe")) {
           Write-Host "Error: MinGW installation incomplete, g++.exe not found"
           dir C:/Qt/Tools -Recurse
           exit 1
         }
-        Write-Host "MinGW 8.1 installation completed."
+        Write-Host "MinGW 9.0 installation completed."
       shell: powershell
 
     # Шаг 7: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
       run: |
         Write-Host "Verifying Qt and MinGW installation..."
-        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
-        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
-        $mingwBinPath = "C:/Qt/Tools/mingw810_64/bin"
+        $qmakePath = "C:/Qt/5.15.2/mingw90_64/bin/qmake.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw90_64/bin/uic.exe"
+        $mingwBinPath = "C:/Qt/Tools/mingw900_64/bin"
         $gppPath = "$mingwBinPath/g++.exe"
         $makePath = "$mingwBinPath/mingw32-make.exe"
-        $qtCoreDll = "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll"
+        $qtCoreDll = "C:/Qt/5.15.2/mingw90_64/bin/Qt5Core.dll"
 
         # Проверка наличия файлов
         foreach ($path in @($qmakePath, $uicPath, $gppPath, $makePath, $qtCoreDll)) {
@@ -114,7 +114,7 @@ jobs:
         }
 
         # Настройка PATH
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;$mingwBinPath;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw90_64/bin;$mingwBinPath;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
         # Проверка версий
@@ -440,7 +440,7 @@ jobs:
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
-        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
+        $uicPath = "C:/Qt/5.15.2/mingw90_64/bin/uic.exe"
         $outputPath = "build/release/ui_mainwindow.h"
         if (-not (Test-Path $uicPath)) {
           Write-Host "Error: uic.exe not found at $uicPath"
@@ -471,7 +471,7 @@ jobs:
         Write-Host "TMP set to: $env:TMP"
 
         # Настройка переменных окружения
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw90_64/bin;C:/Qt/Tools/mingw900_64/bin;C:/vcpkg;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
@@ -479,7 +479,7 @@ jobs:
         Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT"
 
         # Устанавливаем QML2_IMPORT_PATH
-        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml"
+        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw90_64/qml"
         [System.Environment]::SetEnvironmentVariable("QML2_IMPORT_PATH", $env:QML2_IMPORT_PATH, [System.EnvironmentVariableTarget]::Process)
         Write-Host "QML2_IMPORT_PATH set to: $env:QML2_IMPORT_PATH"
 
@@ -494,7 +494,7 @@ jobs:
 
         Set-Location -Path build
         Write-Host "Running qmake with vcpkg integration..."
-        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
+        $qmakePath = "C:/Qt/5.15.2/mingw90_64/bin/qmake.exe"
         $qmakeArgs = @(
           "../ui/DeadCode.pro",
           "CONFIG+=release",
@@ -503,7 +503,8 @@ jobs:
           "DEFINES+=BUILD_VERSION=`"$buildVersion`"",
           "-spec", "win32-g++",
           "INCLUDEPATH+=C:/vcpkg/installed/x64-mingw-dynamic/include",
-          "LIBS+=-LC:/vcpkg/installed/x64-mingw-dynamic/lib"
+          "LIBS+=-LC:/vcpkg/installed/x64-mingw-dynamic/lib",
+          "LIBS+=-lstdc++fs"  # Добавляем флаг для поддержки <filesystem>
         )
         & $qmakePath $qmakeArgs 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
@@ -513,7 +514,7 @@ jobs:
         }
 
         Write-Host "Running mingw32-make..."
-        $makePath = "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe"
+        $makePath = "C:/Qt/Tools/mingw900_64/bin/mingw32-make.exe"
         & $makePath -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Check make_output.log for details."
@@ -534,7 +535,7 @@ jobs:
     - name: Test run DeadCode.exe
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw90_64/bin;C:/Qt/Tools/mingw900_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Running DeadCode.exe..."
         try {
@@ -559,10 +560,10 @@ jobs:
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
-        $qtBinDir = "C:/Qt/5.15.2/mingw81_64/bin"
-        $mingwBinDir = "C:/Qt/Tools/mingw810_64/bin"
-        $qtPluginsDir = "C:/Qt/5.15.2/mingw81_64/plugins"
-        $qtQmlDir = "C:/Qt/5.15.2/mingw81_64/qml"
+        $qtBinDir = "C:/Qt/5.15.2/mingw90_64/bin"
+        $mingwBinDir = "C:/Qt/Tools/mingw900_64/bin"
+        $qtPluginsDir = "C:/Qt/5.15.2/mingw90_64/plugins"
+        $qtQmlDir = "C:/Qt/5.15.2/mingw90_64/qml"
         $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
 
         # Основные Qt DLL
