@@ -174,7 +174,7 @@ jobs:
         Write-Host "Current vcpkg.json content:"
         Get-Content vcpkg.json
 
-        Write-Host "Reformatting vcpkg.json without changing baseline..."
+        Write-Host "Updating builtin-baseline in vcpkg.json..."
         $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
 
         # Проверяем наличие builtin-baseline
@@ -183,7 +183,11 @@ jobs:
           exit 1
         }
 
-        # Сохраняем обновлённый vcpkg.json (без изменения baseline)
+        # Обновляем builtin-baseline на новый коммит
+        $vcpkgJson.'builtin-baseline' = "0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6"
+        Write-Host "Updated builtin-baseline to 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6"
+
+        # Сохраняем обновлённый vcpkg.json
         $vcpkgJson | ConvertTo-Json -Depth 10 | Set-Content -Path vcpkg.json -Encoding UTF8
         Write-Host "Updated vcpkg.json content:"
         Get-Content vcpkg.json
@@ -203,6 +207,18 @@ jobs:
           exit 1
         }
         Set-Location -Path C:/vcpkg
+        Write-Host "Fetching all commits..."
+        & git fetch --unshallow
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to fetch vcpkg commits"
+          exit 1
+        }
+        Write-Host "Checking out commit 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6..."
+        & git checkout 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to checkout commit 0c72420dd3ccbaddf6bb4c35bf6079698ddae3f6"
+          exit 1
+        }
         Write-Host "Running bootstrap-vcpkg..."
         & ./bootstrap-vcpkg.bat -disableMetrics
         if ($LASTEXITCODE -ne 0) {
