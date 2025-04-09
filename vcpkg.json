@@ -1,6 +1,7 @@
 {
     "name": "deadcode",
     "version-string": "1.0.0",
+    "builtin-baseline": "a73c889be74ece2c6654b580133e0e267e879255",
     "dependencies": [
         { "name": "libzip", "version>=": "1.9.2" },
         { "name": "sqlite3", "version>=": "3.45.0" },

@@ -11,7 +11,7 @@ on:
         default: '1'
 
 env:
-  VCPKG_TAG: "2024.10.16"  # Исправленный тег на существующий
+  VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"  # SHA коммита Update vcpkg-tool to 2024-10-18 (#41650)
 
 jobs:
   build-windows:
@@ -161,9 +161,9 @@ jobs:
         path: |
           C:/vcpkg
           C:/vcpkg/installed
-        key: vcpkg-${{ env.VCPKG_TAG }}-${{ hashFiles('Stealer-DeadCode/vcpkg.json') }}-${{ github.event.inputs.cache-buster || '1' }}
+        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ hashFiles('Stealer-DeadCode/vcpkg.json') }}-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
-          vcpkg-${{ env.VCPKG_TAG }}-
+          vcpkg-${{ env.VCPKG_COMMIT }}-
 
     # Шаг 10: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
@@ -179,36 +179,17 @@ jobs:
           exit 1
         }
         Set-Location -Path C:/vcpkg
-        Write-Host "Fetching all tags..."
-        & git fetch --tags --force
+        # Переключаемся на конкретный коммит
+        $commit = $env:VCPKG_COMMIT
+        Write-Host "Checking out commit $commit..."
+        & git checkout $commit
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to fetch tags"
-          exit 1
-        }
-        # Проверяем доступность тега
-        $tag = $env:VCPKG_TAG
-        Write-Host "Checking if tag $tag exists..."
-        $tagExists = & git tag -l $tag
-        if (-not $tagExists) {
-          Write-Host "Error: Tag $tag does not exist in vcpkg repository"
-          Write-Host "Available tags:"
-          & git tag -l
+          Write-Host "Error: Failed to checkout commit $commit"
           Write-Host "Current HEAD:"
           & git rev-parse HEAD
           Write-Host "Remote refs:"
-          & git ls-remote --tags origin
+          & git ls-remote origin
           exit 1
-        }
-        Write-Host "Checking out tag $tag..."
-        & git checkout tags/$tag
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to checkout tag $tag"
-          Write-Host "Attempting to checkout with full ref..."
-          & git checkout $tagExists
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to checkout tag $tag even with full ref"
-            exit 1
-          }
         }
         Write-Host "Running bootstrap-vcpkg..."
         & ./bootstrap-vcpkg.bat -disableMetrics
@@ -224,7 +205,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 11: Проверка и обновление vcpkg.json (исправлено)
+    # Шаг 11: Проверка и обновление vcpkg.json
     - name: Check and update vcpkg.json
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -241,49 +222,18 @@ jobs:
         Write-Host "Updating builtin-baseline in vcpkg.json..."
         $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
 
-        # Получаем SHA-коммит для тега VCPKG_TAG
+        # Получаем SHA-коммит
         Set-Location -Path C:/vcpkg
-        $tag = $env:VCPKG_TAG
-        Write-Host "Fetching SHA for tag $tag..."
-        $commitSha = & git rev-parse $tag
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to fetch SHA for tag $tag"
-          exit 1
-        }
-        Write-Host "SHA for tag $tag is $commitSha"
+        $commit = $env:VCPKG_COMMIT
+        Write-Host "Using commit SHA $commit for builtin-baseline..."
 
         # Обновляем или добавляем builtin-baseline
         if ($vcpkgJson.PSObject.Properties.Match('builtin-baseline')) {
-          $vcpkgJson.'builtin-baseline' = $commitSha
-          Write-Host "Updated builtin-baseline to $commitSha"
+          $vcpkgJson.'builtin-baseline' = $commit
+          Write-Host "Updated builtin-baseline to $commit"
         } else {
-          $vcpkgJson | Add-Member -MemberType NoteProperty -Name "builtin-baseline" -Value $commitSha
-          Write-Host "Added builtin-baseline with value $commitSha"
-        }
-
-        # Добавляем overrides для bzip2, если его нет
-        if (-not ($vcpkgJson.PSObject.Properties.Match('overrides'))) {
-          Write-Host "Adding overrides section for bzip2 to resolve version conflict..."
-          $override = @(
-            @{
-              "name" = "bzip2"
-              "version" = "1.0.8#6"
-            }
-          )
-          $vcpkgJson | Add-Member -MemberType NoteProperty -Name "overrides" -Value $override -Force
-        } else {
-          # Проверяем, есть ли override для bzip2
-          $bzip2OverrideExists = $vcpkgJson.overrides | Where-Object { $_.name -eq "bzip2" }
-          if (-not $bzip2OverrideExists) {
-            Write-Host "Adding override for bzip2 to resolve version conflict..."
-            $override = @(
-              @{
-                "name" = "bzip2"
-                "version" = "1.0.8#6"
-              }
-            )
-            $vcpkgJson.overrides += $override
-          }
+          $vcpkgJson | Add-Member -MemberType NoteProperty -Name "builtin-baseline" -Value $commit
+          Write-Host "Added builtin-baseline with value $commit"
         }
 
         # Сохраняем обновлённый vcpkg.json
@@ -311,7 +261,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 13: Установка vcpkg и зависимостей (добавлена отладка)
+    # Шаг 13: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         Set-Location -Path C:/vcpkg
@@ -475,7 +425,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 19: Конфигурация и сборка проекта (добавлена интеграция с vcpkg)
+    # Шаг 19: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
