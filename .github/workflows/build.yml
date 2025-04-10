@@ -60,10 +60,13 @@ jobs:
           Write-Host "Error: Chocolatey verification failed (exit code: $LASTEXITCODE)"
           exit 1
         }
-        Write-Host "Refreshing environment variables..."
-        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
-        refreshenv
-        Write-Host "Chocolatey setup completed successfully"
+        Write-Host "Updating environment variables in current session..."
+        $env:ChocolateyInstall = "C:\ProgramData\chocolatey"
+        $env:Path = "$env:ChocolateyInstall\bin;" + $env:Path
+        [System.Environment]::SetEnvironmentVariable("ChocolateyInstall", $env:ChocolateyInstall, [System.EnvironmentVariableTarget]::Process)
+        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
+        Write-Host "Chocolatey setup completed successfully. Version:"
+        & $chocoPath --version
       shell: powershell
 
     # Шаг 4: Установка 7-Zip
@@ -76,8 +79,8 @@ jobs:
           exit 1
         }
         Write-Host "Refreshing environment variables..."
-        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
-        refreshenv
+        $env:Path = "C:\Program Files\7-Zip;" + $env:Path
+        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "7-Zip installation completed"
       shell: powershell
 
@@ -129,10 +132,20 @@ jobs:
       run: |
         Write-Host "Checking available architectures for Qt 5.15.2..."
         python -m aqt list-qt windows desktop --arch 5.15.2
-        Write-Host "Checking available modules for Qt 5.15.2 win64_mingw81..."
-        python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to list Qt architectures or modules (exit code: $LASTEXITCODE)"
+          Write-Host "Error: Failed to list architectures (exit code: $LASTEXITCODE)"
+          exit 1
+        }
+        Write-Host "Checking available modules for Qt 5.15.2 mingw81_64..."
+        python -m aqt list-qt windows desktop --modules 5.15.2 mingw81_64
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to list modules for mingw81_64 (exit code: $LASTEXITCODE)"
+          exit 1
+        }
+        Write-Host "Checking available Qt versions..."
+        python -m aqt list-qt windows desktop
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to list Qt versions (exit code: $LASTEXITCODE)"
           exit 1
         }
       shell: powershell
@@ -148,7 +161,7 @@ jobs:
         )
 
         set "QT_MODULES=qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtwinextras"
-        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base https://download.qt.io/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m %QT_MODULES%"
+        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base https://download.qt.io/ --timeout 600 --external 7z windows desktop 5.15.2 mingw81_64 -m %QT_MODULES%"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
@@ -245,8 +258,8 @@ jobs:
           exit 1
         }
         Write-Host "Refreshing environment variables..."
-        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
-        refreshenv
+        $env:Path = "C:\Strawberry\perl\bin;" + $env:Path
+        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Perl installation completed"
       shell: powershell
 

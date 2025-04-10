@@ -1,5 +1,8 @@
 # Основные модули Qt (синхронизированы с build.yml)
-QT += core gui network widgets qml quick svg quickcontrols quickcontrols2 graphicaleffects sql winextras
+QT += core gui network widgets qml quick svg quickcontrols2 sql winextras
+
+# Удалены устаревшие модули Qt (quickcontrols и graphicaleffects больше не требуются отдельно в Qt 5.15)
+# QT += quickcontrols graphicaleffects
 
 # Проверка минимальной версии Qt
 lessThan(QT_MAJOR_VERSION, 5) | lessThan(QT_MINOR_VERSION, 15) {
