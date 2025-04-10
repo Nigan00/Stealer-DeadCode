@@ -32,21 +32,44 @@ jobs:
       with:
         python-version: '3.10'  # Переходим на Python 3.10 для лучшей совместимости с aqtinstall
 
-    # Шаг 3: Установка Chocolatey (нужен для 7-Zip и Perl)
-    - name: Install Chocolatey
+    # Шаг 3: Проверка и установка Chocolatey
+    - name: Check and Install Chocolatey
       run: |
-        Write-Host "Installing Chocolatey..."
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-        iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        Write-Host "Checking for existing Chocolatey installation..."
+        $chocoPath = "C:\ProgramData\Chocolatey\bin\choco.exe"
+        if (Test-Path $chocoPath) {
+          Write-Host "Chocolatey is already installed at $chocoPath. Upgrading Chocolatey..."
+          & $chocoPath upgrade chocolatey -y --force --execution-timeout 600
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+            Write-Host "Error: Failed to upgrade Chocolatey (exit code: $LASTEXITCODE)"
+            exit 1
+          }
+        } else {
+          Write-Host "Chocolatey not found. Installing Chocolatey..."
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to install Chocolatey"
+            exit 1
+          }
+        }
+
+        # Проверка работоспособности Chocolatey
+        Write-Host "Verifying Chocolatey installation..."
+        & $chocoPath --version
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Chocolatey"
+          Write-Host "Error: Chocolatey is not functioning correctly"
           exit 1
         }
-        Write-Host "Chocolatey installation completed"
+
+        Write-Host "Refreshing environment variables..."
+        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
+        refreshenv
+        Write-Host "Chocolatey setup completed successfully"
       shell: powershell
 
-    # Шаг 4: Установка 7-Zip (требуется для aqtinstall)
+    # Шаг 4: Установка 7-Zip
     - name: Install 7-Zip
       run: |
         Write-Host "Installing 7-Zip via Chocolatey..."
