@@ -1,8 +1,5 @@
 # Основные модули Qt (синхронизированы с build.yml)
-QT += core gui network widgets qml quick svg quickcontrols2 sql winextras
-
-# Удалены устаревшие модули Qt (quickcontrols и graphicaleffects больше не требуются отдельно в Qt 5.15)
-# QT += quickcontrols graphicaleffects
+QT += core gui network widgets qml quick svg quickcontrols quickcontrols2 sql winextras qtdeclarative
 
 # Проверка минимальной версии Qt
 lessThan(QT_MAJOR_VERSION, 5) | lessThan(QT_MINOR_VERSION, 15) {
@@ -42,7 +39,7 @@ VCPKG_INCLUDE_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/include
 isEmpty(VCPKG_INCLUDE_DIR):VCPKG_INCLUDE_DIR = C:/vcpkg/installed/x64-mingw-dynamic/include
 
 QT_DIR = $$(QT_ROOT)
-isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/mingw81_64
+isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/win64_mingw81
 
 INCLUDEPATH += \
     $$PWD/../src \
@@ -90,7 +87,7 @@ QMAKE_CXXFLAGS += \
     -Wno-cast-function-type \
     -Wno-unused-parameter \
     -Wno-sign-compare \
-    -Wno-attributes
+    -Wno-attributes  # Явно указано в build.yml
 
 # Флаги линковщика (синхронизированы с build.yml)
 QMAKE_LFLAGS += \
@@ -106,7 +103,7 @@ RCC_DIR = $$PWD/../build/release
 
 # Расширенный список файлов для очистки
 QMAKE_CLEAN += \
-    $$DESTDIR/DeadCode.exe \
+    $$DESTDIR/* \
     $$OBJECTS_DIR/*.o \
     $$MOC_DIR/moc_*.cpp \
     $$UI_DIR/ui_*.h \
