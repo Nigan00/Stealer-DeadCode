@@ -30,7 +30,7 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.12'  # Обновлено до 3.12
 
     # Шаг 3: Проверка и установка Chocolatey
     - name: Check and Install Chocolatey
@@ -94,7 +94,7 @@ jobs:
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install py7zr==0.22.0 aqtinstall==3.2.1 requests==2.32.3 beautifulsoup4==4.12.3
+        python -m pip install py7zr aqtinstall requests beautifulsoup4  # Убраны фиксированные версии
         python -m aqt version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Python dependencies. Check the logs above for details."
@@ -131,61 +131,49 @@ jobs:
         python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
       shell: powershell
 
-    # Шаг 10: Установка Qt 5.15.2 через aqtinstall
+    # Шаг 10: Установка Qt 5.15.2 через aqtinstall (Исправлено)
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
-        Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
-        # Проверка версии aqtinstall
-        python -m aqt version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to verify aqtinstall version"
+        echo "Installing Qt 5.15.2 with MinGW 8.1..."
+        python -m aqt version || (echo "Error: Failed to verify aqtinstall version" && exit 1)
+
+        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z --verbose windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras qtnetwork qtwidgets qtcore qtgui qtqml"
+        echo "Executing command: %QT_INSTALL_CMD%"
+
+        cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
+        if %ERRORLEVEL% NEQ 0 (
+          echo "Error: Failed to install Qt 5.15.2 via aqtinstall"
+          type qt_install.log
           exit 1
-        }
+        )
 
-        # Формирование команды в одну строку
-        $qtInstallCommand = "python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z --verbose windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras qtnetwork qtwidgets qtcore qtgui qtqml"
-        Write-Host "Executing command: $qtInstallCommand"
-
-        # Выполнение команды с перенаправлением вывода
-        Invoke-Expression $qtInstallCommand 2>&1 | Tee-Object -FilePath "qt_install.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Qt 5.15.2 via aqtinstall"
-          Get-Content qt_install.log
-          exit 1
-        }
-
-        # Проверка наличия ключевых файлов Qt
-        $qtFiles = @("C:/Qt/5.15.2/mingw81_64/bin/qmake.exe", "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll")
-        foreach ($file in $qtFiles) {
-          if (-not (Test-Path $file)) {
-            Write-Host "Error: Qt installation incomplete, $file not found"
-            dir C:/Qt -Recurse
+        for %%f in ("C:/Qt/5.15.2/mingw81_64/bin/qmake.exe" "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll") do (
+          if not exist %%f (
+            echo "Error: Qt installation incomplete, %%f not found"
+            dir C:/Qt /s
             exit 1
-          }
-        }
-        Write-Host "Qt 5.15.2 installation completed."
-      shell: powershell
+          )
+        )
+        echo "Qt 5.15.2 installation completed."
+      shell: cmd  # Переход на cmd для стабильности
 
     # Шаг 11: Установка MinGW 8.1 через aqtinstall
     - name: Install MinGW 8.1 via aqtinstall
       run: |
-        Write-Host "Installing MinGW 8.1 (GCC 8) for C++17 support..."
-        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | Tee-Object -FilePath "mingw_install.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MinGW 8.1 via aqtinstall"
-          Get-Content mingw_install.log
+        echo "Installing MinGW 8.1 (GCC 8) for C++17 support..."
+        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | tee mingw_install.log
+        if %ERRORLEVEL% NEQ 0 (
+          echo "Error: Failed to install MinGW 8.1 via aqtinstall"
+          type mingw_install.log
           exit 1
-        }
-        if (-not (Test-Path "C:/Qt/Tools/mingw810_64/bin/g++.exe")) {
-          Write-Host "Error: MinGW installation incomplete, g++.exe not found"
-          dir C:/Qt/Tools -Recurse
+        )
+        if not exist "C:/Qt/Tools/mingw810_64/bin/g++.exe" (
+          echo "Error: MinGW installation incomplete, g++.exe not found"
+          dir C:/Qt/Tools /s
           exit 1
-        }
-        # Обновление PATH для последующих шагов
-        $env:Path = "C:/Qt/Tools/mingw810_64/bin;" + $env:Path
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        Write-Host "MinGW 8.1 installation completed."
-      shell: powershell
+        )
+        echo "MinGW 8.1 installation completed."
+      shell: cmd  # Переход на cmd для консистентности
 
     # Шаг 12: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
