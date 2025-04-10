@@ -39,27 +39,17 @@ jobs:
         $chocoPath = "C:\ProgramData\Chocolatey\bin\choco.exe"
         if (Test-Path $chocoPath) {
           Write-Host "Chocolatey is already installed at $chocoPath. Upgrading Chocolatey..."
-          & $chocoPath upgrade chocolatey -y --force --execution-timeout 600
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-            Write-Host "Error: Failed to upgrade Chocolatey (exit code: $LASTEXITCODE)"
-            exit 1
-          }
+          & $chocoPath upgrade chocolatey -y --force --execution-timeout=600
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit 1 }
         } else {
           Write-Host "Chocolatey not found. Installing Chocolatey..."
           Set-ExecutionPolicy Bypass -Scope Process -Force
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
           iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install Chocolatey"
-            exit 1
-          }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
         }
         Write-Host "Verifying Chocolatey installation..."
-        & $chocoPath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Chocolatey is not functioning correctly"
-          exit 1
-        }
+        & $chocoPath --version || exit 1
         Write-Host "Refreshing environment variables..."
         Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
         refreshenv
@@ -70,11 +60,8 @@ jobs:
     - name: Install 7-Zip
       run: |
         Write-Host "Installing 7-Zip via Chocolatey..."
-        choco install 7zip -y --force --execution-timeout 600
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-          Write-Host "Error: Failed to install 7-Zip via Chocolatey (exit code: $LASTEXITCODE)"
-          exit 1
-        }
+        choco install 7zip -y --force --execution-timeout=600
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit 1 }
         Write-Host "Refreshing environment variables..."
         Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
         refreshenv
@@ -95,12 +82,8 @@ jobs:
         Write-Host "Installing Python dependencies for aqtinstall..."
         python -m pip install --upgrade pip setuptools wheel
         python -m pip install py7zr aqtinstall requests beautifulsoup4
-        python -m aqt version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Python dependencies. Check the logs above for details."
-          exit 1
-        }
-        Write-Host "Python dependencies installed successfully."
+        python -m aqt version || exit 1
+        Write-Host "Python dependencies installed successfully"
       shell: powershell
 
     # Шаг 7: Кэширование Qt
@@ -116,10 +99,8 @@ jobs:
     - name: Clean Qt directory
       run: |
         Write-Host "Cleaning Qt directory..."
-        if (Test-Path -Path "C:/Qt") {
-          Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
-        }
-        Write-Host "Qt directory cleaned."
+        Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "Qt directory cleaned"
       shell: powershell
 
     # Шаг 9: Проверка доступных архитектур и модулей Qt
@@ -137,7 +118,7 @@ jobs:
         echo "Installing Qt 5.15.2 with MinGW 8.1..."
         python -m aqt version || (echo "Error: Failed to verify aqtinstall version" && exit 1)
 
-        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras qtnetwork qtwidgets qtcore qtgui qtqml"
+        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
@@ -154,7 +135,7 @@ jobs:
             exit 1
           )
         )
-        echo "Qt 5.15.2 installation completed."
+        echo "Qt 5.15.2 installation completed"
       shell: cmd
 
     # Шаг 11: Установка MinGW 8.1 через aqtinstall
@@ -172,21 +153,21 @@ jobs:
           dir C:/Qt/Tools /s
           exit 1
         )
-        echo "MinGW 8.1 installation completed."
+        echo "MinGW 8.1 installation completed"
       shell: cmd
 
     # Шаг 12: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
       run: |
         Write-Host "Verifying Qt and MinGW installation..."
-        $qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
-        $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
-        $mingwBinPath = "C:/Qt/Tools/mingw810_64/bin"
-        $gppPath = "$mingwBinPath/g++.exe"
-        $makePath = "$mingwBinPath/mingw32-make.exe"
-        $qtCoreDll = "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll"
-
-        foreach ($path in @($qmakePath, $uicPath, $gppPath, $makePath, $qtCoreDll)) {
+        $paths = @(
+          "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe",
+          "C:/Qt/5.15.2/mingw81_64/bin/uic.exe",
+          "C:/Qt/Tools/mingw810_64/bin/g++.exe",
+          "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe",
+          "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll"
+        )
+        foreach ($path in $paths) {
           if (-not (Test-Path $path)) {
             Write-Host "Error: $path not found"
             dir C:/Qt -Recurse
@@ -194,27 +175,12 @@ jobs:
           }
         }
 
-        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;$mingwBinPath;" + $env:Path
+        $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
-        Write-Host "Qt version:"
-        & $qmakePath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: qmake --version failed"
-          exit 1
-        }
-        Write-Host "g++ version:"
-        & $gppPath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: g++ --version failed"
-          exit 1
-        }
-        Write-Host "mingw32-make version:"
-        & $makePath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: mingw32-make --version failed"
-          exit 1
-        }
+        & "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe" --version || exit 1
+        & "C:/Qt/Tools/mingw810_64/bin/g++.exe" --version || exit 1
+        & "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe" --version || exit 1
         Write-Host "Qt and MinGW setup verified successfully"
       shell: powershell
 
@@ -231,11 +197,8 @@ jobs:
     - name: Install Perl via Chocolatey
       run: |
         Write-Host "Installing Strawberry Perl via Chocolatey..."
-        choco install strawberryperl -y --force --execution-timeout 600
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-          Write-Host "Error: Failed to install Perl via Chocolatey (exit code: $LASTEXITCODE)"
-          exit 1
-        }
+        choco install strawberryperl -y --force --execution-timeout=600
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit 1 }
         Write-Host "Refreshing environment variables..."
         Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
         refreshenv
@@ -258,33 +221,16 @@ jobs:
       run: |
         if (-not (Test-Path C:/vcpkg)) {
           Write-Host "Cloning vcpkg repository..."
-          & git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to clone vcpkg repository"
-            exit 1
-          }
+          git clone https://github.com/microsoft/vcpkg.git C:/vcpkg || exit 1
         }
         Set-Location -Path C:/vcpkg
-        $commit = $env:VCPKG_COMMIT
-        Write-Host "Checking out commit $commit..."
-        & git fetch origin
-        & git checkout $commit
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to checkout commit $commit"
-          exit 1
-        }
+        Write-Host "Checking out commit $env:VCPKG_COMMIT..."
+        git fetch origin
+        git checkout $env:VCPKG_COMMIT || exit 1
         Write-Host "Running bootstrap-vcpkg..."
-        & ./bootstrap-vcpkg.bat -disableMetrics
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Bootstrap failed"
-          exit 1
-        }
+        ./bootstrap-vcpkg.bat -disableMetrics || exit 1
         Write-Host "vcpkg version:"
-        & ./vcpkg.exe --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to get vcpkg version"
-          exit 1
-        }
+        ./vcpkg.exe --version || exit 1
       shell: powershell
 
     # Шаг 17: Проверка и обновление vcpkg.json
@@ -297,19 +243,12 @@ jobs:
           dir .
           exit 1
         }
-        Write-Host "Current vcpkg.json content:"
-        Get-Content vcpkg.json
         Write-Host "Updating builtin-baseline and OpenSSL version in vcpkg.json..."
         $vcpkgJson = Get-Content -Path vcpkg.json -Raw | ConvertFrom-Json
-        $commit = $env:VCPKG_COMMIT
-        if ($vcpkgJson.PSObject.Properties.Match('builtin-baseline')) {
-          $vcpkgJson.'builtin-baseline' = $commit
-        } else {
-          $vcpkgJson | Add-Member -MemberType NoteProperty -Name "builtin-baseline" -Value $commit
-        }
-        $opensslDependency = $vcpkgJson.dependencies | Where-Object { $_.name -eq "openssl" }
-        if ($opensslDependency) {
-          $opensslDependency.'version>=' = "1.1.1n"
+        $vcpkgJson.'builtin-baseline' = $env:VCPKG_COMMIT
+        $openssl = $vcpkgJson.dependencies | Where-Object { $_.name -eq "openssl" }
+        if ($openssl) {
+          $openssl.'version>=' = "1.1.1n"
         } else {
           Write-Host "Error: OpenSSL dependency not found in vcpkg.json"
           exit 1
@@ -327,11 +266,7 @@ jobs:
         $libraries = @("libzip", "sqlite3", "zlib", "bzip2", "curl", "openssl")
         foreach ($lib in $libraries) {
           Write-Host "Searching for $lib..."
-          & ./vcpkg.exe search $lib
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to search for $lib"
-            exit 1
-          }
+          ./vcpkg.exe search $lib || exit 1
         }
       shell: powershell
 
@@ -340,17 +275,14 @@ jobs:
       run: |
         Set-Location -Path C:/vcpkg
         Write-Host "Integrating vcpkg..."
-        & ./vcpkg.exe integrate install
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Warning: vcpkg integrate install failed, proceeding without integration"
-        }
+        ./vcpkg.exe integrate install || Write-Host "Warning: vcpkg integrate install failed"
         $env:Path = "C:/vcpkg;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
-        & C:/vcpkg/vcpkg.exe install --triplet x64-mingw-dynamic --clean-after-build --x-install-root=C:/vcpkg/installed --debug 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        C:/vcpkg/vcpkg.exe install --triplet x64-mingw-dynamic --clean-after-build --x-install-root=C:/vcpkg/installed --debug 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed"
           Get-Content vcpkg_install.log
@@ -401,29 +333,18 @@ jobs:
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
 
-        Write-Host "Checking libraries in ${libDir}..."
         foreach ($lib in $libs) {
-          if (-not (Test-Path "$libDir/$lib")) {
-            $missing += "$lib"
-          }
+          if (-not (Test-Path "$libDir/$lib")) { $missing += "$lib" }
         }
-
-        Write-Host "Checking DLLs in ${binDir}..."
         foreach ($dll in $dlls) {
-          if (-not (Test-Path "$binDir/$dll")) {
-            $missing += "$dll"
-          }
+          if (-not (Test-Path "$binDir/$dll")) { $missing += "$dll" }
         }
-
-        Write-Host "Checking headers in ${includeDir}..."
         foreach ($header in $headers) {
-          if (-not (Test-Path "$includeDir/$header")) {
-            $missing += $header
-          }
+          if (-not (Test-Path "$includeDir/$header")) { $missing += "$header" }
         }
 
         if ($missing) {
-          Write-Host "Error: Missing libraries, DLLs, or header files: $missing"
+          Write-Host "Error: Missing files: $missing"
           dir $libDir -Recurse -ErrorAction SilentlyContinue
           dir $binDir -Recurse -ErrorAction SilentlyContinue
           dir $includeDir -Recurse -ErrorAction SilentlyContinue
@@ -436,7 +357,6 @@ jobs:
     - name: Verify project structure
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
-        Write-Host "Current directory: $(Get-Location)"
         $requiredFiles = @(
           "ui/DeadCode.pro",
           "src/main.cpp",
@@ -451,12 +371,7 @@ jobs:
           "icon.rc",
           "icon.ico"
         )
-        $missingFiles = @()
-        foreach ($file in $requiredFiles) {
-          if (-not (Test-Path $file)) {
-            $missingFiles += $file
-          }
-        }
+        $missingFiles = $requiredFiles | Where-Object { -not (Test-Path $_) }
         if ($missingFiles) {
           Write-Host "Error: Missing required files: $missingFiles"
           dir ui -ErrorAction SilentlyContinue
@@ -486,18 +401,10 @@ jobs:
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
         $uicPath = "C:/Qt/5.15.2/mingw81_64/bin/uic.exe"
         $outputPath = "build/release/ui_mainwindow.h"
-        if (-not (Test-Path $uicPath)) {
-          Write-Host "Error: uic.exe not found at $uicPath"
-          exit 1
-        }
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: uic.exe failed"
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $outputPath)) {
+          Write-Host "Error: uic.exe failed or $outputPath not generated"
           Get-Content uic_output.log
-          exit 1
-        }
-        if (-not (Test-Path $outputPath)) {
-          Write-Host "Error: $outputPath was not generated"
           exit 1
         }
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
@@ -507,27 +414,18 @@ jobs:
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
-        $tempDir = [System.IO.Path]::GetTempPath()
-        $env:TEMP = $tempDir
-        $env:TMP = $tempDir
-        Write-Host "TEMP set to: $env:TEMP"
-        Write-Host "TMP set to: $env:TMP"
-
+        $env:TEMP = [System.IO.Path]::GetTempPath()
+        $env:TMP = $env:TEMP
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
         $env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
         [System.Environment]::SetEnvironmentVariable("QML2_IMPORT_PATH", $env:QML2_IMPORT_PATH, [System.EnvironmentVariableTarget]::Process)
-        Write-Host "Updated PATH: $env:Path"
-        Write-Host "VCPKG_ROOT: $env:VCPKG_ROOT"
-        Write-Host "QML2_IMPORT_PATH: $env:QML2_IMPORT_PATH"
 
         $buildDate = Get-Date -Format "yyyy-MM-dd"
         $buildVersion = git rev-parse --short HEAD
-        if (-not $buildVersion) {
-          $buildVersion = "unknown"
-        }
+        if (-not $buildVersion) { $buildVersion = "unknown" }
         Write-Host "Build Date: $buildDate"
         Write-Host "Build Version: $buildVersion"
 
@@ -553,16 +451,10 @@ jobs:
         }
 
         Write-Host "Running mingw32-make with parallel jobs..."
-        $makePath = "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe"
-        & $makePath -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "../make_output.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: mingw32-make failed"
+        & "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe" -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "../make_output.log"
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path release/DeadCode.exe)) {
+          Write-Host "Error: mingw32-make failed or DeadCode.exe not generated"
           Get-Content ../make_output.log
-          exit 1
-        }
-
-        if (-not (Test-Path release/DeadCode.exe)) {
-          Write-Host "Error: DeadCode.exe was not generated in build/release/"
           dir .
           dir release
           exit 1
@@ -577,68 +469,22 @@ jobs:
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Running DeadCode.exe..."
-        try {
-          Start-Process -FilePath "release/DeadCode.exe" -NoNewWindow -Wait -RedirectStandardOutput "deadcode_output.log" -RedirectStandardError "deadcode_error.log"
-          Write-Host "DeadCode.exe executed successfully."
-          Write-Host "Standard Output:"
-          Get-Content "deadcode_output.log" -ErrorAction SilentlyContinue
-          Write-Host "Standard Error:"
-          Get-Content "deadcode_error.log" -ErrorAction SilentlyContinue
-        } catch {
-          Write-Host "Error: Failed to run DeadCode.exe"
-          Get-Content "deadcode_output.log" -ErrorAction SilentlyContinue
-          Get-Content "deadcode_error.log" -ErrorAction SilentlyContinue
-          exit 1
-        }
+        Start-Process -FilePath "release/DeadCode.exe" -NoNewWindow -Wait -RedirectStandardOutput "deadcode_output.log" -RedirectStandardError "deadcode_error.log" -ErrorAction Stop
+        Write-Host "DeadCode.exe executed successfully."
+        Write-Host "Standard Output:"; Get-Content "deadcode_output.log" -ErrorAction SilentlyContinue
+        Write-Host "Standard Error:"; Get-Content "deadcode_error.log" -ErrorAction SilentlyContinue
       shell: powershell
+      continue-on-error: true  # Продолжаем, даже если запуск завершился с ошибкой
 
     # Шаг 28: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
-        $qtBinDir = "C:/Qt/5.15.2/mingw81_64/bin"
-        $mingwBinDir = "C:/Qt/Tools/mingw810_64/bin"
-        $qtPluginsDir = "C:/Qt/5.15.2/mingw81_64/plugins"
-        $qtQmlDir = "C:/Qt/5.15.2/mingw81_64/qml"
-        $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
-
-        $requiredQtDlls = @(
-          "Qt5Core.dll",
-          "Qt5Gui.dll",
-          "Qt5Network.dll",
-          "Qt5Widgets.dll",
-          "Qt5Svg.dll",
-          "Qt5Declarative.dll",
-          "Qt5Quick.dll",
-          "Qt5QuickControls2.dll",
-          "Qt5QuickWidgets.dll",
-          "Qt5Sql.dll",
-          "Qt5Qml.dll",
-          "Qt5QmlModels.dll",
-          "Qt5QmlWorkerScript.dll"
-        )
-
-        $requiredMingwDlls = @(
-          "libwinpthread-1.dll",
-          "libgcc_s_seh-1.dll",
-          "libstdc++-6.dll"
-        )
-
-        $requiredVcpkgDlls = @(
-          "libsqlite3.dll",
-          "libzip.dll",
-          "zlib1.dll",
-          "bz2.dll",
-          "libcurl.dll",
-          "libssl.dll",
-          "libcrypto.dll"
-        )
-
         $dirs = @(
-          @{ Dlls = $requiredQtDlls; Source = $qtBinDir },
-          @{ Dlls = $requiredMingwDlls; Source = $mingwBinDir },
-          @{ Dlls = $requiredVcpkgDlls; Source = $vcpkgBinDir }
+          @{ Dlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll", "Qt5Svg.dll", "Qt5Declarative.dll", "Qt5Quick.dll", "Qt5QuickControls2.dll", "Qt5QuickWidgets.dll", "Qt5Sql.dll", "Qt5Qml.dll", "Qt5QmlModels.dll", "Qt5QmlWorkerScript.dll"); Source = "C:/Qt/5.15.2/mingw81_64/bin" },
+          @{ Dlls = @("libwinpthread-1.dll", "libgcc_s_seh-1.dll", "libstdc++-6.dll"); Source = "C:/Qt/Tools/mingw810_64/bin" },
+          @{ Dlls = @("libsqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl.dll", "libcrypto.dll"); Source = "C:/vcpkg/installed/x64-mingw-dynamic/bin" }
         )
         foreach ($dir in $dirs) {
           foreach ($dll in $dir.Dlls) {
@@ -652,22 +498,17 @@ jobs:
           }
         }
 
-        if (Test-Path "$qtPluginsDir") {
-          $pluginDirs = @(
-            @{ Source = "platforms/qwindows.dll"; Dest = "platforms" },
-            @{ Source = "styles/qwindowsvistastyle.dll"; Dest = "styles" },
-            @{ Source = "imageformats/*.dll"; Dest = "imageformats" },
-            @{ Source = "quick/*.dll"; Dest = "quick" },
-            @{ Source = "qmltooling/*.dll"; Dest = "qmltooling" },
-            @{ Source = "sqldrivers/*.dll"; Dest = "sqldrivers" }
-          )
+        $qtPluginsDir = "C:/Qt/5.15.2/mingw81_64/plugins"
+        if (Test-Path $qtPluginsDir) {
+          $pluginDirs = @("platforms/qwindows.dll", "styles/qwindowsvistastyle.dll", "imageformats/*.dll", "quick/*.dll", "qmltooling/*.dll", "sqldrivers/*.dll")
           foreach ($plugin in $pluginDirs) {
-            if (Test-Path "$qtPluginsDir/$($plugin.Source)") {
-              New-Item -Path "release/$($plugin.Dest)" -ItemType Directory -Force
-              Copy-Item -Path "$qtPluginsDir/$($plugin.Source)" -Destination "release/$($plugin.Dest)/" -Force -ErrorAction SilentlyContinue
-              Write-Host "Copied Qt plugin $($plugin.Source)"
+            $dest = $plugin -replace "[/*].*$", ""
+            if (Test-Path "$qtPluginsDir/$plugin") {
+              New-Item -Path "release/$dest" -ItemType Directory -Force
+              Copy-Item -Path "$qtPluginsDir/$plugin" -Destination "release/$dest/" -Force -ErrorAction SilentlyContinue
+              Write-Host "Copied Qt plugin $plugin"
             } else {
-              Write-Host "Warning: Qt plugin $($plugin.Source) not found in $qtPluginsDir"
+              Write-Host "Warning: Qt plugin $plugin not found"
             }
           }
         } else {
@@ -675,26 +516,16 @@ jobs:
           exit 1
         }
 
-        if (Test-Path "$qtQmlDir") {
-          $qmlModules = @(
-            "QtQml",
-            "QtQuick",
-            "QtQuick.2",
-            "QtQuick.Controls",
-            "QtQuick.Controls.2",
-            "QtQuick.Layouts",
-            "QtQuick.Templates.2",
-            "QtQuick.Window.2",
-            "QtGraphicalEffects",
-            "Qt"
-          )
+        $qtQmlDir = "C:/Qt/5.15.2/mingw81_64/qml"
+        if (Test-Path $qtQmlDir) {
+          $qmlModules = @("QtQml", "QtQuick", "QtQuick.2", "QtQuick.Controls", "QtQuick.Controls.2", "QtQuick.Layouts", "QtQuick.Templates.2", "QtQuick.Window.2", "QtGraphicalEffects", "Qt")
           foreach ($module in $qmlModules) {
             if (Test-Path "$qtQmlDir/$module") {
               New-Item -Path "release/$module" -ItemType Directory -Force
               Copy-Item -Path "$qtQmlDir/$module/*" -Destination "release/$module/" -Recurse -Force -ErrorAction SilentlyContinue
               Write-Host "Copied QML module $module"
             } else {
-              Write-Host "Warning: QML module $module not found in $qtQmlDir"
+              Write-Host "Warning: QML module $module not found"
             }
           }
         } else {
