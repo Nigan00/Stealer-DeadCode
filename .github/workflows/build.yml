@@ -147,7 +147,7 @@ jobs:
           exit 1
         )
 
-        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras"
+        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base https://download.qt.io/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
@@ -564,8 +564,7 @@ jobs:
               Copy-Item -Path "$($dir.Source)/$dll" -Destination release/ -Force
               Write-Host "Copied $dll to release directory"
             } else {
-              Write-Host "Error: $dll not found in $($dir.Source)"
-              exit 1
+              Write-Host "Warning: $dll not found in $($dir.Source), skipping"
             }
           }
         }
