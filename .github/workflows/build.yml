@@ -30,9 +30,38 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.10'  # Переходим на Python 3.10 для лучшей совместимости с aqtinstall
 
-    # Шаг 3: Проверка доступных версий aqtinstall
+    # Шаг 3: Установка Chocolatey (нужен для 7-Zip и Perl)
+    - name: Install Chocolatey
+      run: |
+        Write-Host "Installing Chocolatey..."
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Chocolatey"
+          exit 1
+        }
+        Write-Host "Chocolatey installation completed"
+      shell: powershell
+
+    # Шаг 4: Установка 7-Zip (требуется для aqtinstall)
+    - name: Install 7-Zip
+      run: |
+        Write-Host "Installing 7-Zip via Chocolatey..."
+        choco install 7zip -y --force --execution-timeout 600
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Failed to install 7-Zip via Chocolatey (exit code: $LASTEXITCODE)"
+          exit 1
+        }
+        Write-Host "Refreshing environment variables..."
+        Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
+        refreshenv
+        Write-Host "7-Zip installation completed"
+      shell: powershell
+
+    # Шаг 5: Проверка доступных версий aqtinstall
     - name: Check available aqtinstall versions
       run: |
         Write-Host "Checking available versions of aqtinstall..."
@@ -40,7 +69,7 @@ jobs:
         python -m pip index versions aqtinstall
       shell: powershell
 
-    # Шаг 4: Установка зависимостей Python для aqtinstall
+    # Шаг 6: Установка зависимостей Python для aqtinstall
     - name: Install Python dependencies for aqtinstall
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
@@ -54,16 +83,26 @@ jobs:
         Write-Host "Python dependencies installed successfully."
       shell: powershell
 
-    # Шаг 5: Кэширование Qt
+    # Шаг 7: Кэширование Qt
     - name: Cache Qt
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-5.15.2-${{ runner.os }}-mingw81_64-${{ github.event.inputs.cache-buster || '1' }}
+        key: qt-5.15.2-${{ runner.os }}-mingw81_64-${{ github.event.inputs.cache-buster || '1' }}-${{ hashFiles('.github/workflows/build.yml') }}
         restore-keys: |
           qt-5.15.2-${{ runner.os }}-mingw81_64-
 
-    # Шаг 6: Проверка доступных архитектур и модулей Qt
+    # Шаг 8: Очистка директории Qt перед установкой
+    - name: Clean Qt directory
+      run: |
+        Write-Host "Cleaning Qt directory..."
+        if (Test-Path -Path "C:/Qt") {
+          Remove-Item -Path "C:/Qt" -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "Qt directory cleaned."
+      shell: powershell
+
+    # Шаг 9: Проверка доступных архитектур и модулей Qt
     - name: Check available Qt architectures and modules
       run: |
         Write-Host "Checking available architectures for Qt 5.15.2..."
@@ -72,11 +111,11 @@ jobs:
         python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
       shell: powershell
 
-    # Шаг 7: Установка Qt 5.15.2 через aqtinstall
+    # Шаг 10: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         Write-Host "Installing Qt 5.15.2 with MinGW 8.1..."
-        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras 2>&1 | Tee-Object -FilePath "qt_install.log"
+        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --archives qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras --external 7z --timeout 600 --verbose 2>&1 | Tee-Object -FilePath "qt_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2 via aqtinstall"
           Get-Content qt_install.log
@@ -94,13 +133,14 @@ jobs:
         Write-Host "Qt 5.15.2 installation completed."
       shell: powershell
 
-    # Шаг 8: Установка MinGW 8.1 через aqtinstall
+    # Шаг 11: Установка MinGW 8.1 через aqtinstall
     - name: Install MinGW 8.1 via aqtinstall
       run: |
         Write-Host "Installing MinGW 8.1 (GCC 8) for C++17 support..."
-        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt
+        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | Tee-Object -FilePath "mingw_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install MinGW 8.1 via aqtinstall"
+          Get-Content mingw_install.log
           exit 1
         }
         # Проверка наличия g++.exe
@@ -112,7 +152,7 @@ jobs:
         Write-Host "MinGW 8.1 installation completed."
       shell: powershell
 
-    # Шаг 9: Проверка установки Qt и MinGW
+    # Шаг 12: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
       run: |
         Write-Host "Verifying Qt and MinGW installation..."
@@ -158,21 +198,7 @@ jobs:
         Write-Host "Qt and MinGW setup verified successfully"
       shell: powershell
 
-    # Шаг 10: Установка Chocolatey
-    - name: Install Chocolatey
-      run: |
-        Write-Host "Installing Chocolatey..."
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-        iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Chocolatey"
-          exit 1
-        }
-        Write-Host "Chocolatey installation completed"
-      shell: powershell
-
-    # Шаг 11: Кэширование Strawberry Perl
+    # Шаг 13: Кэширование Strawberry Perl
     - name: Cache Strawberry Perl
       uses: actions/cache@v4
       with:
@@ -181,7 +207,7 @@ jobs:
         restore-keys: |
           strawberry-perl-${{ runner.os }}-
 
-    # Шаг 12: Установка Perl (требуется для Qt)
+    # Шаг 14: Установка Perl (требуется для Qt)
     - name: Install Perl via Chocolatey
       run: |
         Write-Host "Installing Strawberry Perl via Chocolatey..."
@@ -196,7 +222,7 @@ jobs:
         Write-Host "Perl installation completed"
       shell: powershell
 
-    # Шаг 13: Кэширование vcpkg
+    # Шаг 15: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -207,7 +233,7 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
-    # Шаг 14: Очистка и обновление vcpkg
+    # Шаг 16: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
       run: |
         if (-not (Test-Path C:/vcpkg)) {
@@ -246,7 +272,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 15: Проверка и обновление vcpkg.json
+    # Шаг 17: Проверка и обновление vcpkg.json
     - name: Check and update vcpkg.json
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -296,7 +322,7 @@ jobs:
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
       shell: powershell
 
-    # Шаг 16: Проверка доступных версий библиотек
+    # Шаг 18: Проверка доступных версий библиотек
     - name: Check available library versions
       run: |
         Set-Location -Path C:/vcpkg
@@ -312,7 +338,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 17: Установка vcpkg и зависимостей
+    # Шаг 19: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         Set-Location -Path C:/vcpkg
@@ -349,7 +375,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 18: Переименование DLL
+    # Шаг 20: Переименование DLL
     - name: Rename vcpkg DLLs
       run: |
         Set-Location -Path C:/vcpkg/installed/x64-mingw-dynamic/bin
@@ -371,7 +397,7 @@ jobs:
         dir
       shell: powershell
 
-    # Шаг 19: Загрузка логов vcpkg в случае ошибки
+    # Шаг 21: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -380,7 +406,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 20: Проверка установки vcpkg
+    # Шаг 22: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-dynamic/lib"
@@ -425,7 +451,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 21: Проверка структуры проекта
+    # Шаг 23: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -464,7 +490,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 22: Исправление кодировки icon.rc
+    # Шаг 24: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -474,7 +500,7 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 23: Генерация UI-файлов
+    # Шаг 25: Генерация UI-файлов
     - name: Generate UI files
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -498,7 +524,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 24: Конфигурация и сборка проекта
+    # Шаг 26: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -570,7 +596,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 25: Тестирование запуска DeadCode.exe
+    # Шаг 27: Тестирование запуска DeadCode.exe
     - name: Test run DeadCode.exe
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
@@ -594,7 +620,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 26: Копирование необходимых DLL и плагинов Qt
+    # Шаг 28: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
@@ -714,7 +740,7 @@ jobs:
         dir release -Recurse
       shell: powershell
 
-    # Шаг 27: Загрузка логов сборки в случае ошибки
+    # Шаг 29: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -722,6 +748,7 @@ jobs:
         name: build-logs
         path: |
           Stealer-DeadCode/qt_install.log
+          Stealer-DeadCode/mingw_install.log
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
           Stealer-DeadCode/uic_output.log
@@ -730,7 +757,7 @@ jobs:
           Stealer-DeadCode/build/deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 28: Загрузка артефакта
+    # Шаг 30: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -756,7 +783,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 29: Очистка
+    # Шаг 31: Очистка
     - name: Cleanup
       if: always()
       run: |
