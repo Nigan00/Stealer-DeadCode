@@ -30,7 +30,7 @@ jobs:
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.12'  # Обновлено до 3.12
+        python-version: '3.12'
 
     # Шаг 3: Проверка и установка Chocolatey
     - name: Check and Install Chocolatey
@@ -94,7 +94,7 @@ jobs:
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install py7zr aqtinstall requests beautifulsoup4  # Убраны фиксированные версии
+        python -m pip install py7zr aqtinstall requests beautifulsoup4
         python -m aqt version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Python dependencies. Check the logs above for details."
@@ -137,7 +137,7 @@ jobs:
         echo "Installing Qt 5.15.2 with MinGW 8.1..."
         python -m aqt version || (echo "Error: Failed to verify aqtinstall version" && exit 1)
 
-        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z --verbose windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras qtnetwork qtwidgets qtcore qtgui qtqml"
+        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras qtnetwork qtwidgets qtcore qtgui qtqml"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
@@ -147,15 +147,15 @@ jobs:
           exit 1
         )
 
-        for %%f in ("C:/Qt/5.15.2/mingw81_64/bin/qmake.exe" "C:/Qt/5.15.2/mingw81_64/bin/Qt5Core.dll") do (
+        for %%f in ("C:\Qt\5.15.2\mingw81_64\bin\qmake.exe" "C:\Qt\5.15.2\mingw81_64\bin\Qt5Core.dll") do (
           if not exist %%f (
             echo "Error: Qt installation incomplete, %%f not found"
-            dir C:/Qt /s
+            dir C:\Qt /s /p
             exit 1
           )
         )
         echo "Qt 5.15.2 installation completed."
-      shell: cmd  # Переход на cmd для стабильности
+      shell: cmd
 
     # Шаг 11: Установка MinGW 8.1 через aqtinstall
     - name: Install MinGW 8.1 via aqtinstall
@@ -173,7 +173,7 @@ jobs:
           exit 1
         )
         echo "MinGW 8.1 installation completed."
-      shell: cmd  # Переход на cmd для консистентности
+      shell: cmd
 
     # Шаг 12: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
