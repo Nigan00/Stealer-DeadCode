@@ -40,16 +40,26 @@ jobs:
         if (Test-Path $chocoPath) {
           Write-Host "Chocolatey is already installed at $chocoPath. Upgrading Chocolatey..."
           & $chocoPath upgrade chocolatey -y --force --execution-timeout=600
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit 1 }
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+            Write-Host "Error: Failed to upgrade Chocolatey (exit code: $LASTEXITCODE)"
+            exit 1
+          }
         } else {
           Write-Host "Chocolatey not found. Installing Chocolatey..."
           Set-ExecutionPolicy Bypass -Scope Process -Force
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
           iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to install Chocolatey (exit code: $LASTEXITCODE)"
+            exit 1
+          }
         }
         Write-Host "Verifying Chocolatey installation..."
-        & $chocoPath --version || exit 1
+        & $chocoPath --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Chocolatey verification failed (exit code: $LASTEXITCODE)"
+          exit 1
+        }
         Write-Host "Refreshing environment variables..."
         Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
         refreshenv
@@ -61,7 +71,10 @@ jobs:
       run: |
         Write-Host "Installing 7-Zip via Chocolatey..."
         choco install 7zip -y --force --execution-timeout=600
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit 1 }
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Failed to install 7-Zip (exit code: $LASTEXITCODE)"
+          exit 1
+        }
         Write-Host "Refreshing environment variables..."
         Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
         refreshenv
@@ -74,6 +87,10 @@ jobs:
         Write-Host "Checking available versions of aqtinstall..."
         python -m pip install --upgrade pip
         python -m pip index versions aqtinstall
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to check aqtinstall versions (exit code: $LASTEXITCODE)"
+          exit 1
+        }
       shell: powershell
 
     # Шаг 6: Установка зависимостей Python для aqtinstall
@@ -82,7 +99,11 @@ jobs:
         Write-Host "Installing Python dependencies for aqtinstall..."
         python -m pip install --upgrade pip setuptools wheel
         python -m pip install py7zr aqtinstall requests beautifulsoup4
-        python -m aqt version || exit 1
+        python -m aqt version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Python dependencies (exit code: $LASTEXITCODE)"
+          exit 1
+        }
         Write-Host "Python dependencies installed successfully"
       shell: powershell
 
@@ -110,20 +131,28 @@ jobs:
         python -m aqt list-qt windows desktop --arch 5.15.2
         Write-Host "Checking available modules for Qt 5.15.2 win64_mingw81..."
         python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to list Qt architectures or modules (exit code: $LASTEXITCODE)"
+          exit 1
+        }
       shell: powershell
 
-    # Шаг 10: Установка Qt 5.15.2 через aqtinstall (Исправлено)
+    # Шаг 10: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         echo "Installing Qt 5.15.2 with MinGW 8.1..."
-        python -m aqt version || (echo "Error: Failed to verify aqtinstall version" && exit 1)
+        python -m aqt version
+        if %ERRORLEVEL% NEQ 0 (
+          echo "Error: Failed to verify aqtinstall version (exit code: %ERRORLEVEL%)"
+          exit 1
+        )
 
         set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
         if %ERRORLEVEL% NEQ 0 (
-          echo "Error: Failed to install Qt 5.15.2 via aqtinstall"
+          echo "Error: Failed to install Qt 5.15.2 via aqtinstall (exit code: %ERRORLEVEL%)"
           type qt_install.log
           exit 1
         )
@@ -144,7 +173,7 @@ jobs:
         echo "Installing MinGW 8.1 (GCC 8) for C++17 support..."
         python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | tee mingw_install.log
         if %ERRORLEVEL% NEQ 0 (
-          echo "Error: Failed to install MinGW 8.1 via aqtinstall"
+          echo "Error: Failed to install MinGW 8.1 via aqtinstall (exit code: %ERRORLEVEL%)"
           type mingw_install.log
           exit 1
         )
@@ -178,9 +207,21 @@ jobs:
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
-        & "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe" --version || exit 1
-        & "C:/Qt/Tools/mingw810_64/bin/g++.exe" --version || exit 1
-        & "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe" --version || exit 1
+        & "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe" --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: qmake --version failed (exit code: $LASTEXITCODE)"
+          exit 1
+        }
+        & "C:/Qt/Tools/mingw810_64/bin/g++.exe" --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: g++ --version failed (exit code: $LASTEXITCODE)"
+          exit 1
+        }
+        & "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe" --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: mingw32-make --version failed (exit code: $LASTEXITCODE)"
+          exit 1
+        }
         Write-Host "Qt and MinGW setup verified successfully"
       shell: powershell
 
@@ -198,7 +239,10 @@ jobs:
       run: |
         Write-Host "Installing Strawberry Perl via Chocolatey..."
         choco install strawberryperl -y --force --execution-timeout=600
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit 1 }
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Failed to install Perl (exit code: $LASTEXITCODE)"
+          exit 1
+        }
         Write-Host "Refreshing environment variables..."
         Import-Module "$env:ChocolateyInstall/helpers/chocolateyProfile.psm1" -ErrorAction SilentlyContinue
         refreshenv
@@ -221,16 +265,32 @@ jobs:
       run: |
         if (-not (Test-Path C:/vcpkg)) {
           Write-Host "Cloning vcpkg repository..."
-          git clone https://github.com/microsoft/vcpkg.git C:/vcpkg || exit 1
+          git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to clone vcpkg repository (exit code: $LASTEXITCODE)"
+            exit 1
+          }
         }
         Set-Location -Path C:/vcpkg
         Write-Host "Checking out commit $env:VCPKG_COMMIT..."
         git fetch origin
-        git checkout $env:VCPKG_COMMIT || exit 1
+        git checkout $env:VCPKG_COMMIT
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to checkout commit $env:VCPKG_COMMIT (exit code: $LASTEXITCODE)"
+          exit 1
+        }
         Write-Host "Running bootstrap-vcpkg..."
-        ./bootstrap-vcpkg.bat -disableMetrics || exit 1
+        ./bootstrap-vcpkg.bat -disableMetrics
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Bootstrap failed (exit code: $LASTEXITCODE)"
+          exit 1
+        }
         Write-Host "vcpkg version:"
-        ./vcpkg.exe --version || exit 1
+        ./vcpkg.exe --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to get vcpkg version (exit code: $LASTEXITCODE)"
+          exit 1
+        }
       shell: powershell
 
     # Шаг 17: Проверка и обновление vcpkg.json
@@ -266,7 +326,11 @@ jobs:
         $libraries = @("libzip", "sqlite3", "zlib", "bzip2", "curl", "openssl")
         foreach ($lib in $libraries) {
           Write-Host "Searching for $lib..."
-          ./vcpkg.exe search $lib || exit 1
+          ./vcpkg.exe search $lib
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Failed to search for $lib (exit code: $LASTEXITCODE)"
+            exit 1
+          }
         }
       shell: powershell
 
@@ -275,7 +339,10 @@ jobs:
       run: |
         Set-Location -Path C:/vcpkg
         Write-Host "Integrating vcpkg..."
-        ./vcpkg.exe integrate install || Write-Host "Warning: vcpkg integrate install failed"
+        ./vcpkg.exe integrate install
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Warning: vcpkg integrate install failed, proceeding without integration"
+        }
         $env:Path = "C:/vcpkg;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
@@ -284,7 +351,7 @@ jobs:
         Write-Host "Installing vcpkg dependencies with triplet x64-mingw-dynamic..."
         C:/vcpkg/vcpkg.exe install --triplet x64-mingw-dynamic --clean-after-build --x-install-root=C:/vcpkg/installed --debug 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: vcpkg install failed"
+          Write-Host "Error: vcpkg install failed (exit code: $LASTEXITCODE)"
           Get-Content vcpkg_install.log
           exit 1
         }
@@ -333,6 +400,7 @@ jobs:
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
 
+        Write-Host "Checking vcpkg installation..."
         foreach ($lib in $libs) {
           if (-not (Test-Path "$libDir/$lib")) { $missing += "$lib" }
         }
@@ -403,7 +471,7 @@ jobs:
         $outputPath = "build/release/ui_mainwindow.h"
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $outputPath)) {
-          Write-Host "Error: uic.exe failed or $outputPath not generated"
+          Write-Host "Error: uic.exe failed or $outputPath not generated (exit code: $LASTEXITCODE)"
           Get-Content uic_output.log
           exit 1
         }
@@ -445,7 +513,7 @@ jobs:
         )
         & $qmakePath $qmakeArgs 2>&1 | Tee-Object -FilePath "../qmake_output.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: qmake failed"
+          Write-Host "Error: qmake failed (exit code: $LASTEXITCODE)"
           Get-Content ../qmake_output.log
           exit 1
         }
@@ -453,7 +521,7 @@ jobs:
         Write-Host "Running mingw32-make with parallel jobs..."
         & "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe" -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "../make_output.log"
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path release/DeadCode.exe)) {
-          Write-Host "Error: mingw32-make failed or DeadCode.exe not generated"
+          Write-Host "Error: mingw32-make failed or DeadCode.exe not generated (exit code: $LASTEXITCODE)"
           Get-Content ../make_output.log
           dir .
           dir release
@@ -469,12 +537,16 @@ jobs:
         $env:Path = "C:/Qt/5.15.2/mingw81_64/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Running DeadCode.exe..."
-        Start-Process -FilePath "release/DeadCode.exe" -NoNewWindow -Wait -RedirectStandardOutput "deadcode_output.log" -RedirectStandardError "deadcode_error.log" -ErrorAction Stop
-        Write-Host "DeadCode.exe executed successfully."
+        try {
+          Start-Process -FilePath "release/DeadCode.exe" -NoNewWindow -Wait -RedirectStandardOutput "deadcode_output.log" -RedirectStandardError "deadcode_error.log" -ErrorAction Stop
+          Write-Host "DeadCode.exe executed successfully."
+        } catch {
+          Write-Host "Warning: Failed to run DeadCode.exe, continuing anyway"
+        }
         Write-Host "Standard Output:"; Get-Content "deadcode_output.log" -ErrorAction SilentlyContinue
         Write-Host "Standard Error:"; Get-Content "deadcode_error.log" -ErrorAction SilentlyContinue
       shell: powershell
-      continue-on-error: true  # Продолжаем, даже если запуск завершился с ошибкой
+      continue-on-error: true
 
     # Шаг 28: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
