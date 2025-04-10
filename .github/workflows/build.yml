@@ -131,13 +131,15 @@ jobs:
         python -m aqt list-qt windows desktop --arch 5.15.2
         Write-Host "Checking available modules for Qt 5.15.2 win64_mingw81..."
         python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
+        Write-Host "Checking detailed package info for Qt 5.15.2 win64_mingw81..."
+        python -m aqt list-qt windows desktop --spec 5.15.2 win64_mingw81
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to list Qt architectures or modules (exit code: $LASTEXITCODE)"
           exit 1
         }
       shell: powershell
 
-    # Шаг 10: Установка Qt 5.15.2 через aqtinstall
+    # Шаг 10: Установка Qt 5.15.2 через aqtinstall (исправленный)
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         echo "Installing Qt 5.15.2 with MinGW 8.1..."
@@ -147,7 +149,7 @@ jobs:
           exit 1
         )
 
-        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base https://download.qt.io/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras"
+        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base https://download.qt.io/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtwinextras"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log

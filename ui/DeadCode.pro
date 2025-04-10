@@ -1,8 +1,10 @@
-# Основные модули Qt (синхронизированы с build.yml и aqtinstall)
-QT += core gui network widgets qml quick svg declarative quickcontrols quickcontrols2 graphicaleffects sql quicktimeline quick3d winextras
+# Основные модули Qt (синхронизированы с build.yml)
+QT += core gui network widgets qml quick svg declarative quickcontrols quickcontrols2 graphicaleffects sql winextras
 
-# Указываем минимальную версию Qt
-requires(qtConfig(version >= 5.15))
+# Проверка минимальной версии Qt
+lessThan(QT_MAJOR_VERSION, 5) | lessThan(QT_MINOR_VERSION, 15) {
+    error("Qt 5.15 or higher is required")
+}
 
 # Имя цели и тип приложения
 TARGET = DeadCode
@@ -10,9 +12,6 @@ TEMPLATE = app
 
 # Конфигурация для релиза (динамическая сборка Qt)
 CONFIG += release
-
-# Указываем спецификацию для MinGW (синхронизировано с build.yml)
-QMAKE_SPEC = win32-g++
 
 # Исходные файлы
 SOURCES += \
@@ -137,6 +136,3 @@ PRE_TARGETDEPS += \
     $$PWD/../src/junk_code.h \
     $$PWD/../src/stealerworker.h \
     $$PWD/../src/compat.h
-
-# Поддержка параллельной сборки (работает локально, в build.yml используется -j4)
-QMAKE_EXTRA_TARGETS += -j4
