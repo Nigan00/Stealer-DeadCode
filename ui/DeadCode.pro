@@ -1,9 +1,9 @@
 # Основные модули Qt (синхронизированы с build.yml)
-QT += core gui network widgets qml quick svg declarative quickcontrols quickcontrols2 graphicaleffects sql winextras
+QT += core gui network widgets qml quick svg quickcontrols quickcontrols2 graphicaleffects sql winextras
 
 # Проверка минимальной версии Qt
 lessThan(QT_MAJOR_VERSION, 5) | lessThan(QT_MINOR_VERSION, 15) {
-    error("Qt 5.15 or higher is required")
+    error("Qt 5.15.2 or higher is required. Current version: $$QT_VERSION")
 }
 
 # Имя цели и тип приложения
@@ -92,8 +92,7 @@ QMAKE_CXXFLAGS += \
 # Флаги линковщика (синхронизированы с build.yml)
 QMAKE_LFLAGS += \
     -O2 \
-    -Wl,-subsystem,windows \
-    -Wl,--allow-multiple-definition
+    -Wl,-subsystem,windows
 
 # Директории для сборки
 DESTDIR = $$PWD/../build/release
@@ -109,25 +108,6 @@ QMAKE_CLEAN += \
     $$MOC_DIR/moc_*.cpp \
     $$UI_DIR/ui_*.h \
     $$RCC_DIR/qrc_*.cpp
-
-# Настройки для Windows
-win32 {
-    CONFIG(debug, debug|release) {
-        QMAKE_CXXFLAGS += -g
-        QMAKE_LFLAGS -= -O2
-        DESTDIR = $$PWD/../build/debug
-        OBJECTS_DIR = $$PWD/../build/debug
-        MOC_DIR = $$PWD/../build/debug
-        UI_DIR = $$PWD/../build/debug
-        RCC_DIR = $$PWD/../build/debug
-        QMAKE_CLEAN += \
-            $$DESTDIR/DeadCode.exe \
-            $$OBJECTS_DIR/*.o \
-            $$MOC_DIR/moc_*.cpp \
-            $$UI_DIR/ui_*.h \
-            $$RCC_DIR/qrc_*.cpp
-    }
-}
 
 # Зависимости для пересборки
 PRE_TARGETDEPS += \

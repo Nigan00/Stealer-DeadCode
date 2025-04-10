@@ -131,15 +131,13 @@ jobs:
         python -m aqt list-qt windows desktop --arch 5.15.2
         Write-Host "Checking available modules for Qt 5.15.2 win64_mingw81..."
         python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
-        Write-Host "Checking detailed package info for Qt 5.15.2 win64_mingw81..."
-        python -m aqt list-qt windows desktop --spec 5.15.2 win64_mingw81
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to list Qt architectures or modules (exit code: $LASTEXITCODE)"
           exit 1
         }
       shell: powershell
 
-    # Шаг 10: Установка Qt 5.15.2 через aqtinstall (исправленный)
+    # Шаг 10: Установка Qt 5.15.2 через aqtinstall
     - name: Install Qt 5.15.2 via aqtinstall
       run: |
         echo "Installing Qt 5.15.2 with MinGW 8.1..."
@@ -149,7 +147,8 @@ jobs:
           exit 1
         )
 
-        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base https://download.qt.io/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtwinextras"
+        set "QT_MODULES=qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtwinextras"
+        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base https://download.qt.io/ --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m %QT_MODULES%"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
@@ -556,7 +555,7 @@ jobs:
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
         $dirs = @(
-          @{ Dlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll", "Qt5Svg.dll", "Qt5Declarative.dll", "Qt5Quick.dll", "Qt5QuickControls2.dll", "Qt5QuickWidgets.dll", "Qt5Sql.dll", "Qt5Qml.dll", "Qt5QmlModels.dll", "Qt5QmlWorkerScript.dll"); Source = "C:/Qt/5.15.2/mingw81_64/bin" },
+          @{ Dlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll", "Qt5Svg.dll", "Qt5Declarative.dll", "Qt5Quick.dll", "Qt5QuickControls2.dll", "Qt5Sql.dll", "Qt5Qml.dll", "Qt5QmlModels.dll", "Qt5QmlWorkerScript.dll"); Source = "C:/Qt/5.15.2/mingw81_64/bin" },
           @{ Dlls = @("libwinpthread-1.dll", "libgcc_s_seh-1.dll", "libstdc++-6.dll"); Source = "C:/Qt/Tools/mingw810_64/bin" },
           @{ Dlls = @("libsqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl.dll", "libcrypto.dll"); Source = "C:/vcpkg/installed/x64-mingw-dynamic/bin" }
         )
