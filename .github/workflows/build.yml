@@ -142,16 +142,12 @@ jobs:
           exit 1
         }
 
-        # Установка Qt с использованием явной команды вместо массива
-        python -m aqt install-qt `
-          --outputdir "C:/Qt" `
-          --base "http://mirrors.ocf.berkeley.edu/qt/" `
-          --timeout 600 `
-          --external "7z" `
-          --verbose `
-          windows desktop 5.15.2 win64_mingw81 `
-          -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras qtnetwork qtwidgets qtcore qtgui qtqml `
-          2>&1 | Tee-Object -FilePath "qt_install.log"
+        # Формирование команды в одну строку
+        $qtInstallCommand = "python -m aqt install-qt --outputdir C:/Qt --base http://mirrors.ocf.berkeley.edu/qt/ --timeout 600 --external 7z --verbose windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtgraphicaleffects qtimageformats qtsql qtquick qtquicktimeline qtquick3d qtwinextras qtnetwork qtwidgets qtcore qtgui qtqml"
+        Write-Host "Executing command: $qtInstallCommand"
+
+        # Выполнение команды с перенаправлением вывода
+        Invoke-Expression $qtInstallCommand 2>&1 | Tee-Object -FilePath "qt_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2 via aqtinstall"
           Get-Content qt_install.log
