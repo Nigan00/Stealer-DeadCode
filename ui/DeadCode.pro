@@ -1,9 +1,9 @@
 # Основные модули Qt (синхронизированы с build.yml)
-QT += core gui network widgets qml quick svg quickcontrols quickcontrols2 sql winextras declarative
+QT += core gui network widgets qml quick svg quickcontrols quickcontrols2 sql
 
 # Проверка минимальной версии Qt
 lessThan(QT_MAJOR_VERSION, 5) | lessThan(QT_MINOR_VERSION, 15) {
-    error("Qt 5.15.2 or higher is required. Current version: $$QT_VERSION")
+    error("Qt 5.15.10 or higher is required. Current version: $$QT_VERSION")
 }
 
 # Имя цели и тип приложения
@@ -39,7 +39,7 @@ VCPKG_INCLUDE_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/include
 isEmpty(VCPKG_INCLUDE_DIR):VCPKG_INCLUDE_DIR = C:/vcpkg/installed/x64-mingw-dynamic/include
 
 QT_DIR = $$(QT_ROOT)
-isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/win64_mingw81
+isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.10/win64_mingw81
 
 INCLUDEPATH += \
     $$PWD/../src \
