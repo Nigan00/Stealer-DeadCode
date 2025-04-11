@@ -39,7 +39,7 @@ VCPKG_INCLUDE_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/include
 isEmpty(VCPKG_INCLUDE_DIR):VCPKG_INCLUDE_DIR = C:/vcpkg/installed/x64-mingw-dynamic/include
 
 QT_DIR = $$(QT_ROOT)
-isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/win64_mingw73
+isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/win64_mingw81
 
 INCLUDEPATH += \
     $$PWD/../src \
