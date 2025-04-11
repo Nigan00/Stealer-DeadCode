@@ -1,16 +1,16 @@
 # Основные модули Qt (синхронизированы с build.yml)
-QT += core gui network widgets qml quick svg quickcontrols quickcontrols2 sql
+QT += core gui network widgets qml quick svg quickcontrols2 sql
 
 # Проверка минимальной версии Qt
 lessThan(QT_MAJOR_VERSION, 5) | lessThan(QT_MINOR_VERSION, 15) {
-    error("Qt 5.15.10 or higher is required. Current version: $$QT_VERSION")
+    error("Qt 5.15.2 or higher is required. Current version: $$QT_VERSION")
 }
 
 # Имя цели и тип приложения
 TARGET = DeadCode
 TEMPLATE = app
 
-# Конфигурация для релиза (динамическая сборка Qt)
+# Конфигурация для релиза
 CONFIG += release qtquickcompiler
 
 # Исходные файлы
@@ -39,7 +39,7 @@ VCPKG_INCLUDE_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/include
 isEmpty(VCPKG_INCLUDE_DIR):VCPKG_INCLUDE_DIR = C:/vcpkg/installed/x64-mingw-dynamic/include
 
 QT_DIR = $$(QT_ROOT)
-isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.10/win64_mingw81
+isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/win64_mingw81
 
 INCLUDEPATH += \
     $$PWD/../src \
@@ -47,11 +47,11 @@ INCLUDEPATH += \
     $$VCPKG_INCLUDE_DIR \
     $$QT_DIR/include
 
-# Пути для поиска QML-модулей (для Qt Creator и runtime через QML2_IMPORT_PATH в build.yml)
+# Пути для поиска QML-модулей
 QML_IMPORT_PATH += \
     $$QT_DIR/qml
 
-# Библиотеки для линковки (синхронизированы с build.yml и vcpkg)
+# Библиотеки для линковки (синхронизированы с vcpkg)
 VCPKG_LIB_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/lib
 isEmpty(VCPKG_LIB_DIR):VCPKG_LIB_DIR = C:/vcpkg/installed/x64-mingw-dynamic/lib
 
@@ -70,7 +70,7 @@ LIBS += -L$$VCPKG_LIB_DIR \
     -luser32 \
     -ladvapi32
 
-# Флаги компилятора (синхронизированы с build.yml)
+# Флаги компилятора
 QMAKE_CXXFLAGS += \
     -O2 \
     -std=c++17 \
@@ -84,12 +84,11 @@ QMAKE_CXXFLAGS += \
     -DQT_NO_DEBUG \
     -D_CRT_SECURE_NO_WARNINGS \
     -Wno-deprecated-declarations \
-    -Wno-cast-function-type \
     -Wno-unused-parameter \
     -Wno-sign-compare \
     -Wno-attributes
 
-# Флаги линковщика (синхронизированы с build.yml)
+# Флаги линковщика
 QMAKE_LFLAGS += \
     -O2 \
     -Wl,-subsystem,windows
