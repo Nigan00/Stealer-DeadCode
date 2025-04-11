@@ -101,7 +101,7 @@ jobs:
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install py7zr aqtinstall requests beautifulsoup4
+        python -m pip install py7zr aqtinstall==3.2.1 requests beautifulsoup4
         python -m aqt version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Python dependencies (exit code: $LASTEXITCODE)"
@@ -110,7 +110,25 @@ jobs:
         Write-Host "Python dependencies installed successfully"
       shell: powershell
 
-    # Шаг 7: Кэширование Qt
+    # Шаг 7: Создание конфигурационного файла для aqtinstall
+    - name: Create aqtinstall configuration file
+      run: |
+        Write-Host "Creating aqtinstall settings.ini..."
+        New-Item -Path "aqt_settings.ini" -ItemType File -Force
+        Set-Content -Path "aqt_settings.ini" -Value @"
+        [mirrors]
+        trusted_mirrors = https://download.qt.io, https://mirrors.tuna.tsinghua.edu.cn/qt, https://mirror.nju.edu.cn/qt
+        preferred_mirror = https://download.qt.io
+
+        [requests]
+        max_retries_to_retrieve_hash = 5
+        timeout = 60
+        "@
+        Write-Host "aqtinstall settings.ini created with content:"
+        Get-Content -Path "aqt_settings.ini"
+      shell: powershell
+
+    # Шаг 8: Кэширование Qt
     - name: Cache Qt
       uses: actions/cache@v4
       with:
@@ -119,7 +137,7 @@ jobs:
         restore-keys: |
           qt-5.15.10-${{ runner.os }}-win64_mingw81-
 
-    # Шаг 8: Очистка директории Qt перед установкой
+    # Шаг 9: Очистка директории Qt перед установкой
     - name: Clean Qt directory
       run: |
         Write-Host "Cleaning Qt directory..."
@@ -127,30 +145,31 @@ jobs:
         Write-Host "Qt directory cleaned"
       shell: powershell
 
-    # Шаг 9: Проверка доступных архитектур и модулей Qt
+    # Шаг 10: Проверка доступных архитектур и модулей Qt (необязательный)
     - name: Check available Qt architectures and modules
       run: |
         Write-Host "Checking available architectures for Qt 5.15.10..."
-        python -m aqt list-qt windows desktop --arch 5.15.10
+        python -m aqt list-qt windows desktop --arch 5.15.10 --config aqt_settings.ini 2>&1 | Tee-Object -FilePath "qt_list_arch.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to list architectures (exit code: $LASTEXITCODE)"
-          exit 1
+          Write-Host "Warning: Failed to list architectures (exit code: $LASTEXITCODE). Proceeding anyway."
+          Get-Content "qt_list_arch.log"
         }
         Write-Host "Checking available modules for Qt 5.15.10 win64_mingw81..."
-        python -m aqt list-qt windows desktop --modules 5.15.10 win64_mingw81
+        python -m aqt list-qt windows desktop --modules 5.15.10 win64_mingw81 --config aqt_settings.ini 2>&1 | Tee-Object -FilePath "qt_list_modules.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to list modules for win64_mingw81 (exit code: $LASTEXITCODE)"
-          exit 1
+          Write-Host "Warning: Failed to list modules for win64_mingw81 (exit code: $LASTEXITCODE). Proceeding anyway."
+          Get-Content "qt_list_modules.log"
         }
         Write-Host "Checking available Qt versions..."
-        python -m aqt list-qt windows desktop
+        python -m aqt list-qt windows desktop --config aqt_settings.ini 2>&1 | Tee-Object -FilePath "qt_list_versions.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to list Qt versions (exit code: $LASTEXITCODE)"
-          exit 1
+          Write-Host "Warning: Failed to list Qt versions (exit code: $LASTEXITCODE). Proceeding anyway."
+          Get-Content "qt_list_versions.log"
         }
       shell: powershell
+      continue-on-error: true
 
-    # Шаг 10: Установка Qt 5.15.10 через aqtinstall
+    # Шаг 11: Установка Qt 5.15.10 через aqtinstall
     - name: Install Qt 5.15.10 via aqtinstall
       run: |
         echo "Installing Qt 5.15.10 with MinGW 8.1..."
@@ -161,7 +180,7 @@ jobs:
         )
 
         set "QT_MODULES=qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtimageformats qtsql qtquick"
-        set "QT_INSTALL_CMD=python -m aqt install-qt --outputdir C:/Qt --base https://download.qt.io/ --timeout 600 --external 7z windows desktop 5.15.10 win64_mingw81 -m %QT_MODULES%"
+        set "QT_INSTALL_CMD=python -m aqt install-qt --config aqt_settings.ini --outputdir C:/Qt --timeout 600 --external 7z windows desktop 5.15.10 win64_mingw81 -m %QT_MODULES%"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
@@ -181,11 +200,11 @@ jobs:
         echo "Qt 5.15.10 installation completed"
       shell: cmd
 
-    # Шаг 11: Установка MinGW 8.1 через aqtinstall
+    # Шаг 12: Установка MinGW 8.1 через aqtinstall
     - name: Install MinGW 8.1 via aqtinstall
       run: |
         echo "Installing MinGW 8.1 (GCC 8) for C++17 support..."
-        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | tee mingw_install.log
+        python -m aqt install-tool --config aqt_settings.ini windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | tee mingw_install.log
         if %ERRORLEVEL% NEQ 0 (
           echo "Error: Failed to install MinGW 8.1 via aqtinstall (exit code: %ERRORLEVEL%)"
           type mingw_install.log
@@ -199,7 +218,7 @@ jobs:
         echo "MinGW 8.1 installation completed"
       shell: cmd
 
-    # Шаг 12: Проверка установки Qt и MinGW
+    # Шаг 13: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
       run: |
         Write-Host "Verifying Qt and MinGW installation..."
@@ -239,7 +258,7 @@ jobs:
         Write-Host "Qt and MinGW setup verified successfully"
       shell: powershell
 
-    # Шаг 13: Кэширование Strawberry Perl
+    # Шаг 14: Кэширование Strawberry Perl
     - name: Cache Strawberry Perl
       uses: actions/cache@v4
       with:
@@ -248,7 +267,7 @@ jobs:
         restore-keys: |
           strawberry-perl-${{ runner.os }}-
 
-    # Шаг 14: Установка Perl
+    # Шаг 15: Установка Perl
     - name: Install Perl via Chocolatey
       run: |
         Write-Host "Installing Strawberry Perl via Chocolatey..."
@@ -263,7 +282,7 @@ jobs:
         Write-Host "Perl installation completed"
       shell: powershell
 
-    # Шаг 15: Кэширование vcpkg
+    # Шаг 16: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -274,7 +293,7 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
-    # Шаг 16: Очистка и обновление vcpkg
+    # Шаг 17: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
       run: |
         if (-not (Test-Path C:/vcpkg)) {
@@ -307,7 +326,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 17: Проверка и обновление vcpkg.json
+    # Шаг 18: Проверка и обновление vcpkg.json
     - name: Check and update vcpkg.json
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -332,7 +351,7 @@ jobs:
         Get-Content vcpkg.json
       shell: powershell
 
-    # Шаг 18: Проверка доступных версий библиотек
+    # Шаг 19: Проверка доступных версий библиотек
     - name: Check available library versions
       run: |
         Set-Location -Path C:/vcpkg
@@ -348,7 +367,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 19: Установка vcpkg и зависимостей
+    # Шаг 20: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         Set-Location -Path C:/vcpkg
@@ -372,7 +391,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 20: Переименование DLL
+    # Шаг 21: Переименование DLL
     - name: Rename vcpkg DLLs
       run: |
         Set-Location -Path C:/vcpkg/installed/x64-mingw-dynamic/bin
@@ -394,7 +413,7 @@ jobs:
         dir
       shell: powershell
 
-    # Шаг 21: Загрузка логов vcpkg в случае ошибки
+    # Шаг 22: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -403,7 +422,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 22: Проверка установки vcpkg
+    # Шаг 23: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:/vcpkg/installed/x64-mingw-dynamic/lib"
@@ -435,7 +454,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 23: Проверка структуры проекта
+    # Шаг 24: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -466,7 +485,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 24: Исправление кодировки icon.rc
+    # Шаг 25: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -476,7 +495,7 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 25: Генерация UI-файлов
+    # Шаг 26: Генерация UI-файлов
     - name: Generate UI files
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -492,7 +511,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully at $outputPath"
       shell: powershell
 
-    # Шаг 26: Конфигурация и сборка проекта
+    # Шаг 27: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
@@ -544,7 +563,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 27: Тестирование запуска DeadCode.exe
+    # Шаг 28: Тестирование запуска DeadCode.exe
     - name: Test run DeadCode.exe
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
@@ -562,7 +581,7 @@ jobs:
       shell: powershell
       continue-on-error: true
 
-    # Шаг 28: Копирование необходимых DLL и плагинов Qt
+    # Шаг 29: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
@@ -622,7 +641,7 @@ jobs:
         dir release -Recurse
       shell: powershell
 
-    # Шаг 29: Загрузка логов сборки в случае ошибки
+    # Шаг 30: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -637,9 +656,12 @@ jobs:
           Stealer-DeadCode/vcpkg_install.log
           Stealer-DeadCode/build/deadcode_output.log
           Stealer-DeadCode/build/deadcode_error.log
+          Stealer-DeadCode/qt_list_arch.log
+          Stealer-DeadCode/qt_list_modules.log
+          Stealer-DeadCode/qt_list_versions.log
         if-no-files-found: warn
 
-    # Шаг 30: Загрузка артефакта
+    # Шаг 31: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -664,7 +686,7 @@ jobs:
           Stealer-DeadCode/build/release/Qt/**/*
         if-no-files-found: error
 
-    # Шаг 31: Очистка
+    # Шаг 32: Очистка
     - name: Cleanup
       if: always()
       run: |
