@@ -117,12 +117,12 @@ jobs:
         New-Item -Path "aqt_settings.ini" -ItemType File -Force
         Set-Content -Path "aqt_settings.ini" -Value @"
         [mirrors]
-        trusted_mirrors = https://download.qt.io, https://mirrors.tuna.tsinghua.edu.cn/qt, https://mirror.nju.edu.cn/qt
+        trusted_mirrors = https://download.qt.io, https://mirrors.tuna.tsinghua.edu.cn/qt, https://mirror.nju.edu.cn/qt, https://qt-mirror.dannhauer.de, http://mirrors.dotsrc.org/qtproject
         preferred_mirror = https://download.qt.io
 
         [requests]
-        max_retries_to_retrieve_hash = 5
-        timeout = 60
+        max_retries_to_retrieve_hash = 10
+        timeout = 120
         "@
         Write-Host "aqtinstall settings.ini created with content:"
         Get-Content -Path "aqt_settings.ini"
@@ -148,23 +148,37 @@ jobs:
     # Шаг 10: Проверка доступных архитектур и модулей Qt (необязательный)
     - name: Check available Qt architectures and modules
       run: |
+        Write-Host "Testing mirror availability..."
+        $mirrors = @("https://download.qt.io", "https://mirrors.tuna.tsinghua.edu.cn/qt", "https://mirror.nju.edu.cn/qt", "https://qt-mirror.dannhauer.de", "http://mirrors.dotsrc.org/qtproject")
+        foreach ($mirror in $mirrors) {
+          Write-Host "Testing $mirror..."
+          try {
+            Invoke-WebRequest -Uri "$mirror/online/qtsdkrepository/windows_x86/root/qt/Updates.xml" -TimeoutSec 10 -Method Head | Out-Null
+            Write-Host "$mirror is accessible"
+          } catch {
+            Write-Host "Warning: $mirror is not accessible - $($_.Exception.Message)"
+          }
+        }
+
+        Write-Host "Checking all available Qt versions for windows desktop..."
+        python -m aqt -c aqt_settings.ini list-qt windows desktop 2>&1 | Tee-Object -FilePath "qt_list_versions.log"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Warning: Failed to list Qt versions (exit code: $LASTEXITCODE). Proceeding anyway."
+          Get-Content "qt_list_versions.log"
+        }
+
         Write-Host "Checking available architectures for Qt 5.15.10..."
         python -m aqt -c aqt_settings.ini list-qt windows desktop --arch 5.15.10 2>&1 | Tee-Object -FilePath "qt_list_arch.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Warning: Failed to list architectures (exit code: $LASTEXITCODE). Proceeding anyway."
           Get-Content "qt_list_arch.log"
         }
+
         Write-Host "Checking available modules for Qt 5.15.10 win64_mingw81..."
         python -m aqt -c aqt_settings.ini list-qt windows desktop --modules 5.15.10 win64_mingw81 2>&1 | Tee-Object -FilePath "qt_list_modules.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Warning: Failed to list modules for win64_mingw81 (exit code: $LASTEXITCODE). Proceeding anyway."
           Get-Content "qt_list_modules.log"
-        }
-        Write-Host "Checking available Qt versions..."
-        python -m aqt -c aqt_settings.ini list-qt windows desktop 2>&1 | Tee-Object -FilePath "qt_list_versions.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Warning: Failed to list Qt versions (exit code: $LASTEXITCODE). Proceeding anyway."
-          Get-Content "qt_list_versions.log"
         }
       shell: powershell
       continue-on-error: true
@@ -180,24 +194,35 @@ jobs:
         )
 
         set "QT_MODULES=qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtimageformats qtsql qtquick"
-        set "QT_INSTALL_CMD=python -m aqt -c aqt_settings.ini install-qt --outputdir C:/Qt --timeout 600 --external 7z windows desktop 5.15.10 win64_mingw81 -m %QT_MODULES%"
+        set "QT_INSTALL_CMD=python -m aqt -c aqt_settings.ini install-qt --outputdir C:/Qt --timeout 600 --external 7z windows desktop 5.15.10 win64_mingw81 -m %QT_MODULES% --noarchives"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
         if %ERRORLEVEL% NEQ 0 (
           echo "Error: Failed to install Qt 5.15.10 via aqtinstall (exit code: %ERRORLEVEL%)"
-          type qt_install.log
-          exit 1
-        )
-
-        for %%f in ("C:\Qt\5.15.10\win64_mingw81\bin\qmake.exe" "C:\Qt\5.15.10\win64_mingw81\bin\Qt5Core.dll") do (
-          if not exist %%f (
-            echo "Error: Qt installation incomplete, %%f not found"
-            dir C:\Qt /s /p
+          echo "Retrying with Qt 5.15.2 as fallback..."
+          set "QT_INSTALL_CMD=python -m aqt -c aqt_settings.ini install-qt --outputdir C:/Qt --timeout 600 --external 7z windows desktop 5.15.2 win64_mingw81 -m %QT_MODULES% --noarchives"
+          cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install_fallback.log
+          if %ERRORLEVEL% NEQ 0 (
+            echo "Error: Fallback to Qt 5.15.2 also failed (exit code: %ERRORLEVEL%)"
+            type qt_install_fallback.log
             exit 1
           )
         )
-        echo "Qt 5.15.10 installation completed"
+
+        set "QT_VERSION=5.15.10"
+        if not exist "C:\Qt\5.15.10\win64_mingw81\bin\qmake.exe" (
+          set "QT_VERSION=5.15.2"
+          for %%f in ("C:\Qt\5.15.2\win64_mingw81\bin\qmake.exe" "C:\Qt\5.15.2\win64_mingw81\bin\Qt5Core.dll") do (
+            if not exist %%f (
+              echo "Error: Qt installation incomplete, %%f not found"
+              dir C:\Qt /s /p
+              exit 1
+            )
+          )
+        )
+        echo "Qt installation completed (version %QT_VERSION%)"
+        echo "QT_VERSION=%QT_VERSION%" >> %GITHUB_ENV%
       shell: cmd
 
     # Шаг 12: Установка MinGW 8.1 через aqtinstall
@@ -222,12 +247,13 @@ jobs:
     - name: Verify Qt and MinGW installation
       run: |
         Write-Host "Verifying Qt and MinGW installation..."
+        $qtVersion = $env:QT_VERSION
         $paths = @(
-          "C:/Qt/5.15.10/win64_mingw81/bin/qmake.exe",
-          "C:/Qt/5.15.10/win64_mingw81/bin/uic.exe",
+          "C:/Qt/$qtVersion/win64_mingw81/bin/qmake.exe",
+          "C:/Qt/$qtVersion/win64_mingw81/bin/uic.exe",
           "C:/Qt/Tools/mingw810_64/bin/g++.exe",
           "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe",
-          "C:/Qt/5.15.10/win64_mingw81/bin/Qt5Core.dll"
+          "C:/Qt/$qtVersion/win64_mingw81/bin/Qt5Core.dll"
         )
         foreach ($path in $paths) {
           if (-not (Test-Path $path)) {
@@ -237,10 +263,10 @@ jobs:
           }
         }
 
-        $env:Path = "C:/Qt/5.15.10/win64_mingw81/bin;C:/Qt/Tools/mingw810_64/bin;" + $env:Path
+        $env:Path = "C:/Qt/$qtVersion/win64_mingw81/bin;C:/Qt/Tools/mingw810_64/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
 
-        & "C:/Qt/5.15.10/win64_mingw81/bin/qmake.exe" --version
+        & "qmake.exe" --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake --version failed (exit code: $LASTEXITCODE)"
           exit 1
@@ -255,7 +281,7 @@ jobs:
           Write-Host "Error: mingw32-make --version failed (exit code: $LASTEXITCODE)"
           exit 1
         }
-        Write-Host "Qt and MinGW setup verified successfully"
+        Write-Host "Qt $qtVersion and MinGW setup verified successfully"
       shell: powershell
 
     # Шаг 14: Кэширование Strawberry Perl
@@ -500,7 +526,8 @@ jobs:
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h from ui/mainwindow.ui..."
-        $uicPath = "C:/Qt/5.15.10/win64_mingw81/bin/uic.exe"
+        $qtVersion = $env:QT_VERSION
+        $uicPath = "C:/Qt/$qtVersion/win64_mingw81/bin/uic.exe"
         $outputPath = "build/release/ui_mainwindow.h"
         & $uicPath ui/mainwindow.ui -o $outputPath 2>&1 | Tee-Object -FilePath "uic_output.log"
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $outputPath)) {
@@ -515,11 +542,12 @@ jobs:
     - name: Configure and build
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        $qtVersion = $env:QT_VERSION
         $env:TEMP = [System.IO.Path]::GetTempPath()
         $env:TMP = $env:TEMP
-        $env:Path = "C:/Qt/5.15.10/win64_mingw81/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg;" + $env:Path
+        $env:Path = "C:/Qt/$qtVersion/win64_mingw81/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
-        $env:QML2_IMPORT_PATH = "C:/Qt/5.15.10/win64_mingw81/qml"
+        $env:QML2_IMPORT_PATH = "C:/Qt/$qtVersion/win64_mingw81/qml"
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
         [System.Environment]::SetEnvironmentVariable("QML2_IMPORT_PATH", $env:QML2_IMPORT_PATH, [System.EnvironmentVariableTarget]::Process)
@@ -532,7 +560,7 @@ jobs:
 
         Set-Location -Path build
         Write-Host "Running qmake with vcpkg integration..."
-        $qmakePath = "C:/Qt/5.15.10/win64_mingw81/bin/qmake.exe"
+        $qmakePath = "C:/Qt/$qtVersion/win64_mingw81/bin/qmake.exe"
         $qmakeArgs = @(
           "../ui/DeadCode.pro",
           "CONFIG+=release",
@@ -567,7 +595,8 @@ jobs:
     - name: Test run DeadCode.exe
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
-        $env:Path = "C:/Qt/5.15.10/win64_mingw81/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
+        $qtVersion = $env:QT_VERSION
+        $env:Path = "C:/Qt/$qtVersion/win64_mingw81/bin;C:/Qt/Tools/mingw810_64/bin;C:/vcpkg/installed/x64-mingw-dynamic/bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         Write-Host "Running DeadCode.exe..."
         try {
@@ -585,9 +614,10 @@ jobs:
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
+        $qtVersion = $env:QT_VERSION
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
         $dirs = @(
-          @{ Dlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll", "Qt5Svg.dll", "Qt5Declarative.dll", "Qt5Quick.dll", "Qt5QuickControls2.dll", "Qt5Sql.dll", "Qt5Qml.dll", "Qt5QmlModels.dll", "Qt5QmlWorkerScript.dll"); Source = "C:/Qt/5.15.10/win64_mingw81/bin" },
+          @{ Dlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll", "Qt5Svg.dll", "Qt5Declarative.dll", "Qt5Quick.dll", "Qt5QuickControls2.dll", "Qt5Sql.dll", "Qt5Qml.dll", "Qt5QmlModels.dll", "Qt5QmlWorkerScript.dll"); Source = "C:/Qt/$qtVersion/win64_mingw81/bin" },
           @{ Dlls = @("libwinpthread-1.dll", "libgcc_s_seh-1.dll", "libstdc++-6.dll"); Source = "C:/Qt/Tools/mingw810_64/bin" },
           @{ Dlls = @("libsqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl.dll", "libcrypto.dll"); Source = "C:/vcpkg/installed/x64-mingw-dynamic/bin" }
         )
@@ -602,7 +632,7 @@ jobs:
           }
         }
 
-        $qtPluginsDir = "C:/Qt/5.15.10/win64_mingw81/plugins"
+        $qtPluginsDir = "C:/Qt/$qtVersion/win64_mingw81/plugins"
         if (Test-Path $qtPluginsDir) {
           $pluginDirs = @("platforms/qwindows.dll", "styles/qwindowsvistastyle.dll", "imageformats/*.dll", "quick/*.dll", "qmltooling/*.dll", "sqldrivers/*.dll")
           foreach ($plugin in $pluginDirs) {
@@ -620,7 +650,7 @@ jobs:
           exit 1
         }
 
-        $qtQmlDir = "C:/Qt/5.15.10/win64_mingw81/qml"
+        $qtQmlDir = "C:/Qt/$qtVersion/win64_mingw81/qml"
         if (Test-Path $qtQmlDir) {
           $qmlModules = @("QtQml", "QtQuick", "QtQuick.2", "QtQuick.Controls", "QtQuick.Controls.2", "QtQuick.Layouts", "QtQuick.Templates.2", "QtQuick.Window.2", "Qt")
           foreach ($module in $qmlModules) {
@@ -649,6 +679,7 @@ jobs:
         name: build-logs
         path: |
           Stealer-DeadCode/qt_install.log
+          Stealer-DeadCode/qt_install_fallback.log
           Stealer-DeadCode/mingw_install.log
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
