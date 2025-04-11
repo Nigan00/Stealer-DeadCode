@@ -149,19 +149,19 @@ jobs:
     - name: Check available Qt architectures and modules
       run: |
         Write-Host "Checking available architectures for Qt 5.15.10..."
-        python -m aqt list-qt windows desktop --arch 5.15.10 --config aqt_settings.ini 2>&1 | Tee-Object -FilePath "qt_list_arch.log"
+        python -m aqt -c aqt_settings.ini list-qt windows desktop --arch 5.15.10 2>&1 | Tee-Object -FilePath "qt_list_arch.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Warning: Failed to list architectures (exit code: $LASTEXITCODE). Proceeding anyway."
           Get-Content "qt_list_arch.log"
         }
         Write-Host "Checking available modules for Qt 5.15.10 win64_mingw81..."
-        python -m aqt list-qt windows desktop --modules 5.15.10 win64_mingw81 --config aqt_settings.ini 2>&1 | Tee-Object -FilePath "qt_list_modules.log"
+        python -m aqt -c aqt_settings.ini list-qt windows desktop --modules 5.15.10 win64_mingw81 2>&1 | Tee-Object -FilePath "qt_list_modules.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Warning: Failed to list modules for win64_mingw81 (exit code: $LASTEXITCODE). Proceeding anyway."
           Get-Content "qt_list_modules.log"
         }
         Write-Host "Checking available Qt versions..."
-        python -m aqt list-qt windows desktop --config aqt_settings.ini 2>&1 | Tee-Object -FilePath "qt_list_versions.log"
+        python -m aqt -c aqt_settings.ini list-qt windows desktop 2>&1 | Tee-Object -FilePath "qt_list_versions.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Warning: Failed to list Qt versions (exit code: $LASTEXITCODE). Proceeding anyway."
           Get-Content "qt_list_versions.log"
@@ -180,7 +180,7 @@ jobs:
         )
 
         set "QT_MODULES=qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtimageformats qtsql qtquick"
-        set "QT_INSTALL_CMD=python -m aqt install-qt --config aqt_settings.ini --outputdir C:/Qt --timeout 600 --external 7z windows desktop 5.15.10 win64_mingw81 -m %QT_MODULES%"
+        set "QT_INSTALL_CMD=python -m aqt -c aqt_settings.ini install-qt --outputdir C:/Qt --timeout 600 --external 7z windows desktop 5.15.10 win64_mingw81 -m %QT_MODULES%"
         echo "Executing command: %QT_INSTALL_CMD%"
 
         cmd.exe /C "%QT_INSTALL_CMD%" 2>&1 | tee qt_install.log
@@ -204,7 +204,7 @@ jobs:
     - name: Install MinGW 8.1 via aqtinstall
       run: |
         echo "Installing MinGW 8.1 (GCC 8) for C++17 support..."
-        python -m aqt install-tool --config aqt_settings.ini windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | tee mingw_install.log
+        python -m aqt -c aqt_settings.ini install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | tee mingw_install.log
         if %ERRORLEVEL% NEQ 0 (
           echo "Error: Failed to install MinGW 8.1 via aqtinstall (exit code: %ERRORLEVEL%)"
           type mingw_install.log
