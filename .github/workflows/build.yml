@@ -12,7 +12,7 @@ on:
 
 env:
   VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"  # SHA коммита vcpkg от 2024-10-18
-  QT_VERSION: "5.15.2"  # Переключаемся на стабильную версию Qt
+  QT_VERSION: "5.15.2"  # Основная версия Qt
 
 jobs:
   build-windows:
@@ -36,35 +36,25 @@ jobs:
     # Шаг 3: Проверка и установка Chocolatey
     - name: Check and Install Chocolatey
       run: |
-        Write-Host "Checking for existing Chocolatey installation..."
+        Write-Host "Checking for Chocolatey..."
         $chocoPath = "C:\ProgramData\chocolatey\bin\choco.exe"
         if (Test-Path $chocoPath) {
-          Write-Host "Chocolatey is already installed at $chocoPath. Upgrading Chocolatey..."
+          Write-Host "Chocolatey found, upgrading..."
           & $chocoPath upgrade chocolatey -y --force --execution-timeout=600
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-            Write-Host "Error: Failed to upgrade Chocolatey (exit code: $LASTEXITCODE)"
-            exit 1
-          }
         } else {
-          Write-Host "Chocolatey not found. Installing Chocolatey..."
+          Write-Host "Installing Chocolatey..."
           Set-ExecutionPolicy Bypass -Scope Process -Force
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
           iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install Chocolatey (exit code: $LASTEXITCODE)"
-            exit 1
-          }
         }
-        Write-Host "Verifying Chocolatey installation..."
-        & $chocoPath --version
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Chocolatey verification failed (exit code: $LASTEXITCODE)"
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Chocolatey setup failed (exit code: $LASTEXITCODE)"
           exit 1
         }
         $env:Path = "C:\ProgramData\chocolatey\bin;" + $env:Path
         [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
-        Write-Host "Chocolatey setup completed successfully. Version:"
-        & $chocoPath --version
+        Write-Host "Chocolatey version:"
+        choco --version
       shell: powershell
 
     # Шаг 4: Установка 7-Zip
@@ -114,12 +104,12 @@ jobs:
         New-Item -Path "aqt_settings.ini" -ItemType File -Force
         Set-Content -Path "aqt_settings.ini" -Value @"
         [mirrors]
-        trusted_mirrors = https://download.qt.io, https://mirrors.tuna.tsinghua.edu.cn/qt, https://mirror.nju.edu.cn/qt, https://qt-mirror.dannhauer.de, http://mirrors.dotsrc.org/qtproject
+        trusted_mirrors = https://download.qt.io, https://mirrors.tuna.tsinghua.edu.cn/qt
         preferred_mirror = https://download.qt.io
 
         [requests]
-        max_retries_to_retrieve_hash = 10
-        timeout = 120
+        max_retries_to_retrieve_hash = 15
+        timeout = 180
         "@
         Write-Host "aqtinstall settings.ini created with content:"
         Get-Content -Path "aqt_settings.ini"
@@ -146,7 +136,7 @@ jobs:
     - name: Check available Qt architectures and modules
       run: |
         Write-Host "Testing mirror availability..."
-        $mirrors = @("https://download.qt.io", "https://mirrors.tuna.tsinghua.edu.cn/qt", "https://mirror.nju.edu.cn/qt", "https://qt-mirror.dannhauer.de", "http://mirrors.dotsrc.org/qtproject")
+        $mirrors = @("https://download.qt.io", "https://mirrors.tuna.tsinghua.edu.cn/qt")
         foreach ($mirror in $mirrors) {
           Write-Host "Testing $mirror..."
           try {
@@ -162,18 +152,6 @@ jobs:
           Write-Host "Warning: Failed to list Qt versions (exit code: $LASTEXITCODE)"
           Get-Content "qt_list_versions.log"
         }
-        Write-Host "Checking architectures for Qt ${{ env.QT_VERSION }}..."
-        python -m aqt -c aqt_settings.ini list-qt windows desktop --arch ${{ env.QT_VERSION }} 2>&1 | Tee-Object -FilePath "qt_list_arch.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Warning: Failed to list architectures (exit code: $LASTEXITCODE)"
-          Get-Content "qt_list_arch.log"
-        }
-        Write-Host "Checking modules for Qt ${{ env.QT_VERSION }} win64_mingw81..."
-        python -m aqt -c aqt_settings.ini list-qt windows desktop --modules ${{ env.QT_VERSION }} win64_mingw81 2>&1 | Tee-Object -FilePath "qt_list_modules.log"
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Warning: Failed to list modules (exit code: $LASTEXITCODE)"
-          Get-Content "qt_list_modules.log"
-        }
       shell: powershell
       continue-on-error: true
 
@@ -182,11 +160,16 @@ jobs:
       run: |
         Write-Host "Installing Qt ${{ env.QT_VERSION }} with MinGW 8.1..."
         $env:QT_MODULES = "qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtimageformats qtsql qtquick"
-        python -m aqt -c aqt_settings.ini install-qt --outputdir C:/Qt --timeout 600 --external 7z windows desktop ${{ env.QT_VERSION }} win64_mingw81 -m $env:QT_MODULES 2>&1 | Tee-Object -FilePath "qt_install.log"
+        python -m aqt -c aqt_settings.ini install-qt --outputdir C:/Qt --timeout 600 --external 7z --verbose windows desktop ${{ env.QT_VERSION }} win64_mingw81 -m $env:QT_MODULES --noarchives 2>&1 | Tee-Object -FilePath "qt_install.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Qt ${{ env.QT_VERSION }} (exit code: $LASTEXITCODE)"
-          Get-Content "qt_install.log"
-          exit 1
+          Write-Host "Error: Failed to install Qt ${{ env.QT_VERSION }}. Trying fallback to Qt 5.15.0..."
+          $env:QT_VERSION = "5.15.0"
+          python -m aqt -c aqt_settings.ini install-qt --outputdir C:/Qt --timeout 600 --external 7z --verbose windows desktop 5.15.0 win64_mingw81 -m $env:QT_MODULES --noarchives 2>&1 | Tee-Object -FilePath "qt_install_fallback.log"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Error: Fallback to Qt 5.15.0 also failed (exit code: $LASTEXITCODE)"
+            Get-Content "qt_install_fallback.log"
+            exit 1
+          }
         }
         Write-Host "Qt ${{ env.QT_VERSION }} installed successfully"
       shell: powershell
@@ -195,7 +178,7 @@ jobs:
     - name: Install MinGW 8.1 via aqtinstall
       run: |
         Write-Host "Installing MinGW 8.1 (GCC 8) for C++17 support..."
-        python -m aqt -c aqt_settings.ini install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 2>&1 | Tee-Object -FilePath "mingw_install.log"
+        python -m aqt -c aqt_settings.ini install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt --external 7z --timeout 600 --verbose 2>&1 | Tee-Object -FilePath "mingw_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install MinGW 8.1 (exit code: $LASTEXITCODE)"
           Get-Content "mingw_install.log"
@@ -618,6 +601,7 @@ jobs:
         name: build-logs
         path: |
           Stealer-DeadCode/qt_install.log
+          Stealer-DeadCode/qt_install_fallback.log
           Stealer-DeadCode/mingw_install.log
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
@@ -625,8 +609,6 @@ jobs:
           Stealer-DeadCode/vcpkg_install.log
           Stealer-DeadCode/build/deadcode_output.log
           Stealer-DeadCode/build/deadcode_error.log
-          Stealer-DeadCode/qt_list_arch.log
-          Stealer-DeadCode/qt_list_modules.log
           Stealer-DeadCode/qt_list_versions.log
         if-no-files-found: warn
 
