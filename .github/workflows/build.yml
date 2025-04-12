@@ -118,15 +118,9 @@ jobs:
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Installing Qt ${{ env.QT_VERSION }} with MinGW 8.1..."
-        $qtArgs = @(
-          "-m", "aqt", "install-qt",
-          "-O", "C:/Qt",
-          "-c", "aqt_settings.ini",
-          "windows", "desktop", "${{ env.QT_VERSION }}", "win64_mingw81",
-          "-m", "qtbase", "qttools", "qtsvg", "qtdeclarative", "qtquickcontrols", "qtquickcontrols2", "qtimageformats", "qtsql", "qtquick"
-        )
-        Write-Host "Executing command: python $qtArgs"
-        & python $qtArgs 2>&1 | Tee-Object -FilePath "qt_install.log"
+        $qtCommand = "python -m aqt install-qt -O C:/Qt -c aqt_settings.ini windows desktop ${{ env.QT_VERSION }} win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtimageformats qtsql qtquick"
+        Write-Host "Executing command: $qtCommand"
+        Invoke-Expression $qtCommand 2>&1 | Tee-Object -FilePath "qt_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt ${{ env.QT_VERSION }}. Check qt_install.log for details."
           Get-Content "qt_install.log"
@@ -140,14 +134,9 @@ jobs:
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Installing MinGW 8.1 (GCC 8) for C++17 support..."
-        $mingwArgs = @(
-          "-m", "aqt", "install-tool",
-          "-O", "C:/Qt",
-          "-c", "aqt_settings.ini",
-          "windows", "desktop", "tools_mingw", "qt.tools.win64_mingw810"
-        )
-        Write-Host "Executing command: python $mingwArgs"
-        & python $mingwArgs 2>&1 | Tee-Object -FilePath "mingw_install.log"
+        $mingwCommand = "python -m aqt install-tool -O C:/Qt -c aqt_settings.ini windows desktop tools_mingw qt.tools.win64_mingw810"
+        Write-Host "Executing command: $mingwCommand"
+        Invoke-Expression $mingwCommand 2>&1 | Tee-Object -FilePath "mingw_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install MinGW 8.1. Check mingw_install.log for details."
           Get-Content "mingw_install.log"
