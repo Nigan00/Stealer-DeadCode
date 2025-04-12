@@ -37,18 +37,18 @@ RC_FILE = $$PWD/../icon.rc
 # Пути для поиска заголовков
 VCPKG_ROOT = $$(VCPKG_ROOT)
 isEmpty(VCPKG_ROOT) {
-    VCPKG_ROOT = C:\vcpkg
+    VCPKG_ROOT = C:\\vcpkg
     warning("VCPKG_ROOT is not set, defaulting to $$VCPKG_ROOT")
 }
 
-VCPKG_INCLUDE_DIR = $$VCPKG_ROOT/installed/x64-mingw-dynamic/include
+VCPKG_INCLUDE_DIR = $$VCPKG_ROOT\\installed\\x64-mingw-dynamic\\include
 !exists($$VCPKG_INCLUDE_DIR) {
     error("vcpkg include directory not found: $$VCPKG_INCLUDE_DIR")
 }
 
 QT_DIR = $$(QT_ROOT)
 isEmpty(QT_DIR) {
-    QT_DIR = C:\Qt\5.15.2\mingw81_64
+    QT_DIR = C:\\Qt\\5.15.2\\mingw81_64
     warning("QT_ROOT is not set, defaulting to $$QT_DIR")
 }
 !exists($$QT_DIR) {
@@ -59,14 +59,14 @@ INCLUDEPATH += \
     $$PWD/../src \
     $$PWD \
     $$VCPKG_INCLUDE_DIR \
-    $$QT_DIR/include
+    $$QT_DIR\\include
 
 # Пути для поиска QML-модулей
 QML_IMPORT_PATH += \
-    $$QT_DIR/qml
+    $$QT_DIR\\qml
 
 # Библиотеки для линковки (синхронизированы с vcpkg)
-VCPKG_LIB_DIR = $$VCPKG_ROOT/installed/x64-mingw-dynamic/lib
+VCPKG_LIB_DIR = $$VCPKG_ROOT\\installed\\x64-mingw-dynamic\\lib
 !exists($$VCPKG_LIB_DIR) {
     error("vcpkg library directory not found: $$VCPKG_LIB_DIR")
 }
