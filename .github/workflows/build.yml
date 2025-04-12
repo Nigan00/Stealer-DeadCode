@@ -118,15 +118,9 @@ jobs:
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Installing Qt ${{ env.QT_VERSION }} with MinGW 8.1..."
-        $qtArgs = @(
-          "-m", "aqt", "install-qt",
-          "-O", "C:/Qt",
-          "-c", "aqt_settings.ini",
-          "windows", "desktop", "${{ env.QT_VERSION }}", "win64_mingw81",
-          "-m", "qtbase", "qttools", "qtsvg", "qtdeclarative", "qtquickcontrols", "qtquickcontrols2", "qtimageformats", "qtsql", "qtquick"
-        )
-        Write-Host "Executing command: python $($qtArgs -join ' ')"
-        Start-Process -FilePath "python" -ArgumentList $qtArgs -NoNewWindow -Wait -RedirectStandardOutput "qt_install_out.log" -RedirectStandardError "qt_install_err.log"
+        $command = "python -m aqt install-qt -c aqt_settings.ini -O C:/Qt windows desktop ${{ env.QT_VERSION }} win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtimageformats qtsql qtquick"
+        Write-Host "Executing command: $command"
+        & python -m aqt install-qt -c aqt_settings.ini -O C:/Qt windows desktop ${{ env.QT_VERSION }} win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtimageformats qtsql qtquick > qt_install_out.log 2> qt_install_err.log
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt ${{ env.QT_VERSION }}. Exit code: $LASTEXITCODE"
           Write-Host "Standard Output:"
@@ -143,14 +137,9 @@ jobs:
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Installing MinGW 8.1 (GCC 8) for C++17 support..."
-        $mingwArgs = @(
-          "-m", "aqt", "install-tool",
-          "-O", "C:/Qt",
-          "-c", "aqt_settings.ini",
-          "windows", "desktop", "tools_mingw", "qt.tools.win64_mingw810"
-        )
-        Write-Host "Executing command: python $($mingwArgs -join ' ')"
-        Start-Process -FilePath "python" -ArgumentList $mingwArgs -NoNewWindow -Wait -RedirectStandardOutput "mingw_install_out.log" -RedirectStandardError "mingw_install_err.log"
+        $command = "python -m aqt install-tool -c aqt_settings.ini -O C:/Qt windows desktop tools_mingw qt.tools.win64_mingw810"
+        Write-Host "Executing command: $command"
+        & python -m aqt install-tool -c aqt_settings.ini -O C:/Qt windows desktop tools_mingw qt.tools.win64_mingw810 > mingw_install_out.log 2> mingw_install_err.log
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install MinGW 8.1. Exit code: $LASTEXITCODE"
           Write-Host "Standard Output:"

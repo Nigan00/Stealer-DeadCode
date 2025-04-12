@@ -35,11 +35,25 @@ FORMS += \
 RC_FILE = $$PWD/../icon.rc
 
 # Пути для поиска заголовков
-VCPKG_INCLUDE_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/include
-isEmpty(VCPKG_INCLUDE_DIR):VCPKG_INCLUDE_DIR = C:/vcpkg/installed/x64-mingw-dynamic/include
+VCPKG_ROOT = $$(VCPKG_ROOT)
+isEmpty(VCPKG_ROOT) {
+    VCPKG_ROOT = C:/vcpkg
+    warning("VCPKG_ROOT is not set, defaulting to $$VCPKG_ROOT")
+}
+
+VCPKG_INCLUDE_DIR = $$VCPKG_ROOT/installed/x64-mingw-dynamic/include
+!exists($$VCPKG_INCLUDE_DIR) {
+    error("vcpkg include directory not found: $$VCPKG_INCLUDE_DIR")
+}
 
 QT_DIR = $$(QT_ROOT)
-isEmpty(QT_DIR):QT_DIR = C:/Qt/5.15.2/win64_mingw81
+isEmpty(QT_DIR) {
+    QT_DIR = C:/Qt/5.15.2/mingw81_64
+    warning("QT_ROOT is not set, defaulting to $$QT_DIR")
+}
+!exists($$QT_DIR) {
+    error("Qt directory not found: $$QT_DIR")
+}
 
 INCLUDEPATH += \
     $$PWD/../src \
@@ -52,8 +66,10 @@ QML_IMPORT_PATH += \
     $$QT_DIR/qml
 
 # Библиотеки для линковки (синхронизированы с vcpkg)
-VCPKG_LIB_DIR = $$(VCPKG_ROOT)/installed/x64-mingw-dynamic/lib
-isEmpty(VCPKG_LIB_DIR):VCPKG_LIB_DIR = C:/vcpkg/installed/x64-mingw-dynamic/lib
+VCPKG_LIB_DIR = $$VCPKG_ROOT/installed/x64-mingw-dynamic/lib
+!exists($$VCPKG_LIB_DIR) {
+    error("vcpkg library directory not found: $$VCPKG_LIB_DIR")
+}
 
 LIBS += -L$$VCPKG_LIB_DIR \
     -lsqlite3 \
@@ -77,16 +93,11 @@ QMAKE_CXXFLAGS += \
     -Wall \
     -Wextra \
     -Werror=return-type \
-    -fexceptions \
     -DUNICODE \
     -D_UNICODE \
     -DWIN32 \
     -DQT_NO_DEBUG \
-    -D_CRT_SECURE_NO_WARNINGS \
-    -Wno-deprecated-declarations \
-    -Wno-unused-parameter \
-    -Wno-sign-compare \
-    -Wno-attributes
+    -D_CRT_SECURE_NO_WARNINGS
 
 # Флаги линковщика
 QMAKE_LFLAGS += \
