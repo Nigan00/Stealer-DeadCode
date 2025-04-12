@@ -76,7 +76,7 @@ jobs:
       run: |
         Write-Host "Installing Python dependencies for aqtinstall..."
         python -m pip install --upgrade pip setuptools wheel
-        python -m pip install py7zr aqtinstall==3.2.1 requests beautifulsoup4
+        python -m pip install py7zr aqtinstall==3.1.18 requests beautifulsoup4
         python -m aqt version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Python dependencies (exit code: $LASTEXITCODE)"
@@ -118,12 +118,21 @@ jobs:
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Installing Qt ${{ env.QT_VERSION }} with MinGW 8.1..."
-        $qtCommand = "python -m aqt install-qt -O C:/Qt -c aqt_settings.ini windows desktop ${{ env.QT_VERSION }} win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtimageformats qtsql qtquick"
-        Write-Host "Executing command: $qtCommand"
-        Invoke-Expression $qtCommand 2>&1 | Tee-Object -FilePath "qt_install.log"
+        $qtArgs = @(
+          "-m", "aqt", "install-qt",
+          "-O", "C:/Qt",
+          "-c", "aqt_settings.ini",
+          "windows", "desktop", "${{ env.QT_VERSION }}", "win64_mingw81",
+          "-m", "qtbase", "qttools", "qtsvg", "qtdeclarative", "qtquickcontrols", "qtquickcontrols2", "qtimageformats", "qtsql", "qtquick"
+        )
+        Write-Host "Executing command: python $($qtArgs -join ' ')"
+        Start-Process -FilePath "python" -ArgumentList $qtArgs -NoNewWindow -Wait -RedirectStandardOutput "qt_install_out.log" -RedirectStandardError "qt_install_err.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Qt ${{ env.QT_VERSION }}. Check qt_install.log for details."
-          Get-Content "qt_install.log"
+          Write-Host "Error: Failed to install Qt ${{ env.QT_VERSION }}. Exit code: $LASTEXITCODE"
+          Write-Host "Standard Output:"
+          Get-Content "qt_install_out.log" -ErrorAction SilentlyContinue
+          Write-Host "Standard Error:"
+          Get-Content "qt_install_err.log" -ErrorAction SilentlyContinue
           exit 1
         }
         Write-Host "Qt ${{ env.QT_VERSION }} installed successfully"
@@ -134,12 +143,20 @@ jobs:
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Installing MinGW 8.1 (GCC 8) for C++17 support..."
-        $mingwCommand = "python -m aqt install-tool -O C:/Qt -c aqt_settings.ini windows desktop tools_mingw qt.tools.win64_mingw810"
-        Write-Host "Executing command: $mingwCommand"
-        Invoke-Expression $mingwCommand 2>&1 | Tee-Object -FilePath "mingw_install.log"
+        $mingwArgs = @(
+          "-m", "aqt", "install-tool",
+          "-O", "C:/Qt",
+          "-c", "aqt_settings.ini",
+          "windows", "desktop", "tools_mingw", "qt.tools.win64_mingw810"
+        )
+        Write-Host "Executing command: python $($mingwArgs -join ' ')"
+        Start-Process -FilePath "python" -ArgumentList $mingwArgs -NoNewWindow -Wait -RedirectStandardOutput "mingw_install_out.log" -RedirectStandardError "mingw_install_err.log"
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MinGW 8.1. Check mingw_install.log for details."
-          Get-Content "mingw_install.log"
+          Write-Host "Error: Failed to install MinGW 8.1. Exit code: $LASTEXITCODE"
+          Write-Host "Standard Output:"
+          Get-Content "mingw_install_out.log" -ErrorAction SilentlyContinue
+          Write-Host "Standard Error:"
+          Get-Content "mingw_install_err.log" -ErrorAction SilentlyContinue
           exit 1
         }
         Write-Host "MinGW 8.1 installed successfully"
@@ -558,8 +575,10 @@ jobs:
       with:
         name: build-logs
         path: |
-          Stealer-DeadCode/qt_install.log
-          Stealer-DeadCode/mingw_install.log
+          Stealer-DeadCode/qt_install_out.log
+          Stealer-DeadCode/qt_install_err.log
+          Stealer-DeadCode/mingw_install_out.log
+          Stealer-DeadCode/mingw_install_err.log
           Stealer-DeadCode/qmake_output.log
           Stealer-DeadCode/make_output.log
           Stealer-DeadCode/uic_output.log
