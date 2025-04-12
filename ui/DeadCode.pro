@@ -79,7 +79,6 @@ LIBS += -L$$VCPKG_LIB_DIR \
     -lcurl \
     -lssl \
     -lcrypto \
-    -lstdc++fs \
     -lws2_32 \
     -lcrypt32 \
     -lgdi32 \
@@ -94,8 +93,7 @@ QMAKE_CXXFLAGS += \
     -Wextra \
     -Werror=return-type \
     -DUNICODE \
-    -D_UNICODE \
-    -DWIN32 \
+    -D_WIN32 \
     -DQT_NO_DEBUG \
     -D_CRT_SECURE_NO_WARNINGS
 
@@ -115,9 +113,12 @@ RCC_DIR = $$PWD/../build/release/rcc
 QMAKE_CLEAN += \
     $$DESTDIR/DeadCode.exe \
     $$OBJECTS_DIR/*.o \
+    $$OBJECTS_DIR/*.obj \
     $$MOC_DIR/moc_*.cpp \
     $$UI_DIR/ui_*.h \
-    $$RCC_DIR/qrc_*.cpp
+    $$RCC_DIR/qrc_*.cpp \
+    $$DESTDIR/*.ilk \
+    $$DESTDIR/*.pdb
 
 # Зависимости для пересборки
 PRE_TARGETDEPS += \

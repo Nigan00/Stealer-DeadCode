@@ -107,8 +107,8 @@ jobs:
           exit 1
         }
         
-        Write-Host "Installing Qt 5.15.2 for MinGW 8.1 (base package)..."
-        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81
+        Write-Host "Installing Qt 5.15.2 for MinGW 8.1 with required modules..."
+        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 -m qtbase qttools qtsvg qtdeclarative qtquickcontrols2 qtsql
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2"
           exit 1
@@ -155,7 +155,8 @@ jobs:
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5QuickControls2.dll",
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Sql.dll",
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Qml.dll",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Declarative.dll"
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5QmlModels.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5QmlWorkerScript.dll"
         )
         foreach ($path in $paths) {
           if (-not (Test-Path $path)) {
@@ -526,7 +527,7 @@ jobs:
         $qtVersion = "${{ env.QT_VERSION }}"
         Write-Host "Copying Qt DLLs and dependencies to release directory..."
         $dirs = @(
-          @{ Dlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll", "Qt5Svg.dll", "Qt5Declarative.dll", "Qt5Quick.dll", "Qt5QuickControls2.dll", "Qt5Sql.dll", "Qt5Qml.dll", "Qt5QmlModels.dll", "Qt5QmlWorkerScript.dll"); Source = "C:\Qt\$qtVersion\mingw81_64\bin" },
+          @{ Dlls = @("Qt5Core.dll", "Qt5Gui.dll", "Qt5Network.dll", "Qt5Widgets.dll", "Qt5Svg.dll", "Qt5Quick.dll", "Qt5QuickControls2.dll", "Qt5Sql.dll", "Qt5Qml.dll", "Qt5QmlModels.dll", "Qt5QmlWorkerScript.dll"); Source = "C:\Qt\$qtVersion\mingw81_64\bin" },
           @{ Dlls = @("libwinpthread-1.dll", "libgcc_s_seh-1.dll", "libstdc++-6.dll"); Source = "C:\Qt\Tools\mingw810_64\bin" },
           @{ Dlls = @("libsqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl.dll", "libcrypto.dll"); Source = "C:\vcpkg\installed\x64-mingw-dynamic\bin" }
         )
@@ -542,7 +543,7 @@ jobs:
         }
         $qtPluginsDir = "C:\Qt\$qtVersion\mingw81_64\plugins"
         if (Test-Path $qtPluginsDir) {
-          $pluginDirs = @("platforms\qwindows.dll", "styles\qwindowsvistastyle.dll", "imageformats\*.dll", "quick\*.dll", "qmltooling\*.dll", "sqldrivers\*.dll")
+          $pluginDirs = @("platforms\qwindows.dll", "styles\qwindowsvistastyle.dll", "imageformats\qsvg.dll", "sqldrivers\qsqlite.dll")
           foreach ($plugin in $pluginDirs) {
             $dest = $plugin -replace "[/*].*$", ""
             if (Test-Path "$qtPluginsDir\$plugin") {
@@ -559,7 +560,7 @@ jobs:
         }
         $qtQmlDir = "C:\Qt\$qtVersion\mingw81_64\qml"
         if (Test-Path $qtQmlDir) {
-          $qmlModules = @("QtQml", "QtQuick", "QtQuick.2", "QtQuick.Controls", "QtQuick.Controls.2", "QtQuick.Layouts", "QtQuick.Templates.2", "QtQuick.Window.2", "Qt")
+          $qmlModules = @("QtQml", "QtQuick", "QtQuick.2", "QtQuick.Controls", "QtQuick.Controls.2", "QtQuick.Layouts", "QtQuick.Templates.2", "QtQuick.Window.2")
           foreach ($module in $qmlModules) {
             if (Test-Path "$qtQmlDir\$module") {
               New-Item -Path "release\$module" -ItemType Directory -Force
@@ -602,10 +603,8 @@ jobs:
           Stealer-DeadCode\build\release\*.dll
           Stealer-DeadCode\build\release\platforms\qwindows.dll
           Stealer-DeadCode\build\release\styles\qwindowsvistastyle.dll
-          Stealer-DeadCode\build\release\imageformats\*.dll
-          Stealer-DeadCode\build\release\quick\*.dll
-          Stealer-DeadCode\build\release\qmltooling\*.dll
-          Stealer-DeadCode\build\release\sqldrivers\*.dll
+          Stealer-DeadCode\build\release\imageformats\qsvg.dll
+          Stealer-DeadCode\build\release\sqldrivers\qsqlite.dll
           Stealer-DeadCode\build\release\QtQml\**\*
           Stealer-DeadCode\build\release\QtQuick\**\*
           Stealer-DeadCode\build\release\QtQuick.2\**\*
@@ -614,7 +613,6 @@ jobs:
           Stealer-DeadCode\build\release\QtQuick.Layouts\**\*
           Stealer-DeadCode\build\release\QtQuick.Templates.2\**\*
           Stealer-DeadCode\build\release\QtQuick.Window.2\**\*
-          Stealer-DeadCode\build\release\Qt\**\*
         if-no-files-found: error
 
     # Шаг 27: Очистка
