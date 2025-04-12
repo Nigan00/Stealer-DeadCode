@@ -296,7 +296,7 @@ jobs:
         [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
         Write-Host "Installing vcpkg dependencies..."
-        C:\vcpkg\vcpkg.exe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        C:\vcpkg\vcpkg.exe install --triplet x64-mingw-dynamic --clean-after-build --x-no-dev-warnings 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed (exit code: $LASTEXITCODE)"
           Get-Content "vcpkg_install.log"
@@ -305,11 +305,17 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 15: Переименование DLL
-    - name: Rename vcpkg DLLs
+    # Шаг 15: Проверка и переименование DLL (если необходимо)
+    - name: Check and rename vcpkg DLLs
       run: |
-        Set-Location C:\vcpkg\installed\x64-mingw-dynamic\bin
-        Write-Host "Renaming vcpkg DLLs..."
+        $binDir = "C:\vcpkg\installed\x64-mingw-dynamic\bin"
+        if (-not (Test-Path $binDir)) {
+          Write-Host "Error: Directory $binDir does not exist"
+          dir C:\vcpkg\installed\x64-mingw-dynamic -Recurse
+          exit 1
+        }
+        Set-Location $binDir
+        Write-Host "Checking vcpkg DLLs..."
         $dllRenames = @{
           "libzlib1.dll" = "zlib1.dll"
           "libbz2.dll" = "bz2.dll"
@@ -318,9 +324,15 @@ jobs:
         }
         foreach ($oldName in $dllRenames.Keys) {
           $newName = $dllRenames[$oldName]
+          if (Test-Path $newName) {
+            Write-Host "$newName already exists, skipping rename of $oldName"
+            continue
+          }
           if (Test-Path $oldName) {
             Rename-Item -Path $oldName -NewName $newName
             Write-Host "Renamed $oldName to $newName"
+          } else {
+            Write-Host "Warning: $oldName not found, no rename needed"
           }
         }
         Write-Host "Listing contents of bin directory:"
