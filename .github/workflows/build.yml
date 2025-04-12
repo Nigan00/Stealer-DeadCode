@@ -81,81 +81,46 @@ jobs:
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw81-
 
-    # Шаг 6: Загрузка и распаковка Qt 5.15.2
-    - name: Download and Extract Qt 5.15.2
+    # Шаг 6: Установка Qt 5.15.2 и MinGW 8.1 через aqtinstall
+    - name: Install Qt 5.15.2 and MinGW 8.1 via aqtinstall
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
-        Write-Host "Downloading Qt 5.15.2 for MinGW 8.1..."
-        $qtUrl = "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/qt-opensource-windows-x86-5.15.2-mingw81.7z"
-        $qtFallbackUrl = "http://qtmirror.iscas.ac.cn/archive/qt/5.15/5.15.2/qt-opensource-windows-x86-5.15.2-mingw81.7z"
-        $qtArchive = "qt-5.15.2.7z"
-        
-        Write-Host "Attempting to download from primary URL: $qtUrl"
-        try {
-          Invoke-WebRequest -Uri $qtUrl -OutFile $qtArchive -ErrorAction Stop
-        } catch {
-          Write-Host "Primary URL failed, trying fallback URL: $qtFallbackUrl"
-          Invoke-WebRequest -Uri $qtFallbackUrl -OutFile $qtArchive
-        }
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $qtArchive)) {
-          Write-Host "Error: Failed to download Qt 5.15.2"
-          exit 1
-        }
-        
-        Write-Host "Verifying downloaded archive..."
-        if ((Get-Item $qtArchive).Length -lt 100000) {
-          Write-Host "Error: Downloaded archive is too small, likely corrupted"
-          exit 1
-        }
-        
-        Write-Host "Extracting Qt 5.15.2 to C:\Qt..."
-        New-Item -Path "C:\Qt" -ItemType Directory -Force
-        & "C:\Program Files\7-Zip\7z.exe" x $qtArchive -oC:\Qt -y
+        Write-Host "Installing aqtinstall..."
+        python -m pip install aqtinstall==3.1.12
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to extract Qt 5.15.2"
-          dir .
+          Write-Host "Error: Failed to install aqtinstall"
           exit 1
         }
         
-        Write-Host "Adjusting Qt directory structure..."
-        if (Test-Path "C:\Qt\5.15.2\mingw81_64") {
-          Write-Host "Qt directory already in place"
-        } elseif (Test-Path "C:\Qt\mingw81_64") {
-          Move-Item -Path "C:\Qt\mingw81_64" -Destination "C:\Qt\5.15.2\mingw81_64" -Force
+        Write-Host "Installing Qt 5.15.2 for MinGW 8.1..."
+        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 --modules qtbase qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtsql qtquick qtimageformats
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Qt 5.15.2"
+          exit 1
+        }
+        
+        Write-Host "Installing MinGW 8.1 toolchain..."
+        python -m aqt install-tool --outputdir C:\Qt windows desktop tools_mingw qt.tools.win64_mingw810
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install MinGW 8.1"
+          exit 1
+        }
+        
+        Write-Host "Adjusting MinGW directory structure..."
+        if (Test-Path "C:\Qt\Tools\mingw810_64") {
+          Write-Host "MinGW directory already in place"
+        } elseif (Test-Path "C:\Qt\Tools\mingw810_64") {
+          Move-Item -Path "C:\Qt\Tools\mingw810_64" -Destination "C:\Qt\Tools\mingw810_64" -Force
         } else {
-          Write-Host "Error: Expected Qt directory structure not found"
-          dir C:\Qt -Recurse
+          Write-Host "Error: MinGW directory not found"
+          dir C:\Qt\Tools -Recurse
           exit 1
         }
         
-        Write-Host "Qt 5.15.2 installed successfully"
+        Write-Host "Qt 5.15.2 and MinGW 8.1 installed successfully"
       shell: powershell
 
-    # Шаг 7: Установка MinGW 8.1
-    - name: Install MinGW 8.1
-      if: steps.cache-qt.outputs.cache-hit != 'true'
-      run: |
-        Write-Host "Installing MinGW 8.1..."
-        $mingwUrl = "https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/8.1.0/threads-win32/seh/x86_64-8.1.0-release-win32-seh-rt_v6-rev0.7z/download"
-        $mingwArchive = "mingw-8.1.0.7z"
-        Invoke-WebRequest -Uri $mingwUrl -OutFile $mingwArchive
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to download MinGW 8.1"
-          exit 1
-        }
-        Write-Host "Extracting MinGW 8.1 to C:\Qt\Tools\mingw810_64..."
-        New-Item -Path "C:\Qt\Tools" -ItemType Directory -Force
-        & "C:\Program Files\7-Zip\7z.exe" x $mingwArchive -oC:\Qt\Tools -y
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to extract MinGW 8.1"
-          exit 1
-        }
-        Write-Host "Moving MinGW files to correct directory..."
-        Move-Item -Path "C:\Qt\Tools\mingw64" -Destination "C:\Qt\Tools\mingw810_64" -Force
-        Write-Host "MinGW 8.1 installed successfully"
-      shell: powershell
-
-    # Шаг 8: Проверка установки Qt и MinGW
+    # Шаг 7: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
       run: |
         Write-Host "Verifying Qt and MinGW installation..."
@@ -194,7 +159,7 @@ jobs:
         Write-Host "Qt $qtVersion and MinGW setup verified successfully"
       shell: powershell
 
-    # Шаг 9: Кэширование Strawberry Perl
+    # Шаг 8: Кэширование Strawberry Perl
     - name: Cache Strawberry Perl
       uses: actions/cache@v4
       with:
@@ -203,7 +168,7 @@ jobs:
         restore-keys: |
           strawberry-perl-${{ runner.os }}-
 
-    # Шаг 10: Установка Perl
+    # Шаг 9: Установка Perl
     - name: Install Perl via Chocolatey
       run: |
         Write-Host "Installing Strawberry Perl via Chocolatey..."
@@ -217,7 +182,7 @@ jobs:
         Write-Host "Perl installation completed"
       shell: powershell
 
-    # Шаг 11: Кэширование vcpkg
+    # Шаг 10: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -228,7 +193,7 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
-    # Шаг 12: Очистка и обновление vcpkg
+    # Шаг 11: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
       run: |
         if (-not (Test-Path C:\vcpkg)) {
@@ -261,7 +226,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 13: Проверка и обновление vcpkg.json
+    # Шаг 12: Проверка и обновление vcpkg.json
     - name: Check and update vcpkg.json
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -286,7 +251,7 @@ jobs:
         Get-Content vcpkg.json
       shell: powershell
 
-    # Шаг 14: Проверка доступных версий библиотек
+    # Шаг 13: Проверка доступных версий библиотек
     - name: Check available library versions
       run: |
         Set-Location C:\vcpkg
@@ -302,7 +267,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 15: Установка vcpkg и зависимостей
+    # Шаг 14: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         Set-Location C:\vcpkg
@@ -326,7 +291,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 16: Переименование DLL
+    # Шаг 15: Переименование DLL
     - name: Rename vcpkg DLLs
       run: |
         Set-Location C:\vcpkg\installed\x64-mingw-dynamic\bin
@@ -348,7 +313,7 @@ jobs:
         dir
       shell: powershell
 
-    # Шаг 17: Загрузка логов vcpkg в случае ошибки
+    # Шаг 16: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -357,7 +322,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 18: Проверка установки vcpkg
+    # Шаг 17: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:\vcpkg\installed\x64-mingw-dynamic\lib"
@@ -388,7 +353,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 19: Проверка структуры проекта
+    # Шаг 18: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -419,7 +384,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 20: Исправление кодировки icon.rc
+    # Шаг 19: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -429,7 +394,7 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 21: Генерация UI-файлов
+    # Шаг 20: Генерация UI-файлов
     - name: Generate UI files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -444,7 +409,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully"
       shell: powershell
 
-    # Шаг 22: Конфигурация и сборка проекта
+    # Шаг 21: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -484,7 +449,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 23: Тестирование запуска DeadCode.exe
+    # Шаг 22: Тестирование запуска DeadCode.exe
     - name: Test run DeadCode.exe
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
@@ -503,7 +468,7 @@ jobs:
       shell: powershell
       continue-on-error: true
 
-    # Шаг 24: Копирование необходимых DLL и плагинов Qt
+    # Шаг 23: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
@@ -561,7 +526,7 @@ jobs:
         dir release -Recurse
       shell: powershell
 
-    # Шаг 25: Загрузка логов сборки в случае ошибки
+    # Шаг 24: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -576,7 +541,7 @@ jobs:
           Stealer-DeadCode\build\deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 26: Загрузка артефакта
+    # Шаг 25: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -601,7 +566,7 @@ jobs:
           Stealer-DeadCode\build\release\Qt\**\*
         if-no-files-found: error
 
-    # Шаг 27: Очистка
+    # Шаг 26: Очистка
     - name: Cleanup
       if: always()
       run: |
