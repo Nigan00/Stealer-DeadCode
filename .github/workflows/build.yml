@@ -86,21 +86,48 @@ jobs:
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Downloading Qt 5.15.2 for MinGW 8.1..."
-        $qtUrl = "https://download.qt.io/archive/qt/5.15/5.15.2/qt-opensource-windows-x86-5.15.2-mingw81.7z"
+        $qtUrl = "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/qt-opensource-windows-x86-5.15.2-mingw81.7z"
+        $qtFallbackUrl = "http://qtmirror.iscas.ac.cn/archive/qt/5.15/5.15.2/qt-opensource-windows-x86-5.15.2-mingw81.7z"
         $qtArchive = "qt-5.15.2.7z"
-        Invoke-WebRequest -Uri $qtUrl -OutFile $qtArchive
-        if ($LASTEXITCODE -ne 0) {
+        
+        Write-Host "Attempting to download from primary URL: $qtUrl"
+        try {
+          Invoke-WebRequest -Uri $qtUrl -OutFile $qtArchive -ErrorAction Stop
+        } catch {
+          Write-Host "Primary URL failed, trying fallback URL: $qtFallbackUrl"
+          Invoke-WebRequest -Uri $qtFallbackUrl -OutFile $qtArchive
+        }
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $qtArchive)) {
           Write-Host "Error: Failed to download Qt 5.15.2"
           exit 1
         }
+        
+        Write-Host "Verifying downloaded archive..."
+        if ((Get-Item $qtArchive).Length -lt 100000) {
+          Write-Host "Error: Downloaded archive is too small, likely corrupted"
+          exit 1
+        }
+        
         Write-Host "Extracting Qt 5.15.2 to C:\Qt..."
+        New-Item -Path "C:\Qt" -ItemType Directory -Force
         & "C:\Program Files\7-Zip\7z.exe" x $qtArchive -oC:\Qt -y
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to extract Qt 5.15.2"
+          dir .
           exit 1
         }
-        Write-Host "Moving Qt files to correct directory..."
-        Move-Item -Path "C:\Qt\5.15.2\mingw81_64" -Destination "C:\Qt\5.15.2\mingw81_64" -Force -ErrorAction SilentlyContinue
+        
+        Write-Host "Adjusting Qt directory structure..."
+        if (Test-Path "C:\Qt\5.15.2\mingw81_64") {
+          Write-Host "Qt directory already in place"
+        } elseif (Test-Path "C:\Qt\mingw81_64") {
+          Move-Item -Path "C:\Qt\mingw81_64" -Destination "C:\Qt\5.15.2\mingw81_64" -Force
+        } else {
+          Write-Host "Error: Expected Qt directory structure not found"
+          dir C:\Qt -Recurse
+          exit 1
+        }
+        
         Write-Host "Qt 5.15.2 installed successfully"
       shell: powershell
 
