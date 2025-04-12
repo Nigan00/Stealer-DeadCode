@@ -10,7 +10,7 @@
         },
         {
             "name": "sqlite3",
-            "version>=": "3.45.0",
+            "version>=": "3.42.0",
             "features": ["json1"]
         },
         {
@@ -23,28 +23,12 @@
         },
         {
             "name": "curl",
-            "version>=": "8.10.1",
+            "version>=": "8.2.1",
             "features": ["openssl"]
         },
         {
             "name": "openssl",
-            "version>=": "1.1.1n"
+            "version>=": "3.0.5"
         }
-    ],
-    "overrides": [
-        {
-            "name": "bzip2",
-            "version": "1.0.8#6"
-        },
-        {
-            "name": "openssl",
-            "version": "1.1.1n"
-        }
-    ],
-    "features": {
-        "dynamic": {
-            "description": "Build dependencies as dynamic libraries",
-            "dependencies": []
-        }
-    }
+    ]
 }

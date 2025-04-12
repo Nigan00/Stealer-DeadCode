@@ -57,7 +57,15 @@ jobs:
         choco --version
       shell: powershell
 
-    # Шаг 4: Установка 7-Zip
+    # Шаг 4: Удаление конфликтующих Chocolatey-пакетов
+    - name: Remove conflicting Chocolatey packages
+      run: |
+        Write-Host "Removing conflicting packages like apache-httpd..."
+        choco uninstall apache-httpd -y --force --execution-timeout=600
+      shell: powershell
+      continue-on-error: true
+
+    # Шаг 5: Установка 7-Zip
     - name: Install 7-Zip
       run: |
         Write-Host "Installing 7-Zip via Chocolatey..."
@@ -71,7 +79,7 @@ jobs:
         Write-Host "7-Zip installation completed"
       shell: powershell
 
-    # Шаг 5: Кэширование Qt
+    # Шаг 6: Кэширование Qt
     - name: Cache Qt
       id: cache-qt
       uses: actions/cache@v4
@@ -81,7 +89,7 @@ jobs:
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw81-
 
-    # Шаг 6: Установка Qt 5.15.2 и MinGW 8.1 через aqtinstall
+    # Шаг 7: Установка Qt 5.15.2 и MinGW 8.1 через aqtinstall
     - name: Install Qt 5.15.2 and MinGW 8.1 via aqtinstall
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
@@ -99,8 +107,8 @@ jobs:
           exit 1
         }
         
-        Write-Host "Installing Qt 5.15.2 for MinGW 8.1 (base package)..."
-        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81
+        Write-Host "Installing Qt 5.15.2 for MinGW 8.1 (base package and additional modules)..."
+        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 -m qtscript qtdeclarative qtquickcontrols qtquickcontrols2 qtsvg qtsql
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2"
           exit 1
@@ -129,7 +137,7 @@ jobs:
         Write-Host "Qt 5.15.2 and MinGW 8.1 installed successfully"
       shell: powershell
 
-    # Шаг 7: Проверка установки Qt и MinGW
+    # Шаг 8: Проверка установки Qt и MinGW
     - name: Verify Qt and MinGW installation
       run: |
         Write-Host "Verifying Qt and MinGW installation..."
@@ -144,7 +152,9 @@ jobs:
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Widgets.dll",
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Svg.dll",
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Quick.dll",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5QuickControls2.dll"
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5QuickControls2.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Sql.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Qml.dll"
         )
         foreach ($path in $paths) {
           if (-not (Test-Path $path)) {
@@ -173,7 +183,7 @@ jobs:
         Write-Host "Qt $qtVersion and MinGW setup verified successfully"
       shell: powershell
 
-    # Шаг 8: Кэширование Strawberry Perl
+    # Шаг 9: Кэширование Strawberry Perl
     - name: Cache Strawberry Perl
       uses: actions/cache@v4
       with:
@@ -182,7 +192,7 @@ jobs:
         restore-keys: |
           strawberry-perl-${{ runner.os }}-
 
-    # Шаг 9: Установка Perl
+    # Шаг 10: Установка Perl
     - name: Install Perl via Chocolatey
       run: |
         Write-Host "Installing Strawberry Perl via Chocolatey..."
@@ -196,7 +206,7 @@ jobs:
         Write-Host "Perl installation completed"
       shell: powershell
 
-    # Шаг 10: Кэширование vcpkg
+    # Шаг 11: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -207,9 +217,12 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
-    # Шаг 11: Очистка и обновление vcpkg
+    # Шаг 12: Очистка и обновление vcpkg
     - name: Clean and update vcpkg
       run: |
+        Write-Host "Cleaning vcpkg cache..."
+        Remove-Item -Path C:\vcpkg\buildtrees -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path C:\vcpkg\downloads -Recurse -Force -ErrorAction SilentlyContinue
         if (-not (Test-Path C:\vcpkg)) {
           Write-Host "Cloning vcpkg repository..."
           git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
@@ -240,7 +253,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 12: Проверка и обновление vcpkg.json
+    # Шаг 13: Проверка и обновление vcpkg.json
     - name: Check and update vcpkg.json
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -255,7 +268,7 @@ jobs:
         $vcpkgJson.'builtin-baseline' = "${{ env.VCPKG_COMMIT }}"
         $openssl = $vcpkgJson.dependencies | Where-Object { $_.name -eq "openssl" }
         if ($openssl) {
-          $openssl.'version>=' = "1.1.1n"
+          $openssl.'version>=' = "3.0.5"  # Обновляем до более новой версии
         } else {
           Write-Host "Error: OpenSSL dependency not found in vcpkg.json"
           exit 1
@@ -265,7 +278,7 @@ jobs:
         Get-Content vcpkg.json
       shell: powershell
 
-    # Шаг 13: Проверка доступных версий библиотек
+    # Шаг 14: Проверка доступных версий библиотек
     - name: Check available library versions
       run: |
         Set-Location C:\vcpkg
@@ -281,7 +294,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 14: Установка vcpkg и зависимостей
+    # Шаг 15: Установка vcpkg и зависимостей
     - name: Install vcpkg and dependencies
       run: |
         Set-Location C:\vcpkg
@@ -298,10 +311,16 @@ jobs:
         Write-Host "Installing vcpkg dependencies..."
         Write-Host "vcpkg version:"
         C:\vcpkg\vcpkg.exe --version
-        C:\vcpkg\vcpkg.exe install --triplet x64-mingw-dynamic 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        C:\vcpkg\vcpkg.exe install --triplet x64-mingw-dynamic --cmake-args="-Wno-dev" 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed (exit code: $LASTEXITCODE)"
           Get-Content "vcpkg_install.log"
+          exit 1
+        }
+        Write-Host "Checking vcpkg installed directory..."
+        if (-not (Test-Path C:\vcpkg\installed\x64-mingw-dynamic)) {
+          Write-Host "Error: Directory C:\vcpkg\installed\x64-mingw-dynamic does not exist"
+          dir C:\vcpkg\installed -Recurse
           exit 1
         }
         Write-Host "Listing contents of vcpkg installed directory:"
@@ -309,7 +328,7 @@ jobs:
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
-    # Шаг 15: Проверка и переименование DLL (если необходимо)
+    # Шаг 16: Проверка и переименование DLL (если необходимо)
     - name: Check and rename vcpkg DLLs
       run: |
         $binDir = "C:\vcpkg\installed\x64-mingw-dynamic\bin"
@@ -324,8 +343,8 @@ jobs:
         $dllRenames = @{
           "libzlib1.dll" = "zlib1.dll"
           "libbz2.dll" = "bz2.dll"
-          "libssl-1_1-x64.dll" = "libssl.dll"
-          "libcrypto-1_1-x64.dll" = "libcrypto.dll"
+          "libssl-3-x64.dll" = "libssl.dll"  # Обновлено для OpenSSL 3.x
+          "libcrypto-3-x64.dll" = "libcrypto.dll"
         }
         foreach ($oldName in $dllRenames.Keys) {
           $newName = $dllRenames[$oldName]
@@ -344,7 +363,7 @@ jobs:
         dir
       shell: powershell
 
-    # Шаг 16: Загрузка логов vcpkg в случае ошибки
+    # Шаг 17: Загрузка логов vcpkg в случае ошибки
     - name: Upload vcpkg logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -353,7 +372,7 @@ jobs:
         path: Stealer-DeadCode/vcpkg_install.log
         if-no-files-found: warn
 
-    # Шаг 17: Проверка установки vcpkg
+    # Шаг 18: Проверка установки vcpkg
     - name: Verify vcpkg installation
       run: |
         $libDir = "C:\vcpkg\installed\x64-mingw-dynamic\lib"
@@ -384,7 +403,7 @@ jobs:
         Write-Host "All vcpkg dependencies verified as dynamic"
       shell: powershell
 
-    # Шаг 18: Проверка структуры проекта
+    # Шаг 19: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -415,7 +434,7 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 19: Исправление кодировки icon.rc
+    # Шаг 20: Исправление кодировки icon.rc
     - name: Fix icon.rc encoding
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -425,7 +444,7 @@ jobs:
         Write-Host "icon.rc encoding fixed to ASCII"
       shell: powershell
 
-    # Шаг 20: Генерация UI-файлов
+    # Шаг 21: Генерация UI-файлов
     - name: Generate UI files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -440,7 +459,7 @@ jobs:
         Write-Host "ui_mainwindow.h generated successfully"
       shell: powershell
 
-    # Шаг 21: Конфигурация и сборка проекта
+    # Шаг 22: Конфигурация и сборка проекта
     - name: Configure and build
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -480,7 +499,7 @@ jobs:
         Write-Host "Build completed successfully"
       shell: powershell
 
-    # Шаг 22: Тестирование запуска DeadCode.exe
+    # Шаг 23: Тестирование запуска DeadCode.exe
     - name: Test run DeadCode.exe
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
@@ -499,7 +518,7 @@ jobs:
       shell: powershell
       continue-on-error: true
 
-    # Шаг 23: Копирование необходимых DLL и плагинов Qt
+    # Шаг 24: Копирование необходимых DLL и плагинов Qt
     - name: Copy Qt DLLs and dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
@@ -557,7 +576,7 @@ jobs:
         dir release -Recurse
       shell: powershell
 
-    # Шаг 24: Загрузка логов сборки в случае ошибки
+    # Шаг 25: Загрузка логов сборки в случае ошибки
     - name: Upload build logs
       if: failure()
       uses: actions/upload-artifact@v4
@@ -572,7 +591,7 @@ jobs:
           Stealer-DeadCode\build\deadcode_error.log
         if-no-files-found: warn
 
-    # Шаг 25: Загрузка артефакта
+    # Шаг 26: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -597,7 +616,7 @@ jobs:
           Stealer-DeadCode\build\release\Qt\**\*
         if-no-files-found: error
 
-    # Шаг 26: Очистка
+    # Шаг 27: Очистка
     - name: Cleanup
       if: always()
       run: |
