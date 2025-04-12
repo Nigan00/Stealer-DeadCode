@@ -296,7 +296,9 @@ jobs:
         [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", $env:VCPKG_ROOT, [System.EnvironmentVariableTarget]::Process)
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
         Write-Host "Installing vcpkg dependencies..."
-        C:\vcpkg\vcpkg.exe install --triplet x64-mingw-dynamic --clean-after-build --x-no-dev-warnings 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        Write-Host "vcpkg version:"
+        C:\vcpkg\vcpkg.exe --version
+        C:\vcpkg\vcpkg.exe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed (exit code: $LASTEXITCODE)"
           Get-Content "vcpkg_install.log"
