@@ -40,7 +40,7 @@ jobs:
         $chocoPath = "C:\ProgramData\chocolatey\bin\choco.exe"
         if (Test-Path $chocoPath) {
           Write-Host "Chocolatey found, upgrading..."
-          & $chocoPath upgrade chocolatey -y --force --execution-timeout=600
+          & $chocoPath upgrade chocolatey -y --force --no-progress --execution-timeout=600
         } else {
           Write-Host "Installing Chocolatey..."
           Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -61,7 +61,7 @@ jobs:
     - name: Remove conflicting Chocolatey packages
       run: |
         Write-Host "Removing conflicting packages like apache-httpd..."
-        choco uninstall apache-httpd -y --force --execution-timeout=600
+        choco uninstall apache-httpd -y --force --no-progress --execution-timeout=600
       shell: powershell
       continue-on-error: true
 
@@ -69,7 +69,7 @@ jobs:
     - name: Install 7-Zip
       run: |
         Write-Host "Installing 7-Zip via Chocolatey..."
-        choco install 7zip -y --force --execution-timeout=600
+        choco install 7zip -y --force --no-progress --execution-timeout=600
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install 7-Zip (exit code: $LASTEXITCODE)"
           exit 1
@@ -107,8 +107,8 @@ jobs:
           exit 1
         }
         
-        Write-Host "Installing Qt 5.15.2 for MinGW 8.1 (base package and additional modules)..."
-        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 -m qtscript qtdeclarative qtquickcontrols qtquickcontrols2 qtsvg qtsql
+        Write-Host "Installing Qt 5.15.2 for MinGW 8.1 (base package)..."
+        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2"
           exit 1
@@ -154,7 +154,8 @@ jobs:
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Quick.dll",
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5QuickControls2.dll",
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Sql.dll",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Qml.dll"
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Qml.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Declarative.dll"
         )
         foreach ($path in $paths) {
           if (-not (Test-Path $path)) {
@@ -196,7 +197,7 @@ jobs:
     - name: Install Perl via Chocolatey
       run: |
         Write-Host "Installing Strawberry Perl via Chocolatey..."
-        choco install strawberryperl -y --force --execution-timeout=600
+        choco install strawberryperl -y --force --no-progress --execution-timeout=600
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install Perl (exit code: $LASTEXITCODE)"
           exit 1
@@ -268,7 +269,7 @@ jobs:
         $vcpkgJson.'builtin-baseline' = "${{ env.VCPKG_COMMIT }}"
         $openssl = $vcpkgJson.dependencies | Where-Object { $_.name -eq "openssl" }
         if ($openssl) {
-          $openssl.'version>=' = "3.0.5"  # Обновляем до более новой версии
+          $openssl.'version>=' = "3.0.5"
         } else {
           Write-Host "Error: OpenSSL dependency not found in vcpkg.json"
           exit 1
@@ -343,7 +344,7 @@ jobs:
         $dllRenames = @{
           "libzlib1.dll" = "zlib1.dll"
           "libbz2.dll" = "bz2.dll"
-          "libssl-3-x64.dll" = "libssl.dll"  # Обновлено для OpenSSL 3.x
+          "libssl-3-x64.dll" = "libssl.dll"
           "libcrypto-3-x64.dll" = "libcrypto.dll"
         }
         foreach ($oldName in $dllRenames.Keys) {
