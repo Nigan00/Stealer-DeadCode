@@ -92,8 +92,15 @@ jobs:
           exit 1
         }
         
+        Write-Host "Listing available Qt 5.15.2 modules for win64_mingw81..."
+        python -m aqt list-qt windows desktop --modules 5.15.2 win64_mingw81
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to list Qt modules"
+          exit 1
+        }
+        
         Write-Host "Installing Qt 5.15.2 for MinGW 8.1..."
-        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 --modules qtbase qtsvg qtdeclarative qtquickcontrols qtquickcontrols2 qtsql qtquick qtimageformats
+        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 --modules qtsvg qtquickcontrols qtquickcontrols2
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2"
           exit 1
@@ -109,8 +116,6 @@ jobs:
         Write-Host "Adjusting MinGW directory structure..."
         if (Test-Path "C:\Qt\Tools\mingw810_64") {
           Write-Host "MinGW directory already in place"
-        } elseif (Test-Path "C:\Qt\Tools\mingw810_64") {
-          Move-Item -Path "C:\Qt\Tools\mingw810_64" -Destination "C:\Qt\Tools\mingw810_64" -Force
         } else {
           Write-Host "Error: MinGW directory not found"
           dir C:\Qt\Tools -Recurse
