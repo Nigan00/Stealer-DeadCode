@@ -298,12 +298,14 @@ jobs:
         Write-Host "Installing vcpkg dependencies..."
         Write-Host "vcpkg version:"
         C:\vcpkg\vcpkg.exe --version
-        C:\vcpkg\vcpkg.exe install --triplet x64-mingw-dynamic --clean-after-build 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
+        C:\vcpkg\vcpkg.exe install --triplet x64-mingw-dynamic 2>&1 | Tee-Object -FilePath "vcpkg_install.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: vcpkg install failed (exit code: $LASTEXITCODE)"
           Get-Content "vcpkg_install.log"
           exit 1
         }
+        Write-Host "Listing contents of vcpkg installed directory:"
+        dir C:\vcpkg\installed\x64-mingw-dynamic -Recurse
         Write-Host "vcpkg installation completed successfully"
       shell: powershell
 
@@ -313,7 +315,8 @@ jobs:
         $binDir = "C:\vcpkg\installed\x64-mingw-dynamic\bin"
         if (-not (Test-Path $binDir)) {
           Write-Host "Error: Directory $binDir does not exist"
-          dir C:\vcpkg\installed\x64-mingw-dynamic -Recurse
+          Write-Host "Listing contents of C:\vcpkg\installed for diagnostics:"
+          dir C:\vcpkg\installed -Recurse
           exit 1
         }
         Set-Location $binDir
@@ -356,7 +359,7 @@ jobs:
         $libDir = "C:\vcpkg\installed\x64-mingw-dynamic\lib"
         $binDir = "C:\vcpkg\installed\x64-mingw-dynamic\bin"
         $includeDir = "C:\vcpkg\installed\x64-mingw-dynamic\include"
-        $libs = @("libsqlite3.dll.a", "libzip.dll.a", "libzlib.dll.a", "libbz2.dll.a", "libcurl.dll.a", "libssl.dll.a", "libcrypto.dll.a")
+        $libs = @("sqlite3.dll.a", "zip.dll.a", "zlib.dll.a", "bz2.dll.a", "curl.dll.a", "ssl.dll.a", "crypto.dll.a")
         $dlls = @("libsqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl.dll", "libcrypto.dll")
         $headers = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
         $missing = @()
