@@ -37,7 +37,7 @@ RC_FILE = $$PWD/../icon.rc
 # Пути для поиска заголовков
 VCPKG_ROOT = $$(VCPKG_ROOT)
 isEmpty(VCPKG_ROOT) {
-    VCPKG_ROOT = C:/vcpkg
+    VCPKG_ROOT = C:\vcpkg
     warning("VCPKG_ROOT is not set, defaulting to $$VCPKG_ROOT")
 }
 
@@ -48,7 +48,7 @@ VCPKG_INCLUDE_DIR = $$VCPKG_ROOT/installed/x64-mingw-dynamic/include
 
 QT_DIR = $$(QT_ROOT)
 isEmpty(QT_DIR) {
-    QT_DIR = C:/Qt/5.15.2/mingw81_64
+    QT_DIR = C:\Qt\5.15.2\mingw81_64
     warning("QT_ROOT is not set, defaulting to $$QT_DIR")
 }
 !exists($$QT_DIR) {
