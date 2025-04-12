@@ -99,12 +99,16 @@ jobs:
           exit 1
         }
         
-        Write-Host "Installing Qt 5.15.2 for MinGW 8.1..."
-        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81 --modules qtsvg qtquickcontrols qtquickcontrols2
+        Write-Host "Installing Qt 5.15.2 for MinGW 8.1 (base package)..."
+        python -m aqt install-qt --outputdir C:\Qt windows desktop 5.15.2 win64_mingw81
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt 5.15.2"
           exit 1
         }
+        
+        Write-Host "Listing installed Qt libraries..."
+        dir C:\Qt\5.15.2\mingw81_64\lib
+        dir C:\Qt\5.15.2\mingw81_64\bin
         
         Write-Host "Installing MinGW 8.1 toolchain..."
         python -m aqt install-tool --outputdir C:\Qt windows desktop tools_mingw qt.tools.win64_mingw810
@@ -135,7 +139,12 @@ jobs:
           "C:\Qt\$qtVersion\mingw81_64\bin\uic.exe",
           "C:\Qt\Tools\mingw810_64\bin\g++.exe",
           "C:\Qt\Tools\mingw810_64\bin\mingw32-make.exe",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Core.dll"
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Core.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Gui.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Widgets.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Svg.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Quick.dll",
+          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5QuickControls2.dll"
         )
         foreach ($path in $paths) {
           if (-not (Test-Path $path)) {
