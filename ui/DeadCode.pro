@@ -30,6 +30,7 @@ LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
         -lcurl \
         -lssl \
         -lcrypto \
+        -lzip \
         -lbcrypt \
         -lws2_32 \
         -lgdiplus \

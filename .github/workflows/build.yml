@@ -172,7 +172,7 @@ jobs:
       run: |
         Set-Location C:\vcpkg
         Write-Host "Installing vcpkg dependencies..."
-        .\vcpkg.exe install sqlite3 curl openssl --triplet x64-mingw-dynamic --clean-after-build
+        .\vcpkg.exe install sqlite3 curl openssl libzip --triplet x64-mingw-dynamic --clean-after-build
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install dependencies"
           exit 1
@@ -295,7 +295,8 @@ jobs:
           "sqlite3.dll",
           "libcurl.dll",
           "libssl-3-x64.dll",
-          "libcrypto-3-x64.dll"
+          "libcrypto-3-x64.dll",
+          "libzip.dll"
         )
         foreach ($dll in $dlls) {
           if (Test-Path "$vcpkgBinDir\$dll") {
@@ -333,6 +334,7 @@ jobs:
           "libcurl.dll",
           "libssl-3-x64.dll",
           "libcrypto-3-x64.dll",
+          "libzip.dll",
           "platforms\qwindows.dll",
           "sqldrivers\qsqlite.dll",
           "config.json",

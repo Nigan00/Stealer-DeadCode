@@ -106,7 +106,7 @@ if not exist "!QT_DIR!\bin\windeployqt.exe" (
 
 echo Copying vcpkg dependencies...
 set "VCPKG_DIR=C:\vcpkg\installed\x64-mingw-dynamic\bin"
-for %%d in (sqlite3.dll libcurl.dll libssl-3-x64.dll libcrypto-3-x64.dll) do (
+for %%d in (sqlite3.dll libcurl.dll libssl-3-x64.dll libcrypto-3-x64.dll libzip.dll) do (
     if exist "!VCPKG_DIR!\%%d" (
         copy "!VCPKG_DIR!\%%d" . || (
             echo Error: Failed to copy %%d
@@ -139,6 +139,7 @@ for %%f in (
     libcurl.dll
     libssl-3-x64.dll
     libcrypto-3-x64.dll
+    libzip.dll
     platforms\qwindows.dll
     sqldrivers\qsqlite.dll
     config.json
