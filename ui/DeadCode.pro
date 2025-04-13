@@ -23,9 +23,9 @@ RC_FILE = ../icon.rc
 INCLUDEPATH += \
     ../src \
     . \
-    C:/vcpkg/installed/x64-mingw-static/include
+    C:/vcpkg/installed/x64-mingw-dynamic/include
 
-LIBS += -LC:/vcpkg/installed/x64-mingw-static/lib \
+LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
         -lsqlite3 \
         -lcurl \
         -lssl \
