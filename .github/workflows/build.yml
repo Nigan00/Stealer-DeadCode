@@ -1,4 +1,3 @@
-```yaml
 name: Build DeadCode
 
 on:
@@ -372,4 +371,3 @@ jobs:
       run: |
         Remove-Item -Path "$env:GITHUB_WORKSPACE\Stealer-DeadCode\build" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
-```
