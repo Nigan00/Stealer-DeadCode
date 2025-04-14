@@ -89,11 +89,14 @@ jobs:
           exit 1
         }
         Write-Host "Installing MinGW..."
-        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw -O C:/Qt
+        python -m aqt install-tool windows desktop tools_mingw1120_64 qt.tools.win64_mingw1120_64 -O C:/Qt
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MinGW"
+          Write-Host "Error: Failed to install MinGW. Listing available tools:"
+          python -m aqt list-tool windows desktop tools_mingw
           exit 1
         }
+        Write-Host "MinGW installed. Checking directory:"
+        dir C:\Qt\Tools\mingw1120_64\bin
       shell: powershell
 
     # Шаг 7: Проверка Qt и MinGW
