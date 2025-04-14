@@ -88,15 +88,15 @@ jobs:
           Write-Host "Error: Failed to install Qt"
           exit 1
         }
-        Write-Host "Installing MinGW..."
-        python -m aqt install-tool windows desktop tools_mingw810 qt.tools.win64_mingw810 -O C:/Qt
+        Write-Host "Installing MinGW via Chocolatey..."
+        choco install mingw -y --force
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install MinGW. Listing available tools:"
-          python -m aqt list-tool windows desktop
+          Write-Host "Error: Failed to install MinGW via Chocolatey"
           exit 1
         }
-        Write-Host "MinGW installed. Checking directory:"
-        dir C:\Qt\Tools\mingw810_64\bin
+        $env:Path = "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;" + $env:Path
+        Write-Host "MinGW installed. Checking g++ version:"
+        g++ --version
       shell: powershell
 
     # Шаг 7: Проверка Qt и MinGW
@@ -108,8 +108,8 @@ jobs:
           "C:\Qt\$qtVersion\mingw_64\bin\qmake.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\uic.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\windeployqt.exe",
-          "C:\Qt\Tools\mingw810_64\bin\g++.exe",
-          "C:\Qt\Tools\mingw810_64\bin\mingw32-make.exe",
+          "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\g++.exe",
+          "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\mingw32-make.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\Qt6Core.dll",
           "C:\Qt\$qtVersion\mingw_64\bin\Qt6Gui.dll",
           "C:\Qt\$qtVersion\mingw_64\bin\Qt6Widgets.dll",
@@ -122,13 +122,13 @@ jobs:
             exit 1
           }
         }
-        $env:Path = "C:\Qt\$qtVersion\mingw_64\bin;C:\Qt\Tools\mingw810_64\bin;" + $env:Path
+        $env:Path = "C:\Qt\$qtVersion\mingw_64\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;" + $env:Path
         qmake --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
         }
-        & "C:\Qt\Tools\mingw810_64\bin\g++.exe" --version
+        g++ --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ failed"
           exit 1
@@ -236,7 +236,7 @@ jobs:
     - name: Configure and build
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\Qt\Tools\mingw810_64\bin;C:\vcpkg;" + $env:Path
+        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;C:\vcpkg;" + $env:Path
         $env:VCPKG_ROOT = "C:\vcpkg"
         
         # Установка временной директории
@@ -275,7 +275,7 @@ jobs:
     - name: Deploy Qt dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\Qt\Tools\mingw810_64\bin;" + $env:Path
+        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;" + $env:Path
         Write-Host "Running windeployqt..."
         windeployqt DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
         if ($LASTEXITCODE -ne 0) {
