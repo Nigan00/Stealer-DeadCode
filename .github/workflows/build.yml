@@ -94,12 +94,12 @@ jobs:
           Write-Host "Error: Failed to install MinGW via Chocolatey"
           exit 1
         }
-        $env:Path = "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;" + $env:Path
+        $env:Path = "C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
         Write-Host "MinGW installed. Checking g++ version:"
         g++ --version
       shell: powershell
 
-    # Шаг 7: Проверка Qt и MinGW
+    # Шаг 7: Проверка Qt и MinGW (исправлено)
     - name: Verify Qt and MinGW
       run: |
         Write-Host "Verifying Qt and MinGW..."
@@ -108,8 +108,8 @@ jobs:
           "C:\Qt\$qtVersion\mingw_64\bin\qmake.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\uic.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\windeployqt.exe",
-          "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\g++.exe",
-          "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin\mingw32-make.exe",
+          "C:\ProgramData\mingw64\mingw64\bin\g++.exe",
+          "C:\ProgramData\mingw64\mingw64\bin\mingw32-make.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\Qt6Core.dll",
           "C:\Qt\$qtVersion\mingw_64\bin\Qt6Gui.dll",
           "C:\Qt\$qtVersion\mingw_64\bin\Qt6Widgets.dll",
@@ -122,13 +122,13 @@ jobs:
             exit 1
           }
         }
-        $env:Path = "C:\Qt\$qtVersion\mingw_64\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;" + $env:Path
+        $env:Path = "C:\Qt\$qtVersion\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
         qmake --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
         }
-        g++ --version
+        & "C:\ProgramData\mingw64\mingw64\bin\g++.exe" --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ failed"
           exit 1
@@ -232,11 +232,11 @@ jobs:
         Write-Host "ui_mainwindow.h generated"
       shell: powershell
 
-    # Шаг 14: Конфигурация и сборка
+    # Шаг 14: Конфигурация и сборка (исправлено)
     - name: Configure and build
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;C:\vcpkg;" + $env:Path
+        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;C:\vcpkg;" + $env:Path
         $env:VCPKG_ROOT = "C:\vcpkg"
         
         # Установка временной директории
@@ -275,7 +275,7 @@ jobs:
     - name: Deploy Qt dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;" + $env:Path
+        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
         Write-Host "Running windeployqt..."
         windeployqt DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
         if ($LASTEXITCODE -ne 0) {
