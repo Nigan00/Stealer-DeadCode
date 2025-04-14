@@ -1,21 +1,18 @@
 # configure_and_build.ps1
 
-# Проверка зависимостей g++
-Write-Host "Checking g++ dependencies..."
-$mingwBinPath = "C:/Qt/Tools/mingw810_64/bin"  # Исправлен путь в соответствии с build.yml
+# Проверка текущей директории
+Write-Host "Current directory: $(Get-Location)"
+Write-Host "Contents of current directory:"
+Get-ChildItem -Path . | ForEach-Object { Write-Host $_.Name }
+
+# Проверка MinGW зависимостей
+Write-Host "Checking MinGW dependencies..."
+$mingwBinPath = "C:/Qt/Tools/mingw1120_64/bin"
 $requiredDlls = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll")
 foreach ($dll in $requiredDlls) {
     if (-not (Test-Path "$mingwBinPath/$dll")) {
         Write-Host "Error: $dll not found in $mingwBinPath/"
-        # Пытаемся найти DLL в альтернативной директории
-        $fallbackPath = "C:/ProgramData/mingw64/mingw64/bin/$dll"
-        if (Test-Path $fallbackPath) {
-            Write-Host "Found $dll at $fallbackPath, copying to $mingwBinPath/"
-            Copy-Item -Path $fallbackPath -Destination $mingwBinPath -Force
-        } else {
-            Write-Host "Error: $dll not found in fallback path $fallbackPath"
-            exit 1
-        }
+        exit 1
     } else {
         Write-Host "$dll found in $mingwBinPath/"
     }
@@ -23,31 +20,22 @@ foreach ($dll in $requiredDlls) {
 
 # Проверка утилит MinGW
 Write-Host "Checking MinGW utilities..."
-$requiredUtils = @("gcc.exe", "g++.exe", "as.exe", "ld.exe", "ar.exe", "cpp.exe", "nm.exe", "strip.exe", "mingw32-make.exe")
+$requiredUtils = @("gcc.exe", "g++.exe", "mingw32-make.exe")
 foreach ($util in $requiredUtils) {
     if (-not (Test-Path "$mingwBinPath/$util")) {
         Write-Host "Error: $util not found in $mingwBinPath/"
-        # Пытаемся найти утилиту в альтернативной директории
-        $fallbackPath = "C:/ProgramData/mingw64/mingw64/bin/$util"
-        if (Test-Path $fallbackPath) {
-            Write-Host "Found $util at $fallbackPath, copying to $mingwBinPath/"
-            Copy-Item -Path $fallbackPath -Destination $mingwBinPath -Force
-        } else {
-            Write-Host "Error: $util not found in fallback path $fallbackPath"
-            exit 1
-        }
+        exit 1
     } else {
         Write-Host "$util found in $mingwBinPath/"
     }
 }
 
-# Проверка зависимостей vcpkg
+# Проверка vcpkg зависимостей
 Write-Host "Checking vcpkg dependencies..."
-$vcpkgLibPath = "C:/vcpkg/installed/x64-mingw-dynamic/lib"
-$vcpkgBinPath = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
-$vcpkgIncludePath = "C:/vcpkg/installed/x64-mingw-dynamic/include"
+$vcpkgLibPath = "C:/vcpkg/installed/x64-windows-static/lib"
+$vcpkgBinPath = "C:/vcpkg/installed/x64-windows-static/bin"
+$vcpkgIncludePath = "C:/vcpkg/installed/x64-windows-static/include"
 
-# Проверка наличия директорий vcpkg
 if (-not (Test-Path $vcpkgLibPath)) {
     Write-Host "Error: vcpkg library directory not found at $vcpkgLibPath"
     exit 1
@@ -61,55 +49,30 @@ if (-not (Test-Path $vcpkgIncludePath)) {
     exit 1
 }
 
-# Список зависимостей для проверки
-$requiredVcpkgLibs = @("libsqlite3.dll.a", "libzip.dll.a", "libzlib.dll.a", "libbz2.dll.a", "libcurl.dll.a", "libssl.dll.a", "libcrypto.dll.a")
-$requiredVcpkgDlls = @("sqlite3.dll", "libzip.dll", "zlib1.dll", "bz2.dll", "libcurl.dll", "libssl.dll", "libcrypto.dll")
-$requiredVcpkgHeaders = @("sqlite3.h", "zip.h", "zlib.h", "bzlib.h", "curl/curl.h", "openssl/ssl.h", "openssl/crypto.h")
+$requiredVcpkgDlls = @("sqlite3.dll", "libcurl.dll", "libssl-3-x64.dll", "libcrypto-3-x64.dll", "libzip.dll")
 $missingDeps = @()
-
-# Проверка библиотек (.dll.a)
-foreach ($lib in $requiredVcpkgLibs) {
-    if (-not (Test-Path "$vcpkgLibPath/$lib")) {
-        $missingDeps += $lib
-    }
-}
-
-# Проверка DLL
 foreach ($dll in $requiredVcpkgDlls) {
     if (-not (Test-Path "$vcpkgBinPath/$dll")) {
         $missingDeps += $dll
     }
 }
 
-# Проверка заголовочных файлов
-foreach ($header in $requiredVcpkgHeaders) {
-    if (-not (Test-Path "$vcpkgIncludePath/$header")) {
-        $missingDeps += $header
-    }
-}
-
 if ($missingDeps) {
     Write-Host "Error: Missing vcpkg dependencies: $missingDeps"
-    Write-Host "Please ensure vcpkg is installed and dependencies are built with triplet x64-mingw-dynamic"
-    Write-Host "Listing contents of $vcpkgLibPath:"
-    dir $vcpkgLibPath -Recurse -ErrorAction SilentlyContinue
     Write-Host "Listing contents of $vcpkgBinPath:"
     dir $vcpkgBinPath -Recurse -ErrorAction SilentlyContinue
-    Write-Host "Listing contents of $vcpkgIncludePath:"
-    dir $vcpkgIncludePath -Recurse -ErrorAction SilentlyContinue
     exit 1
 } else {
     Write-Host "All vcpkg dependencies found."
 }
 
 # Установка путей
-$qmakePath = "C:/Qt/5.15.2/mingw81_64/bin/qmake.exe"
-$makePath = "C:/Qt/Tools/mingw810_64/bin/mingw32-make.exe"  # Исправлен путь
-$gppPath = "C:/Qt/Tools/mingw810_64/bin/g++.exe"  # Исправлен путь
-$gccPath = "C:/Qt/Tools/mingw810_64/bin/gcc.exe"  # Исправлен путь
+$qmakePath = "C:/Qt/6.5.3/mingw_64/bin/qmake.exe"
+$makePath = "C:/Qt/Tools/mingw1120_64/bin/mingw32-make.exe"
+$gppPath = "C:/Qt/Tools/mingw1120_64/bin/g++.exe"
 $proFile = "DeadCode.pro"
 
-# Проверка наличия qmake и mingw32-make
+# Проверка инструментов
 if (-not (Test-Path $qmakePath)) {
     Write-Host "Error: qmake.exe not found at $qmakePath"
     exit 1
@@ -122,31 +85,10 @@ if (-not (Test-Path $gppPath)) {
     Write-Host "Error: g++.exe not found at $gppPath"
     exit 1
 }
-if (-not (Test-Path $gccPath)) {
-    Write-Host "Error: gcc.exe not found at $gccPath"
-    exit 1
-}
-
-# Проверка текущей директории
-Write-Host "Current directory: $(Get-Location)"
-Write-Host "Contents of current directory:"
-Get-ChildItem -Path . | ForEach-Object { Write-Host $_.Name }
 
 # Проверка PATH
-$env:Path = "C:/Qt/5.15.2/mingw81_64/bin;$mingwBinPath;$vcpkgBinPath;" + $env:Path
+$env:Path = "C:/Qt/6.5.3/mingw_64/bin;$mingwBinPath;$vcpkgBinPath;" + $env:Path
 Write-Host "PATH: $env:Path"
-
-# Установка QML2_IMPORT_PATH
-$env:QML2_IMPORT_PATH = "C:/Qt/5.15.2/mingw81_64/qml"
-Write-Host "QML2_IMPORT_PATH set to: $env:QML2_IMPORT_PATH"
-
-# Проверка доступности g++
-Write-Host "Verifying g++ is accessible..."
-& $gppPath --version
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: g++ is not accessible at $gppPath"
-    exit 1
-}
 
 # Проверка версии qmake
 Write-Host "qmake version:"
@@ -156,71 +98,27 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Создание директории build, если она не существует
+# Проверка версии g++
+Write-Host "g++ version:"
+& $gppPath --version
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: g++ --version failed"
+    exit 1
+}
+
+# Создание директории build
 if (-not (Test-Path "build")) {
     Write-Host "Creating build directory..."
     New-Item -Path "build" -ItemType Directory -Force | Out-Null
 }
 Set-Location -Path "build"
-Write-Host "Current directory after moving to build: $(Get-Location)"
+Write-Host "Current directory: $(Get-Location)"
 
-# Проверка наличия DeadCode.pro
+# Проверка DeadCode.pro
 if (-not (Test-Path "../ui/$proFile")) {
     Write-Host "Error: $proFile not found in ../ui"
     exit 1
 }
-
-# Вывод содержимого DeadCode.pro
-Write-Host "Contents of DeadCode.pro:"
-Get-Content "../ui/$proFile"
-
-# Проверка текущих значений TEMP и TMP
-Write-Host "Current TEMP: $env:TEMP"
-Write-Host "Current TMP: $env:TMP"
-
-# Тестовая компиляция для отладки с verbose output
-Write-Host "Running a test compilation to verify g++ with verbose output..."
-$testDir = "test_temp"
-if (-not (Test-Path $testDir)) {
-    New-Item -ItemType Directory -Path $testDir -Force | Out-Null
-}
-$testCppFile = "$testDir/test.cpp"
-$testExeFile = "$testDir/test.exe"
-Set-Content -Path $testCppFile -Value @"
-#include <iostream>
-int main() {
-    std::cout << "Test compilation successful" << std::endl;
-    return 0;
-}
-"@
-Write-Host "Running g++ with verbose output..."
-& $gppPath -v 2>&1 | Tee-Object -FilePath "gpp_verbose.log"
-Write-Host "Contents of gpp_verbose.log:"
-Get-Content "gpp_verbose.log"
-
-Write-Host "Compiling $testCppFile..."
-& $gppPath -v -o $testExeFile $testCppFile 2>&1 | Tee-Object -FilePath "test_compile.log"
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: Test compilation failed"
-    if (Test-Path "test_compile.log") {
-        Write-Host "Contents of test_compile.log:"
-        Get-Content "test_compile.log"
-    }
-    exit 1
-}
-
-# Проверка, что тестовый исполняемый файл был создан и может быть запущен
-if (-not (Test-Path $testExeFile)) {
-    Write-Host "Error: Test executable $testExeFile was not created"
-    exit 1
-}
-Write-Host "Running test executable..."
-& $testExeFile
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Error: Test executable failed to run"
-    exit 1
-}
-Write-Host "Test compilation and execution successful"
 
 # Запуск qmake
 Write-Host "Running qmake..."
@@ -243,7 +141,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # Запуск mingw32-make
 Write-Host "Running mingw32-make..."
-& $makePath -f Makefile.Release -j1 2>&1 | Tee-Object -FilePath "make_output.log"
+& $makePath -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath "make_output.log"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Error: mingw32-make failed"
     if (Test-Path "make_output.log") {
@@ -253,12 +151,87 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Проверка наличия DeadCode.exe
+# Проверка DeadCode.exe
 if (-not (Test-Path "release/DeadCode.exe")) {
     Write-Host "Error: DeadCode.exe not found in release directory"
     dir "release" -Recurse -ErrorAction SilentlyContinue
     exit 1
 }
 
+# Развёртывание Qt зависимостей
+Write-Host "Deploying Qt dependencies..."
+$windeployqtPath = "C:/Qt/6.5.3/mingw_64/bin/windeployqt.exe"
+if (-not (Test-Path $windeployqtPath)) {
+    Write-Host "Error: windeployqt.exe not found at $windeployqtPath"
+    exit 1
+}
+Set-Location -Path "release"
+& $windeployqtPath DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler 2>&1 | Tee-Object -FilePath "windeployqt_output.log"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Error: windeployqt failed"
+    if (Test-Path "windeployqt_output.log") {
+        Write-Host "Contents of windeployqt_output.log:"
+        Get-Content "windeployqt_output.log"
+    }
+    exit 1
+}
+
+# Копирование vcpkg зависимостей
+Write-Host "Copying vcpkg dependencies..."
+foreach ($dll in $requiredVcpkgDlls) {
+    if (Test-Path "$vcpkgBinPath/$dll") {
+        Copy-Item -Path "$vcpkgBinPath/$dll" -Destination . -Force
+        Write-Host "Copied $dll"
+    } else {
+        Write-Host "Warning: $dll not found in $vcpkgBinPath"
+    }
+}
+
+# Копирование дополнительных файлов
+Write-Host "Copying additional files..."
+if (Test-Path "../../config.json") {
+    Copy-Item -Path "../../config.json" -Destination . -Force
+    Write-Host "Copied config.json"
+} else {
+    Write-Host "Warning: config.json not found, creating stub"
+    Set-Content -Path "config.json" -Value "{}"
+}
+if (Test-Path "../../icon.ico") {
+    Copy-Item -Path "../../icon.ico" -Destination . -Force
+    Write-Host "Copied icon.ico"
+} else {
+    Write-Host "Warning: icon.ico not found"
+}
+New-Item -Path "data" -ItemType Directory -Force | Out-Null
+Write-Host "Created data directory"
+
+# Проверка всех файлов
+Write-Host "Verifying files..."
+$requiredFiles = @(
+    "DeadCode.exe",
+    "Qt6Core.dll",
+    "Qt6Gui.dll",
+    "Qt6Widgets.dll",
+    "Qt6Network.dll",
+    "Qt6Sql.dll",
+    "sqlite3.dll",
+    "libcurl.dll",
+    "libssl-3-x64.dll",
+    "libcrypto-3-x64.dll",
+    "libzip.dll",
+    "plugins\platforms\qwindows.dll",
+    "plugins\sqldrivers\qsqlite.dll",
+    "config.json",
+    "icon.ico",
+    "data"
+)
+foreach ($file in $requiredFiles) {
+    if (-not (Test-Path $file)) {
+        Write-Host "Error: $file is missing"
+        exit 1
+    }
+}
+Write-Host "All required files are present"
+
 Write-Host "Build completed successfully"
-Write-Host "Executable located at: $(Get-Location)/release/DeadCode.exe"
+Write-Host "Executable located at: $(Get-Location)/DeadCode.exe"

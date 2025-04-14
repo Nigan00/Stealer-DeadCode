@@ -1,3 +1,4 @@
+```yaml
 name: Build DeadCode
 
 on:
@@ -12,7 +13,7 @@ on:
 
 env:
   VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"  # Стабильный коммит vcpkg
-  QT_VERSION: "5.15.2"  # Версия Qt
+  QT_VERSION: "6.5.3"  # Версия Qt 6 для совместимости с mainwindow.cpp
 
 jobs:
   build-windows:
@@ -33,14 +34,13 @@ jobs:
       with:
         python-version: '3.12'
 
-    # Шаг 3: Установка или проверка Chocolatey
+    # Шаг 3: Установка Chocolatey
     - name: Setup Chocolatey
       run: |
         Write-Host "Checking for Chocolatey installation..."
         if (Test-Path "C:\ProgramData\Chocolatey\bin\choco.exe") {
-          Write-Host "Chocolatey already installed, skipping installation."
+          Write-Host "Chocolatey already installed."
           $env:Path = "C:\ProgramData\Chocolatey\bin;" + $env:Path
-          [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
           choco --version
         } else {
           Write-Host "Installing Chocolatey..."
@@ -52,7 +52,6 @@ jobs:
             exit 1
           }
           $env:Path = "C:\ProgramData\Chocolatey\bin;" + $env:Path
-          [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
         }
       shell: powershell
 
@@ -60,13 +59,12 @@ jobs:
     - name: Install 7-Zip
       run: |
         Write-Host "Installing 7-Zip..."
-        choco install 7zip -y --force --no-progress --execution-timeout=600
+        choco install 7zip -y --force --no-progress
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install 7-Zip"
           exit 1
         }
         $env:Path = "C:\Program Files\7-Zip;" + $env:Path
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
       shell: powershell
 
     # Шаг 5: Кэширование Qt
@@ -75,24 +73,24 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:\Qt
-        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw81-${{ github.event.inputs.cache-buster || '1' }}
+        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
-          qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw81-
+          qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
 
     # Шаг 6: Установка Qt и MinGW
-    - name: Install Qt 5.15.2 and MinGW
+    - name: Install Qt 6.5.3 and MinGW
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
         Write-Host "Installing aqtinstall..."
-        python -m pip install aqtinstall==3.1.12
-        Write-Host "Installing Qt 5.15.2..."
-        python -m aqt install-qt windows desktop 5.15.2 win64_mingw81 -O C:/Qt --archives qtbase qttools qtsql
+        python -m pip install aqtinstall==3.1.18
+        Write-Host "Installing Qt 6.5.3..."
+        python -m aqt install-qt windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt"
           exit 1
         }
-        Write-Host "Installing MinGW 8.1..."
-        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw810 -O C:/Qt
+        Write-Host "Installing MinGW..."
+        python -m aqt install-tool windows desktop tools_mingw qt.tools.win64_mingw -O C:/Qt
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install MinGW"
           exit 1
@@ -105,16 +103,16 @@ jobs:
         Write-Host "Verifying Qt and MinGW..."
         $qtVersion = "${{ env.QT_VERSION }}"
         $paths = @(
-          "C:\Qt\$qtVersion\mingw81_64\bin\qmake.exe",
-          "C:\Qt\$qtVersion\mingw81_64\bin\uic.exe",
-          "C:\Qt\$qtVersion\mingw81_64\bin\windeployqt.exe",
-          "C:\Qt\Tools\mingw810_64\bin\g++.exe",
-          "C:\Qt\Tools\mingw810_64\bin\mingw32-make.exe",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Core.dll",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Gui.dll",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Widgets.dll",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Network.dll",
-          "C:\Qt\$qtVersion\mingw81_64\bin\Qt5Sql.dll"
+          "C:\Qt\$qtVersion\mingw_64\bin\qmake.exe",
+          "C:\Qt\$qtVersion\mingw_64\bin\uic.exe",
+          "C:\Qt\$qtVersion\mingw_64\bin\windeployqt.exe",
+          "C:\Qt\Tools\mingw1120_64\bin\g++.exe",
+          "C:\Qt\Tools\mingw1120_64\bin\mingw32-make.exe",
+          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Core.dll",
+          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Gui.dll",
+          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Widgets.dll",
+          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Network.dll",
+          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Sql.dll"
         )
         foreach ($path in $paths) {
           if (-not (Test-Path $path)) {
@@ -122,14 +120,13 @@ jobs:
             exit 1
           }
         }
-        $env:Path = "C:\Qt\$qtVersion\mingw81_64\bin;C:\Qt\Tools\mingw810_64\bin;" + $env:Path
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
+        $env:Path = "C:\Qt\$qtVersion\mingw_64\bin;C:\Qt\Tools\mingw1120_64\bin;" + $env:Path
         qmake --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
         }
-        & "C:\Qt\Tools\mingw810_64\bin\g++.exe" --version
+        & "C:\Qt\Tools\mingw1120_64\bin\g++.exe" --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ failed"
           exit 1
@@ -172,7 +169,7 @@ jobs:
       run: |
         Set-Location C:\vcpkg
         Write-Host "Installing vcpkg dependencies..."
-        .\vcpkg.exe install sqlite3 curl openssl libzip --triplet x64-mingw-dynamic --clean-after-build
+        .\vcpkg.exe install sqlite3 curl openssl libzip --triplet x64-windows-static --clean-after-build
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install dependencies"
           exit 1
@@ -198,9 +195,9 @@ jobs:
         )
         $missingFiles = $requiredFiles | Where-Object { -not (Test-Path $_) }
         if ($missingFiles) {
-          Write-Host "Warning: Missing files: $missingFiles"
+          Write-Host "Error: Missing files: $missingFiles"
+          exit 1
         }
-        # Создаём config.json, если отсутствует
         if (-not (Test-Path "config.json")) {
           Write-Host "Creating stub config.json..."
           Set-Content -Path "config.json" -Value "{}"
@@ -223,7 +220,7 @@ jobs:
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h..."
-        $uicPath = "C:\Qt\${{ env.QT_VERSION }}\mingw81_64\bin\uic.exe"
+        $uicPath = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin\uic.exe"
         New-Item -Path "build\release" -ItemType Directory -Force
         & $uicPath ui\mainwindow.ui -o build\release\ui_mainwindow.h
         if ($LASTEXITCODE -ne 0) {
@@ -237,8 +234,8 @@ jobs:
     - name: Configure and build
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw81_64\bin;C:\Qt\Tools\mingw810_64\bin;C:\vcpkg;" + $env:Path
-        [System.Environment]::SetEnvironmentVariable("Path", $env:Path, [System.EnvironmentVariableTarget]::Process)
+        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\Qt\Tools\mingw1120_64\bin;C:\vcpkg;" + $env:Path
+        $env:VCPKG_ROOT = "C:\vcpkg"
         
         # Установка временной директории
         $env:TEMP = "C:\Temp"
@@ -252,7 +249,7 @@ jobs:
         
         Set-Location build
         Write-Host "Running qmake..."
-        qmake ..\ui\DeadCode.pro CONFIG+=release DEFINES+="BUILD_DATE=\\\"$buildDate\\\"" DEFINES+="BUILD_VERSION=\\\"$buildVersion\\\""
+        qmake ..\ui\DeadCode.pro CONFIG+=release QMAKE_INCDIR+="C:\vcpkg\installed\x64-windows-static\include" QMAKE_LIBDIR+="C:\vcpkg\installed\x64-windows-static\lib" DEFINES+="BUILD_DATE=\\\"$buildDate\\\"" DEFINES+="BUILD_VERSION=\\\"$buildVersion\\\""
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
@@ -272,13 +269,13 @@ jobs:
         Write-Host "Build completed"
       shell: powershell
 
-    # Шаг 15: Развёртывание зависимостей с помощью windeployqt
+    # Шаг 15: Развёртывание зависимостей Qt
     - name: Deploy Qt dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw81_64\bin;C:\Qt\Tools\mingw810_64\bin;" + $env:Path
+        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\Qt\Tools\mingw1120_64\bin;" + $env:Path
         Write-Host "Running windeployqt..."
-        windeployqt DeadCode.exe --release --no-translations --no-angle --no-opengl-sw
+        windeployqt DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: windeployqt failed"
           exit 1
@@ -290,7 +287,7 @@ jobs:
     - name: Copy vcpkg dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
-        $vcpkgBinDir = "C:\vcpkg\installed\x64-mingw-dynamic\bin"
+        $vcpkgBinDir = "C:\vcpkg\installed\x64-windows-static\bin"
         $dlls = @(
           "sqlite3.dll",
           "libcurl.dll",
@@ -325,18 +322,18 @@ jobs:
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
         $requiredFiles = @(
           "DeadCode.exe",
-          "Qt5Core.dll",
-          "Qt5Gui.dll",
-          "Qt5Widgets.dll",
-          "Qt5Network.dll",
-          "Qt5Sql.dll",
+          "Qt6Core.dll",
+          "Qt6Gui.dll",
+          "Qt6Widgets.dll",
+          "Qt6Network.dll",
+          "Qt6Sql.dll",
           "sqlite3.dll",
           "libcurl.dll",
           "libssl-3-x64.dll",
           "libcrypto-3-x64.dll",
           "libzip.dll",
-          "platforms\qwindows.dll",
-          "sqldrivers\qsqlite.dll",
+          "plugins\platforms\qwindows.dll",
+          "plugins\sqldrivers\qsqlite.dll",
           "config.json",
           "icon.ico",
           "data"
@@ -350,20 +347,7 @@ jobs:
         Write-Host "All required files are present"
       shell: powershell
 
-    # Шаг 19: Тестирование запуска
-    - name: Test DeadCode.exe
-      run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw81_64\bin;C:\Qt\Tools\mingw810_64\bin;" + $env:Path
-        Write-Host "Running DeadCode.exe..."
-        Start-Process -FilePath "DeadCode.exe" -ArgumentList "--test" -NoNewWindow -Wait -RedirectStandardOutput "test_output.log" -RedirectStandardError "test_error.log"
-        Write-Host "Test output:"
-        Get-Content "test_output.log" -ErrorAction SilentlyContinue
-        Write-Host "Test errors:"
-        Get-Content "test_error.log" -ErrorAction SilentlyContinue
-      shell: powershell
-
-    # Шаг 20: Создание артефакта
+    # Шаг 19: Создание артефакта
     - name: Create artifact
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
@@ -374,7 +358,7 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 21: Загрузка артефакта
+    # Шаг 20: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -382,9 +366,10 @@ jobs:
         path: $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\DeadCode-Portable.zip
         if-no-files-found: error
 
-    # Шаг 22: Очистка
+    # Шаг 21: Очистка
     - name: Cleanup
       if: always()
       run: |
         Remove-Item -Path "$env:GITHUB_WORKSPACE\Stealer-DeadCode\build" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
+```

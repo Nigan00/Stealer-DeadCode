@@ -2,7 +2,6 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include "compat.h"
 #include <QNetworkAccessManager>
 #include <QTimer>
 #include <QPropertyAnimation>
