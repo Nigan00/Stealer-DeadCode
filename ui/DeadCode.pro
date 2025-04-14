@@ -2,7 +2,7 @@
 QT += core gui network widgets sql
 
 # Имя цели и шаблон приложения
-TARGET = DeadCode
+TARGET = StelDeadCode
 TEMPLATE = app
 CONFIG += release c++17
 
@@ -30,49 +30,31 @@ RC_FILE = ../icon.rc
 INCLUDEPATH += \
     ../src \
     . \
-    C:/vcpkg/installed/x64-windows/include
+    C:/vcpkg/installed/x64-mingw-dynamic/include
 
 # Библиотеки для линковки
-LIBS += -LC:/vcpkg/installed/x64-windows/lib \
+LIBS += -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
         -lsqlite3 \
         -lcurl \
         -lssl \
         -lcrypto \
         -lzip \
-        -lbcrypt \
-        -lws2_32 \
-        -lgdiplus \
-        -liphlpapi \
-        -lpsapi \
-        -lshlwapi \
-        -lcrypt32 \
-        -lgdi32 \
-        -luser32 \
-        -ladvapi32 \
-        -lwininet \
-        -lshell32 \
-        -lurlmon \
-        -lole32
+        -lbz2 \
+        -lz
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += -O2 \
                   -Wall \
                   -Wextra \
-                  -Werror=return-type \
-                  -DUNICODE \
-                  -D_UNICODE \
-                  -DWIN32 \
-                  -DQT_NO_DEBUG \
-                  -D_CRT_SECURE_NO_WARNINGS
+                  -Werror=return-type
 
 # Флаги линковки
 QMAKE_LFLAGS += -O2 \
                 -Wl,-subsystem,windows \
                 -mthreads
 
-# Определения для сборки
-DEFINES += BUILD_DATE=\\\"$${QMAKE_BUILD_DATE}\\\" \
-           BUILD_VERSION=\\\"$${QMAKE_BUILD_VERSION}\\\"
+# Определения для сборки (задаются через workflow)
+DEFINES += QT_NO_DEBUG
 
 # Директории для сборки
 DESTDIR = ../build/release
@@ -82,10 +64,10 @@ UI_DIR = ../build/release
 
 # Очистка при сборке
 QMAKE_CLEAN += \
-    $$DESTDIR/DeadCode.exe \
-    $$OBJECTS_DIR/*.o \
-    $$MOC_DIR/moc_*.cpp \
-    $$UI_DIR/ui_*.h
+    ../build/release/*.exe \
+    ../build/release/*.o \
+    ../build/release/moc_*.cpp \
+    ../build/release/ui_*.h
 
 # Настройки для Windows
 win32 {
@@ -97,10 +79,10 @@ win32 {
         MOC_DIR = ../build/debug
         UI_DIR = ../build/debug
         QMAKE_CLEAN += \
-            $$DESTDIR/DeadCode.exe \
-            $$OBJECTS_DIR/*.o \
-            $$MOC_DIR/moc_*.cpp \
-            $$UI_DIR/ui_*.h
+            ../build/debug/*.exe \
+            ../build/debug/*.o \
+            ../build/debug/moc_*.cpp \
+            ../build/debug/ui_*.h
     }
 }
 
