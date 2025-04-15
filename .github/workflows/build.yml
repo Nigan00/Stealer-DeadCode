@@ -250,7 +250,7 @@ jobs:
               QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" `
               QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" `
               LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32" `
-              DEFINES+="BUILD_DATE=\\\\\\\"$buildDate\\\\\\\" BUILD_VERSION=\\\\\\\"$buildVersion\\\\\\\""
+              DEFINES+="BUILD_DATE=\\\"$buildDate\\\" BUILD_VERSION=\\\"$buildVersion\\\""
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
