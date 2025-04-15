@@ -42,7 +42,7 @@ jobs:
           Write-Host "Installing Chocolatey..."
           Set-ExecutionPolicy Bypass -Scope Process -Force
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
           if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
             Write-Host "Error: Chocolatey setup failed"
             exit 1
@@ -105,6 +105,7 @@ jobs:
           "C:\Qt\$qtVersion\mingw_64\bin\qmake.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\uic.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\windeployqt.exe",
+          "C:\Qt\$qtVersion\mingw_64\bin\moc.exe",
           "C:\ProgramData\mingw64\mingw64\bin\g++.exe",
           "C:\ProgramData\mingw64\mingw64\bin\mingw32-make.exe",
           "C:\Qt\$qtVersion\mingw_64\bin\Qt6Core.dll",
@@ -125,7 +126,7 @@ jobs:
           Write-Host "Error: qmake failed"
           exit 1
         }
-        & "C:\ProgramData\mingw64\mingw64\bin\g++.exe" --version
+        g++ --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ failed"
           exit 1
@@ -165,7 +166,7 @@ jobs:
       run: |
         Set-Location C:\vcpkg
         Write-Host "Installing vcpkg dependencies..."
-        .\vcpkg.exe install sqlite3:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
+        .\vcpkg.exe install sqlite3[core,json1]:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install dependencies"
           exit 1
@@ -208,7 +209,7 @@ jobs:
         foreach ($file in $files) {
           if (Test-Path $file) {
             $content = Get-Content -Path $file -Raw -Encoding UTF8
-            Set-Content -Path $file -Value $content -NoNewline -Encoding UTF8
+            [System.IO.File]::WriteAllText($file, $content, [System.Text.UTF8Encoding]::new($false))
             Write-Host "Fixed encoding for $file to UTF-8 without BOM"
           } else {
             Write-Host "Warning: $file not found"
@@ -238,30 +239,34 @@ jobs:
         $env:INCLUDE = "C:\vcpkg\installed\x64-mingw-dynamic\include;" + $env:INCLUDE
         $env:LIB = "C:\vcpkg\installed\x64-mingw-dynamic\lib;" + $env:LIB
         
-        # Установка временной директории
+        # Set temporary directory
         $env:TEMP = "C:\Temp"
         $env:TMP = "C:\Temp"
         New-Item -Path "C:\Temp" -ItemType Directory -Force
         
-        # Генерация BUILD_DATE и BUILD_VERSION
+        # Generate BUILD_DATE and BUILD_VERSION
         $buildDate = Get-Date -Format "yyyy-MM-dd"
         $buildVersion = git rev-parse --short HEAD
         if (-not $buildVersion) { $buildVersion = "unknown" }
         
+        # Create build directory
+        New-Item -Path "build" -ItemType Directory -Force
         Set-Location build
+        
         Write-Host "Running qmake..."
-        qmake ..\ui\DeadCode.pro CONFIG+=release `
-              QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" `
-              QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" `
-              LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32" `
-              DEFINES+="BUILD_DATE=\\\"$buildDate\\\" BUILD_VERSION=\\\"$buildVersion\\\""
+        & "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin\qmake.exe" ..\ui\DeadCode.pro `
+            CONFIG+=release `
+            QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" `
+            QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" `
+            LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32" `
+            DEFINES+="BUILD_DATE=\\\"$buildDate\\\" BUILD_VERSION=\\\"$buildVersion\\\""
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
         }
         
         Write-Host "Running mingw32-make..."
-        mingw32-make -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath make.log
+        & "C:\ProgramData\mingw64\mingw64\bin\mingw32-make.exe" -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath make.log
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Full log:"
           Get-Content -Path make.log
@@ -280,7 +285,7 @@ jobs:
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
         $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
         Write-Host "Running windeployqt..."
-        windeployqt DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
+        & "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin\windeployqt.exe" DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: windeployqt failed"
           exit 1
@@ -321,8 +326,8 @@ jobs:
     - name: Copy additional files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
-        Copy-Item -Path "config.json" -Destination "build\release\"
-        Copy-Item -Path "icon.ico" -Destination "build\release\"
+        Copy-Item -Path "config.json" -Destination "build\release\" -Force
+        Copy-Item -Path "icon.ico" -Destination "build\release\" -Force
         New-Item -Path "build\release\data" -ItemType Directory -Force
         Write-Host "Additional files copied"
       shell: powershell
@@ -356,20 +361,18 @@ jobs:
           "icon.ico",
           "data"
         )
-        foreach ($file in $requiredFiles) {
-          if (-not (Test-Path $file)) {
-            Write-Host "Warning: $file is missing"
-          } else {
-            Write-Host "Found: $file"
-          }
+        $missingFiles = $requiredFiles | Where-Object { -not (Test-Path $_) }
+        if ($missingFiles) {
+          Write-Host "Error: Missing files: $missingFiles"
+          exit 1
         }
-        Write-Host "All required files checked"
+        Write-Host "All required files present"
       shell: powershell
 
     - name: Create artifact
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
-        7z a DeadCode-Portable.zip .\release\*
+        & "C:\Program Files\7-Zip\7z.exe" a DeadCode-Portable.zip .\release\*
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to create zip archive"
           exit 1
