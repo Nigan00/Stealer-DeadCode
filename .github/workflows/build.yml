@@ -77,10 +77,10 @@ jobs:
         Write-Host "Installing aqtinstall..."
         python -m pip install aqtinstall==3.1.18
         Write-Host "Installing Qt 6.5.3..."
-        python -m aqt install-qt --config ./qt-install-config.yml windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork
+        python -m aqt install-qt windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork --timeout 60
         if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: Failed to install Qt, retrying with fallback mirror..."
-          python -m aqt install-qt --config ./qt-install-config.yml windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork
+          Write-Host "Error: Failed to install Qt, retrying..."
+          python -m aqt install-qt windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork --timeout 60
           if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to install Qt after retry"
             exit 1
