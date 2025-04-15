@@ -83,7 +83,7 @@ jobs:
           exit 1
         }
         Write-Host "Installing MinGW via Chocolatey..."
-        choco install mingw -y --force
+        choco install mingw -y --force --version 13.2.0
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install MinGW via Chocolatey"
           exit 1
@@ -257,7 +257,7 @@ jobs:
         }
         
         Write-Host "Running mingw32-make..."
-        mingw32-make -f Makefile.Release -j4 5993 2>&1 | Tee-Object -FilePath make.log
+        mingw32-make -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath make.log
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Full log:"
           Get-Content -Path make.log
