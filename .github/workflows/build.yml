@@ -41,7 +41,7 @@ jobs:
         } else {
           Write-Host "Installing Chocolatey..."
           Set-ExecutionPolicy Bypass -Scope Process -Force
-          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocolType]::Tls12
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
           iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
           if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
             Write-Host "Error: Chocolatey setup failed"
@@ -77,13 +77,10 @@ jobs:
         Write-Host "Installing aqtinstall..."
         python -m pip install aqtinstall==3.1.18
         Write-Host "Installing Qt 6.5.3..."
-        $env:AQT_MAX_RETRIES = "5"
-        $env:AQT_MIRROR = "https://mirrors.tuna.tsinghua.edu.cn/qt"
-        python -m aqt install-qt windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork --max-retries 5
+        python -m aqt install-qt --config ./qt-install-config.yml windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install Qt, retrying with fallback mirror..."
-          $env:AQT_MIRROR = "https://ftp.fau.de/qtproject"
-          python -m aqt install-qt windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork --max-retries 5
+          python -m aqt install-qt --config ./qt-install-config.yml windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork
           if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to install Qt after retry"
             exit 1
