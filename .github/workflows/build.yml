@@ -263,6 +263,9 @@ jobs:
         $buildVersion = git rev-parse --short HEAD
         if (-not $buildVersion) { $buildVersion = "unknown" }
         
+        # Escape buildVersion for qmake
+        $buildVersion = $buildVersion -replace '"', '""'
+        
         # Create build directory
         New-Item -Path "build" -ItemType Directory -Force
         Set-Location build
@@ -273,7 +276,7 @@ jobs:
             QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" `
             QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" `
             LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32" `
-            DEFINES+="BUILD_DATE=\\\"$buildDate\\\" BUILD_VERSION=\\\"$buildVersion\\\""
+            "DEFINES+=BUILD_DATE=\\\"$buildDate\\\" BUILD_VERSION=\\\"$buildVersion\\\""
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
@@ -294,9 +297,16 @@ jobs:
         Write-Host "Build completed"
       shell: powershell
 
+    - name: Debug Makefile
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
+        Write-Host "Contents of Makefile.Release:"
+        Get-Content -Path Makefile.Release -ErrorAction SilentlyContinue
+      shell: powershell
+
     - name: Deploy Qt dependencies
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCodebuild\release
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
         $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
         Write-Host "Running windeployqt..."
         & "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin\windeployqt.exe" DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
