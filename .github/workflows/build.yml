@@ -201,18 +201,32 @@ jobs:
         Write-Host "Project structure verified"
       shell: powershell
 
+    - name: Debug directory structure
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host "Listing files in repository:"
+        Get-ChildItem -Recurse | ForEach-Object { Write-Host $_.FullName }
+      shell: powershell
+
     - name: Fix encoding of source files
       run: |
         Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
         Write-Host "Fixing encoding of source files..."
         $files = @("src\main.cpp", "ui\mainwindow.cpp", "ui\mainwindow.h", "src\stealerworker.h", "icon.rc")
         foreach ($file in $files) {
-          if (Test-Path $file) {
-            $content = Get-Content -Path $file -Raw -Encoding UTF8
-            [System.IO.File]::WriteAllText($file, $content, [System.Text.UTF8Encoding]::new($false))
-            Write-Host "Fixed encoding for $file to UTF-8 without BOM"
+          $fullPath = Join-Path -Path $env:GITHUB_WORKSPACE\Stealer-DeadCode -ChildPath $file
+          if (Test-Path $fullPath) {
+            Write-Host "Processing $file..."
+            try {
+              $content = Get-Content -Path $fullPath -Raw -Encoding UTF8 -ErrorAction Stop
+              [System.IO.File]::WriteAllText($fullPath, $content, [System.Text.UTF8Encoding]::new($false))
+              Write-Host "Fixed encoding for $file to UTF-8 without BOM"
+            } catch {
+              Write-Host "Error processing $file : $_"
+            }
           } else {
-            Write-Host "Warning: $file not found"
+            Write-Host "Warning: $file not found at $fullPath"
           }
         }
       shell: powershell
@@ -282,7 +296,7 @@ jobs:
 
     - name: Deploy Qt dependencies
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
+        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCodebuild\release
         $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
         Write-Host "Running windeployqt..."
         & "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin\windeployqt.exe" DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
