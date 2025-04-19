@@ -29,14 +29,12 @@ RC_FILE = ../icon.rc
 # Пути для включения заголовков
 INCLUDEPATH += \
     ../src \
-    . \
-    C:/vcpkg/installed/x64-mingw-dynamic/include \
-    C:/Qt/6.5.3/mingw_64/include
+    ../ui \
+    C:/vcpkg/installed/x64-mingw-dynamic/include
 
 # Библиотеки для линковки
 LIBS += \
-    -LC:/vcpkg/installed/x64-mingw-dynamic/lib \
-    -LC:/Qt/6.5.3/mingw_64/lib \
+    -L/C:/vcpkg/installed/x64-mingw-dynamic/lib \
     -lsqlite3 \
     -lcurl \
     -lssl \
@@ -56,6 +54,7 @@ LIBS += \
 QMAKE_CXXFLAGS += \
     -Wall \
     -Wextra \
+    -Wpedantic \
     -DUNICODE \
     -D_WIN32 \
     -DMINGW_HAS_SECURE_API=1

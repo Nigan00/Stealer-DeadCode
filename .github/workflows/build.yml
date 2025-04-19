@@ -36,7 +36,6 @@ jobs:
         Write-Host "Checking for Chocolatey installation..."
         if (Test-Path "C:\ProgramData\Chocolatey\bin\choco.exe") {
           Write-Host "Chocolatey already installed."
-          $env:Path = "C:\ProgramData\Chocolatey\bin;" + $env:Path
           choco --version
         } else {
           Write-Host "Installing Chocolatey..."
@@ -47,8 +46,8 @@ jobs:
             Write-Host "Error: Chocolatey setup failed"
             exit 1
           }
-          $env:Path = "C:\ProgramData\Chocolatey\bin;" + $env:Path
         }
+        $env:Path = "C:/ProgramData/Chocolatey/bin;" + $env:Path
       shell: powershell
 
     - name: Install 7-Zip
@@ -59,14 +58,14 @@ jobs:
           Write-Host "Error: Failed to install 7-Zip"
           exit 1
         }
-        $env:Path = "C:\Program Files\7-Zip;" + $env:Path
+        $env:Path = "C:/Program Files/7-Zip;" + $env:Path
       shell: powershell
 
     - name: Cache Qt
       id: cache-qt
       uses: actions/cache@v4
       with:
-        path: C:\Qt
+        path: C:/Qt
         key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
@@ -92,7 +91,6 @@ jobs:
           Write-Host "Error: Failed to install MinGW via Chocolatey"
           exit 1
         }
-        $env:Path = "C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
         Write-Host "MinGW installed. Checking g++ version:"
         g++ --version
       shell: powershell
@@ -102,17 +100,17 @@ jobs:
         Write-Host "Verifying Qt and MinGW..."
         $qtVersion = "${{ env.QT_VERSION }}"
         $paths = @(
-          "C:\Qt\$qtVersion\mingw_64\bin\qmake.exe",
-          "C:\Qt\$qtVersion\mingw_64\bin\uic.exe",
-          "C:\Qt\$qtVersion\mingw_64\bin\windeployqt.exe",
-          "C:\Qt\$qtVersion\mingw_64\bin\moc.exe",
-          "C:\ProgramData\mingw64\mingw64\bin\g++.exe",
-          "C:\ProgramData\mingw64\mingw64\bin\mingw32-make.exe",
-          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Core.dll",
-          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Gui.dll",
-          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Widgets.dll",
-          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Network.dll",
-          "C:\Qt\$qtVersion\mingw_64\bin\Qt6Sql.dll"
+          "C:/Qt/$qtVersion/mingw_64/bin/qmake.exe",
+          "C:/Qt/$qtVersion/mingw_64/bin/uic.exe",
+          "C:/Qt/$qtVersion/mingw_64/bin/windeployqt.exe",
+          "C:/Qt/$qtVersion/mingw_64/bin/moc.exe",
+          "C:/ProgramData/mingw64/mingw64/bin/g++.exe",
+          "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Core.dll",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Gui.dll",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Widgets.dll",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Network.dll",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Sql.dll"
         )
         foreach ($path in $paths) {
           if (-not (Test-Path $path)) {
@@ -120,7 +118,7 @@ jobs:
             exit 1
           }
         }
-        $env:Path = "C:\Qt\$qtVersion\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
+        $env:Path = "C:/Qt/$qtVersion/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         qmake --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
@@ -137,8 +135,8 @@ jobs:
       uses: actions/cache@v4
       with:
         path: |
-          C:\vcpkg
-          C:\vcpkg\installed
+          C:/vcpkg
+          C:/vcpkg/installed
         key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '1' }}
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
@@ -146,16 +144,16 @@ jobs:
     - name: Setup vcpkg
       run: |
         Write-Host "Setting up vcpkg..."
-        if (-not (Test-Path C:\vcpkg)) {
-          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+        if (-not (Test-Path C:/vcpkg)) {
+          git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
           if ($LASTEXITCODE -ne 0) {
             Write-Host "Error: Failed to clone vcpkg"
             exit 1
           }
         }
-        Set-Location C:\vcpkg
+        Set-Location C:/vcpkg
         git checkout ${{ env.VCPKG_COMMIT }}
-        .\bootstrap-vcpkg.bat -disableMetrics
+        ./bootstrap-vcpkg.bat -disableMetrics
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Bootstrap failed"
           exit 1
@@ -164,9 +162,9 @@ jobs:
 
     - name: Install vcpkg dependencies
       run: |
-        Set-Location C:\vcpkg
+        Set-Location C:/vcpkg
         Write-Host "Installing vcpkg dependencies..."
-        .\vcpkg.exe install sqlite3[core,json1]:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
+        ./vcpkg.exe install sqlite3[core,json1]:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install dependencies"
           exit 1
@@ -175,17 +173,17 @@ jobs:
 
     - name: Verify project structure
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
         $requiredFiles = @(
-          "ui\DeadCode.pro",
-          "src\main.cpp",
-          "ui\mainwindow.ui",
-          "ui\mainwindow.cpp",
-          "ui\mainwindow.h",
-          "src\build_key.h",
-          "src\polymorphic_code.h",
-          "src\junk_code.h",
-          "src\stealerworker.h",
+          "ui/DeadCode.pro",
+          "src/main.cpp",
+          "ui/mainwindow.ui",
+          "ui/mainwindow.cpp",
+          "ui/mainwindow.h",
+          "src/build_key.h",
+          "src/polymorphic_code.h",
+          "src/junk_code.h",
+          "src/stealerworker.h",
           "icon.rc",
           "icon.ico"
         )
@@ -203,7 +201,7 @@ jobs:
 
     - name: Debug directory structure
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Current directory: $(Get-Location)"
         Write-Host "Listing files in repository:"
         Get-ChildItem -Recurse | ForEach-Object { Write-Host $_.FullName }
@@ -211,11 +209,11 @@ jobs:
 
     - name: Fix encoding of source files
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Fixing encoding of source files..."
-        $files = @("src\main.cpp", "ui\mainwindow.cpp", "ui\mainwindow.h", "src\stealerworker.h", "icon.rc")
+        $files = @("src/main.cpp", "ui/mainwindow.cpp", "ui/mainwindow.h", "src/stealerworker.h", "icon.rc")
         foreach ($file in $files) {
-          $fullPath = Join-Path -Path $env:GITHUB_WORKSPACE\Stealer-DeadCode -ChildPath $file
+          $fullPath = Join-Path -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode -ChildPath $file
           if (Test-Path $fullPath) {
             Write-Host "Processing $file..."
             try {
@@ -233,11 +231,11 @@ jobs:
 
     - name: Generate UI files
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
         Write-Host "Generating ui_mainwindow.h..."
-        $uicPath = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin\uic.exe"
-        New-Item -Path "build\release" -ItemType Directory -Force
-        & $uicPath ui\mainwindow.ui -o build\release\ui_mainwindow.h
+        $uicPath = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/uic.exe"
+        New-Item -Path "build/release" -ItemType Directory -Force
+        & $uicPath ui/mainwindow.ui -o build/release/ui_mainwindow.h
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: uic failed"
           exit 1
@@ -247,50 +245,52 @@ jobs:
 
     - name: Configure and build
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
-        $env:VCPKG_ROOT = "C:\vcpkg"
-        $env:INCLUDE = "C:\vcpkg\installed\x64-mingw-dynamic\include;" + $env:INCLUDE
-        $env:LIB = "C:\vcpkg\installed\x64-mingw-dynamic\lib;" + $env:LIB
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
+        $env:VCPKG_ROOT = "C:/vcpkg"
+        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;" + $env:INCLUDE
+        $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;" + $env:LIB
         
         # Set temporary directory
-        $env:TEMP = "C:\Temp"
-        $env:TMP = "C:\Temp"
-        New-Item -Path "C:\Temp" -ItemType Directory -Force
+        $env:TEMP = "C:/Temp"
+        $env:TMP = "C:/Temp"
+        New-Item -Path "C:/Temp" -ItemType Directory -Force
         
         # Generate BUILD_DATE and BUILD_VERSION
         $buildDate = Get-Date -Format "yyyy-MM-dd"
         $buildVersion = git rev-parse --short HEAD
         if (-not $buildVersion) { $buildVersion = "unknown" }
         
-        # Escape buildVersion for qmake
-        $buildVersion = $buildVersion -replace '"', '""'
-        
         # Create build directory
         New-Item -Path "build" -ItemType Directory -Force
         Set-Location build
         
-        Write-Host "Running qmake..."
-        & "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin\qmake.exe" ..\ui\DeadCode.pro `
-            CONFIG+=release `
-            QMAKE_INCDIR+="C:\vcpkg\installed\x64-mingw-dynamic\include" `
-            QMAKE_LIBDIR+="C:\vcpkg\installed\x64-mingw-dynamic\lib" `
-            LIBS+="-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32" `
-            "DEFINES+=BUILD_DATE=\\\"$buildDate\\\" BUILD_VERSION=\\\"$buildVersion\\\""
+        Write-Host "Running qmake with command:"
+        $qmakeCmd = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/qmake.exe ../ui/DeadCode.pro " +
+                    "CONFIG+=release " +
+                    "QMAKE_INCDIR+=C:/vcpkg/installed/x64-mingw-dynamic/include " +
+                    "QMAKE_LIBDIR+=C:/vcpkg/installed/x64-mingw-dynamic/lib " +
+                    "LIBS+=-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 " +
+                    "DEFINES+=BUILD_DATE=\\\"$buildDate\\\" " +
+                    "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\""
+        Write-Host $qmakeCmd
+        Invoke-Expression $qmakeCmd
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
         }
         
         Write-Host "Running mingw32-make..."
-        & "C:\ProgramData\mingw64\mingw64\bin\mingw32-make.exe" -f Makefile.Release -j4 2>&1 | Tee-Object -FilePath make.log
+        $makeCmd = "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j4"
+        Write-Host "Make command: $makeCmd"
+        Invoke-Expression "$makeCmd 2>&1 | Tee-Object -FilePath make.log"
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: mingw32-make failed. Full log:"
           Get-Content -Path make.log
           exit 1
         }
         
-        if (-not (Test-Path release\DeadCode.exe)) {
+        if (-not (Test-Path release/DeadCode.exe)) {
           Write-Host "Error: DeadCode.exe not found"
           exit 1
         }
@@ -299,17 +299,17 @@ jobs:
 
     - name: Debug Makefile
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
         Write-Host "Contents of Makefile.Release:"
         Get-Content -Path Makefile.Release -ErrorAction SilentlyContinue
       shell: powershell
 
     - name: Deploy Qt dependencies
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
-        $env:Path = "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin;C:\ProgramData\mingw64\mingw64\bin;" + $env:Path
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
+        $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         Write-Host "Running windeployqt..."
-        & "C:\Qt\${{ env.QT_VERSION }}\mingw_64\bin\windeployqt.exe" DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
+        & "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/windeployqt.exe" DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: windeployqt failed"
           exit 1
@@ -319,8 +319,8 @@ jobs:
 
     - name: Copy vcpkg dependencies
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
-        $vcpkgBinDir = "C:\vcpkg\installed\x64-mingw-dynamic\bin"
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
+        $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
         $dlls = @(
           "sqlite3.dll",
           "libcurl-4.dll",
@@ -337,8 +337,8 @@ jobs:
           "libbrotlienc.dll"
         )
         foreach ($dll in $dlls) {
-          if (Test-Path "$vcpkgBinDir\$dll") {
-            Copy-Item -Path "$vcpkgBinDir\$dll" -Destination .
+          if (Test-Path "$vcpkgBinDir/$dll") {
+            Copy-Item -Path "$vcpkgBinDir/$dll" -Destination .
             Write-Host "Copied $dll"
           } else {
             Write-Host "Warning: $dll not found in $vcpkgBinDir"
@@ -349,16 +349,16 @@ jobs:
 
     - name: Copy additional files
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode
-        Copy-Item -Path "config.json" -Destination "build\release\" -Force
-        Copy-Item -Path "icon.ico" -Destination "build\release\" -Force
-        New-Item -Path "build\release\data" -ItemType Directory -Force
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Copy-Item -Path "config.json" -Destination "build/release/" -Force
+        Copy-Item -Path "icon.ico" -Destination "build/release/" -Force
+        New-Item -Path "build/release/data" -ItemType Directory -Force
         Write-Host "Additional files copied"
       shell: powershell
 
     - name: Verify all files
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\release
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
         $requiredFiles = @(
           "DeadCode.exe",
           "Qt6Core.dll",
@@ -379,8 +379,8 @@ jobs:
           "libbrotlicommon.dll",
           "libbrotlidec.dll",
           "libbrotlienc.dll",
-          "plugins\platforms\qwindows.dll",
-          "plugins\sqldrivers\qsqlite.dll",
+          "plugins/platforms/qwindows.dll",
+          "plugins/sqldrivers/qsqlite.dll",
           "config.json",
           "icon.ico",
           "data"
@@ -395,8 +395,8 @@ jobs:
 
     - name: Create artifact
       run: |
-        Set-Location $env:GITHUB_WORKSPACE\Stealer-DeadCode\build
-        & "C:\Program Files\7-Zip\7z.exe" a DeadCode-Portable.zip .\release\*
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
+        & "C:/Program Files/7-Zip/7z.exe" a DeadCode-Portable.zip ./release/*
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to create zip archive"
           exit 1
@@ -407,12 +407,12 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: DeadCode-Portable
-        path: $env:GITHUB_WORKSPACE\Stealer-DeadCode\build\DeadCode-Portable.zip
+        path: $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/DeadCode-Portable.zip
         if-no-files-found: error
 
     - name: Cleanup
       if: always()
       run: |
-        Remove-Item -Path "$env:GITHUB_WORKSPACE\Stealer-DeadCode\build" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -Path "C:\Temp\DeadCode_*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$env:GITHUB_WORKSPACE/Stealer-DeadCode/build" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "C:/Temp/DeadCode_*" -Recurse -Force -ErrorAction SilentlyContinue
       shell: powershell
