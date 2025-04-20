@@ -240,6 +240,10 @@ jobs:
           Write-Host "Error: uic failed"
           exit 1
         }
+        if (-not (Test-Path "build/release/ui_mainwindow.h")) {
+          Write-Host "Error: ui_mainwindow.h not generated"
+          exit 1
+        }
         Write-Host "ui_mainwindow.h generated"
       shell: powershell
 
@@ -271,8 +275,8 @@ jobs:
                     "QMAKE_INCDIR+=C:/vcpkg/installed/x64-mingw-dynamic/include " +
                     "QMAKE_LIBDIR+=C:/vcpkg/installed/x64-mingw-dynamic/lib " +
                     "LIBS+=-lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 " +
-                    "DEFINES+=BUILD_DATE=\\\"$buildDate\\\" " +
-                    "DEFINES+=BUILD_VERSION=\\\"$buildVersion\\\""
+                    "DEFINES+=""BUILD_DATE=$buildDate"" " +
+                    "DEFINES+=""BUILD_VERSION=$buildVersion"""
         Write-Host $qmakeCmd
         Invoke-Expression $qmakeCmd
         if ($LASTEXITCODE -ne 0) {
