@@ -8,7 +8,7 @@ on:
     inputs:
       cache-buster:
         description: 'Cache buster'
-        default: '2'  # Изменено на 2 для сброса кэша
+        default: '2'
 
 env:
   VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"
@@ -106,7 +106,6 @@ jobs:
           "C:/Qt/$qtVersion/mingw_64/bin/moc.exe",
           "C:/ProgramData/mingw64/mingw64/bin/g++.exe",
           "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe",
-          "C:/ProgramData/mingw64/mingw64/lib/gdiplus.lib",  # Добавлена проверка gdiplus.lib
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Core.dll",
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Gui.dll",
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Widgets.dll",
@@ -239,7 +238,7 @@ jobs:
         $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
         $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;" + $env:INCLUDE
-        $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;" + $env:LIB
+        $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/Program Files (x86)/Windows Kits/10/Lib/10.0.22621.0/um/x64;" + $env:LIB
         
         # Set temporary directory
         $env:TEMP = "C:/Temp"
@@ -325,7 +324,7 @@ jobs:
           "libbrotlicommon.dll",
           "libbrotlidec.dll",
           "libbrotlienc.dll",
-          "gdiplus.dll"  # Добавлен gdiplus.dll
+          "gdiplus.dll"
         )
         foreach ($dll in $dlls) {
           if ($dll -eq "gdiplus.dll") {
@@ -375,7 +374,7 @@ jobs:
           "libbrotlicommon.dll",
           "libbrotlidec.dll",
           "libbrotlienc.dll",
-          "gdiplus.dll",  # Добавлен gdiplus.dll
+          "gdiplus.dll",
           "plugins/platforms/qwindows.dll",
           "plugins/sqldrivers/qsqlite.dll",
           "config.json",
