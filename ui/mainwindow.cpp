@@ -54,6 +54,7 @@
 #include <cstring>
 #include <QByteArray>
 #include <array>
+#include <winsock2.h>
 
 // Пространство имён для filesystem
 namespace fs = std::filesystem;
