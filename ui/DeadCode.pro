@@ -29,12 +29,10 @@ RC_FILE = ../icon.rc
 # Пути для включения заголовков
 INCLUDEPATH += \
     ../src \
-    ../ui \
-    C:/vcpkg/installed/x64-mingw-dynamic/include
+    ../ui
 
 # Библиотеки для линковки
 LIBS += \
-    -L/C:/vcpkg/installed/x64-mingw-dynamic/lib \
     -lsqlite3 \
     -lcurl \
     -lssl \
