@@ -8,7 +8,7 @@ on:
     inputs:
       cache-buster:
         description: 'Cache buster'
-        default: '1'
+        default: '2'  # Изменено на 2 для сброса кэша
 
 env:
   VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"
@@ -66,7 +66,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '1' }}
+        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '2' }}
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
 
@@ -90,9 +90,9 @@ jobs:
         if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
           Write-Host "Error: Failed to install MinGW via Chocolatey"
           exit 1
-          }
+        }
         Write-Host "MinGW installed. Checking g++ version:"
-        g++ --version
+        & "C:/ProgramData/mingw64/mingw64/bin/g++.exe" --version
       shell: powershell
 
     - name: Verify Qt and MinGW
@@ -106,6 +106,7 @@ jobs:
           "C:/Qt/$qtVersion/mingw_64/bin/moc.exe",
           "C:/ProgramData/mingw64/mingw64/bin/g++.exe",
           "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe",
+          "C:/ProgramData/mingw64/mingw64/lib/gdiplus.lib",  # Добавлена проверка gdiplus.lib
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Core.dll",
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Gui.dll",
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Widgets.dll",
@@ -124,7 +125,7 @@ jobs:
           Write-Host "Error: qmake failed"
           exit 1
         }
-        g++ --version
+        & "C:/ProgramData/mingw64/mingw64/bin/g++.exe" --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ failed"
           exit 1
@@ -137,7 +138,7 @@ jobs:
         path: |
           C:/vcpkg
           C:/vcpkg/installed
-        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '1' }}
+        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '2' }}
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
@@ -167,6 +168,7 @@ jobs:
         ./vcpkg.exe install sqlite3[core,json1]:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Failed to install dependencies"
+          Get-ChildItem -Path ./logs -Recurse | Get-Content
           exit 1
         }
       shell: powershell
@@ -222,29 +224,13 @@ jobs:
               Write-Host "Fixed encoding for $file to UTF-8 without BOM"
             } catch {
               Write-Host "Error processing $file : $_"
+              exit 1
             }
           } else {
-            Write-Host "Warning: $file not found at $fullPath"
+            Write-Host "Error: $file not found at $fullPath"
+            exit 1
           }
         }
-      shell: powershell
-
-    - name: Generate UI files
-      run: |
-        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
-        Write-Host "Generating ui_mainwindow.h..."
-        $uicPath = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/uic.exe"
-        New-Item -Path "build/release" -ItemType Directory -Force
-        & $uicPath ui/mainwindow.ui -o build/release/ui_mainwindow.h
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Error: uic failed"
-          exit 1
-        }
-        if (-not (Test-Path "build/release/ui_mainwindow.h")) {
-          Write-Host "Error: ui_mainwindow.h not generated"
-          exit 1
-        }
-        Write-Host "ui_mainwindow.h generated"
       shell: powershell
 
     - name: Configure and build
@@ -324,6 +310,7 @@ jobs:
       run: |
         Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
         $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
+        $system32Dir = "C:/Windows/System32"
         $dlls = @(
           "sqlite3.dll",
           "libcurl-4.dll",
@@ -337,17 +324,23 @@ jobs:
           "libzstd.dll",
           "libbrotlicommon.dll",
           "libbrotlidec.dll",
-          "libbrotlienc.dll"
+          "libbrotlienc.dll",
+          "gdiplus.dll"  # Добавлен gdiplus.dll
         )
         foreach ($dll in $dlls) {
-          if (Test-Path "$vcpkgBinDir/$dll") {
-            Copy-Item -Path "$vcpkgBinDir/$dll" -Destination .
+          if ($dll -eq "gdiplus.dll") {
+            $sourceDir = $system32Dir
+          } else {
+            $sourceDir = $vcpkgBinDir
+          }
+          if (Test-Path "$sourceDir/$dll") {
+            Copy-Item -Path "$sourceDir/$dll" -Destination .
             Write-Host "Copied $dll"
           } else {
-            Write-Host "Warning: $dll not found in $vcpkgBinDir"
+            Write-Host "Warning: $dll not found in $sourceDir"
           }
         }
-        Write-Host "vcpkg dependencies copied"
+        Write-Host "Dependencies copied"
       shell: powershell
 
     - name: Copy additional files
@@ -382,6 +375,7 @@ jobs:
           "libbrotlicommon.dll",
           "libbrotlidec.dll",
           "libbrotlienc.dll",
+          "gdiplus.dll",  # Добавлен gdiplus.dll
           "plugins/platforms/qwindows.dll",
           "plugins/sqldrivers/qsqlite.dll",
           "config.json",

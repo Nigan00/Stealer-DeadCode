@@ -46,7 +46,8 @@ LIBS += \
     -ladvapi32 \
     -lshell32 \
     -lole32 \
-    -lcrypt32
+    -lcrypt32 \
+    -lgdiplus  # Добавляем библиотеку GDI+
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += \
