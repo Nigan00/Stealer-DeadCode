@@ -32,22 +32,7 @@ INCLUDEPATH += \
     ../ui
 
 # Библиотеки для линковки
-LIBS += \
-    -lsqlite3 \
-    -lcurl \
-    -lssl \
-    -lcrypto \
-    -lzip \
-    -lbz2 \
-    -lz \
-    -lws2_32 \
-    -lgdi32 \
-    -luser32 \
-    -ladvapi32 \
-    -lshell32 \
-    -lole32 \
-    -lcrypt32 \
-    -lgdiplus  # Добавляем библиотеку GDI+
+LIBS += -lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 -lgdiplus -lbcrypt
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += \
