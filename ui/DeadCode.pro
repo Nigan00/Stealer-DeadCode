@@ -30,10 +30,31 @@ RC_FILE = ../icon.rc
 INCLUDEPATH += \
     ../src \
     ../ui \
-    C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include
+    C:/Qt/6.5.3/Tools/mingw1120_64/include \
+    C:/Qt/6.5.3/Tools/mingw1120_64/include/gdiplus \
+    C:/vcpkg/installed/x64-mingw-dynamic/include
 
 # Библиотеки для линковки
-LIBS += -lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 -lgdiplus -lbcrypt -liphlpapi
+LIBS += \
+    -L"C:/Qt/6.5.3/Tools/mingw1120_64/lib" \
+    -L"C:/vcpkg/installed/x64-mingw-dynamic/lib" \
+    -lgdiplus \
+    -lws2_32 \
+    -lgdi32 \
+    -luser32 \
+    -ladvapi32 \
+    -lshell32 \
+    -lole32 \
+    -lcrypt32 \
+    -lbcrypt \
+    -liphlpapi \
+    -lsqlite3 \
+    -lcurl \
+    -lssl \
+    -lcrypto \
+    -lzip \
+    -lbz2 \
+    -lz
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += \
@@ -43,7 +64,8 @@ QMAKE_CXXFLAGS += \
     -DUNICODE \
     -D_WIN32 \
     -DWIN32_LEAN_AND_MEAN \
-    -DMINGW_HAS_SECURE_API=1
+    -DMINGW_HAS_SECURE_API=1 \
+    -DGDIPVER=0x0110
 
 # Флаги линковки
 QMAKE_LFLAGS += \
@@ -61,9 +83,6 @@ CONFIG(release, debug|release) {
 # Очистка при сборке
 QMAKE_CLEAN += \
     release/DeadCode.exe \
-    release/*.o \
-    release/moc_*.cpp \
-    release/ui_*.h \
     release/DeadCode-Portable.zip
 
 # Настройки для Windows
@@ -75,9 +94,6 @@ win32 {
         MOC_DIR = debug
         UI_DIR = debug
         QMAKE_CLEAN += \
-            debug/DeadCode.exe \
-            debug/*.o \
-            debug/moc_*.cpp \
-            debug/ui_*.h
+            debug/DeadCode.exe
     }
 }
