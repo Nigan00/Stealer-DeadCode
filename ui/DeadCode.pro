@@ -29,7 +29,8 @@ RC_FILE = ../icon.rc
 # Пути для включения заголовков
 INCLUDEPATH += \
     ../src \
-    ../ui
+    ../ui \
+    C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include
 
 # Библиотеки для линковки
 LIBS += -lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 -lgdiplus -lbcrypt -liphlpapi
@@ -41,6 +42,7 @@ QMAKE_CXXFLAGS += \
     -Wpedantic \
     -DUNICODE \
     -D_WIN32 \
+    -DWIN32_LEAN_AND_MEAN \
     -DMINGW_HAS_SECURE_API=1
 
 # Флаги линковки

@@ -8,7 +8,7 @@ on:
     inputs:
       cache-buster:
         description: 'Cache buster'
-        default: '2'
+        default: '3' # Увеличено до 3 для сброса кеша
 
 env:
   VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"
@@ -66,7 +66,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '2' }}
+        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '3' }}
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
 
@@ -137,7 +137,7 @@ jobs:
         path: |
           C:/vcpkg
           C:/vcpkg/installed
-        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '2' }}
+        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '3' }}
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
@@ -235,9 +235,44 @@ jobs:
     - name: Configure and build
       run: |
         Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Write-Host "Current directory: $PWD"
+        Write-Host "Listing files in repository:"
+        Get-ChildItem -Recurse | ForEach-Object { $_.FullName }
+
+        Write-Host "Checking for winsock2.h..."
+        if (Test-Path "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/winsock2.h") {
+          Write-Host "winsock2.h found"
+        } else {
+          Write-Host "Error: winsock2.h not found"
+          exit 1
+        }
+
+        Write-Host "Checking for iphlpapi.h..."
+        if (Test-Path "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/iphlpapi.h") {
+          Write-Host "iphlpapi.h found"
+        } else {
+          Write-Host "Error: iphlpapi.h not found"
+          exit 1
+        }
+
+        Write-Host "Verifying encoding of source files..."
+        $files = @("src/main.cpp", "ui/mainwindow.cpp", "ui/mainwindow.h", "src/stealerworker.h", "icon.rc")
+        foreach ($file in $files) {
+          $content = Get-Content -Path $file -Raw -Encoding Byte
+          if ($content[0] -eq 0xEF -and $content[1] -eq 0xBB -and $content[2] -eq 0xBF) {
+            Write-Host "Error: $file has UTF-8 BOM"
+            exit 1
+          } else {
+            Write-Host "$file encoding is correct (UTF-8 without BOM)"
+          }
+        }
+
+        Write-Host "Printing lines 40-60 of ui/mainwindow.cpp..."
+        Get-Content -Path "ui/mainwindow.cpp" | Select-Object -Index (39..59)
+
         $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
-        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;" + $env:INCLUDE
+        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/Program Files (x86)/Windows Kits/10/Lib/10.0.22621.0/um/x64;" + $env:LIB
         
         # Set temporary directory
@@ -268,8 +303,8 @@ jobs:
           exit 1
         }
         
-        Write-Host "Running mingw32-make..."
-        $makeCmd = "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j4"
+        Write-Host "Running mingw32-make with verbose output..."
+        $makeCmd = "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j4 VERBOSE=1"
         Write-Host "Make command: $makeCmd"
         Invoke-Expression "$makeCmd 2>&1 | Tee-Object -FilePath make.log"
         if ($LASTEXITCODE -ne 0) {

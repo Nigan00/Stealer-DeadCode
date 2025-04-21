@@ -38,6 +38,7 @@
 #include <set>
 #include <fstream>
 #include <filesystem>
+#include <winsock2.h> // Перемещено перед windows.h
 #include <windows.h>
 #include <bcrypt.h>
 #include <zip.h>
@@ -54,7 +55,6 @@
 #include <cstring>
 #include <QByteArray>
 #include <array>
-#include <winsock2.h>
 
 // Пространство имён для filesystem
 namespace fs = std::filesystem;
