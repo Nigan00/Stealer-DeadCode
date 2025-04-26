@@ -8,10 +8,10 @@ on:
     inputs:
       cache-buster:
         description: 'Cache buster'
-        default: '4' # Увеличено до 4 для сброса кеша
+        default: '5' # Увеличено до 5 для сброса кеша
 
 env:
-  VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"
+  VCPKG_COMMIT: "latest" # Используем последнюю версию vcpkg
   QT_VERSION: "6.5.3"
 
 jobs:
@@ -66,7 +66,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '4' }}
+        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '5' }}
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
 
@@ -137,7 +137,7 @@ jobs:
         path: |
           C:/vcpkg
           C:/vcpkg/installed
-        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '4' }}
+        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '5' }}
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
@@ -152,7 +152,11 @@ jobs:
           }
         }
         Set-Location C:/vcpkg
-        git checkout ${{ env.VCPKG_COMMIT }}
+        if ("${{ env.VCPKG_COMMIT }}" -ne "latest") {
+          git checkout ${{ env.VCPKG_COMMIT }}
+        } else {
+          git pull origin master
+        }
         ./bootstrap-vcpkg.bat -disableMetrics
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: Bootstrap failed"
@@ -239,28 +243,22 @@ jobs:
         Write-Host "Listing files in repository:"
         Get-ChildItem -Recurse | ForEach-Object { $_.FullName }
 
-        Write-Host "Checking for winsock2.h..."
-        if (Test-Path "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/winsock2.h") {
-          Write-Host "winsock2.h found"
-        } else {
-          Write-Host "Error: winsock2.h not found"
-          exit 1
-        }
-
-        Write-Host "Checking for iphlpapi.h..."
-        if (Test-Path "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/iphlpapi.h") {
-          Write-Host "iphlpapi.h found"
-        } else {
-          Write-Host "Error: iphlpapi.h not found"
-          exit 1
-        }
-
-        Write-Host "Checking for gdiplus.h..."
-        if (Test-Path "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus.h") {
-          Write-Host "gdiplus.h found"
-        } else {
-          Write-Host "Error: gdiplus.h not found"
-          exit 1
+        Write-Host "Checking for critical headers..."
+        $headers = @(
+          "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/winsock2.h",
+          "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/iphlpapi.h",
+          "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus.h",
+          "C:/vcpkg/installed/x64-mingw-dynamic/include/sqlite3.h",
+          "C:/vcpkg/installed/x64-mingw-dynamic/include/curl/curl.h",
+          "C:/vcpkg/installed/x64-mingw-dynamic/include/openssl/evp.h"
+        )
+        foreach ($header in $headers) {
+          if (Test-Path $header) {
+            Write-Host "$header found"
+          } else {
+            Write-Host "Error: $header not found"
+            exit 1
+          }
         }
 
         Write-Host "Verifying encoding of source files..."
@@ -282,21 +280,21 @@ jobs:
         $env:VCPKG_ROOT = "C:/vcpkg"
         $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include;" + $env:INCLUDE
         $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib;C:/Program Files (x86)/Windows Kits/10/Lib/10.0.22621.0/um/x64;" + $env:LIB
-        
+
         # Set temporary directory
         $env:TEMP = "C:/Temp"
         $env:TMP = "C:/Temp"
         New-Item -Path "C:/Temp" -ItemType Directory -Force
-        
+
         # Generate BUILD_DATE and BUILD_VERSION
         $buildDate = Get-Date -Format "yyyy-MM-dd"
         $buildVersion = git rev-parse --short HEAD
         if (-not $buildVersion) { $buildVersion = "unknown" }
-        
+
         # Create build directory
         New-Item -Path "build" -ItemType Directory -Force
         Set-Location build
-        
+
         Write-Host "Running qmake with command:"
         $qmakeCmd = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/qmake.exe ../ui/DeadCode.pro " +
                     "CONFIG+=release " +
@@ -310,7 +308,7 @@ jobs:
           Write-Host "Error: qmake failed"
           exit 1
         }
-        
+
         Write-Host "Running mingw32-make with verbose output..."
         $makeCmd = "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j4 VERBOSE=1"
         Write-Host "Make command: $makeCmd"
@@ -326,13 +324,34 @@ jobs:
           Get-Content -Path make.log -Raw
           exit 1
         }
-        
+
+        Write-Host "Verifying encoding of generated files..."
+        $generatedFiles = @("release/moc_mainwindow.cpp", "release/moc_stealerworker.cpp", "release/ui_mainwindow.h")
+        foreach ($file in $generatedFiles) {
+          if (Test-Path $file) {
+            $content = Get-Content -Path $file -Raw -Encoding Byte
+            if ($content[0] -eq 0xEF -and $content[1] -eq 0xBB -and $content[2] -eq 0xBF) {
+              Write-Host "Error: $file has UTF-8 BOM"
+              exit 1
+            } else {
+              Write-Host "$file encoding is correct (UTF-8 without BOM)"
+            }
+          }
+        }
+
         if (-not (Test-Path release/DeadCode.exe)) {
           Write-Host "Error: DeadCode.exe not found"
           exit 1
         }
         Write-Host "Build completed"
       shell: powershell
+
+    - name: Upload make log on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: make-log
+        path: $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/make.log
 
     - name: Debug Makefile
       run: |

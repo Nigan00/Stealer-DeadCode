@@ -30,11 +30,12 @@ RC_FILE = ../icon.rc
 INCLUDEPATH += \
     ../src \
     ../ui \
-    C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include \
-    C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus
+    C:/vcpkg/installed/x64-mingw-dynamic/include \
+    C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include
 
 # Библиотеки для линковки
 LIBS += \
+    -L"C:/vcpkg/installed/x64-mingw-dynamic/lib" \
     -L"C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib" \
     -lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 -lgdiplus -lbcrypt -liphlpapi
 
@@ -43,6 +44,7 @@ QMAKE_CXXFLAGS += \
     -Wall \
     -Wextra \
     -Wpedantic \
+    -Werror \
     -DUNICODE \
     -D_WIN32 \
     -DWIN32_LEAN_AND_MEAN \
