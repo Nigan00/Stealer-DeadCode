@@ -8,7 +8,7 @@ on:
     inputs:
       cache-buster:
         description: 'Cache buster'
-        default: '8' # Увеличено до 8 для сброса кеша
+        default: '4' # Увеличено до 4 для сброса кеша
 
 env:
   VCPKG_COMMIT: "a73c889be74ece2c6654b580133e0e267e879255"
@@ -66,7 +66,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '8' }}
+        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '4' }}
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
 
@@ -85,10 +85,14 @@ jobs:
             exit 1
           }
         }
-        Write-Host "Using MinGW from Qt..."
-        $env:Path = "C:/Qt/6.5.3/Tools/mingw1120_64/bin;" + $env:Path
+        Write-Host "Installing MinGW via Chocolatey..."
+        choco install mingw -y --force --version 13.2.0
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Failed to install MinGW via Chocolatey"
+          exit 1
+        }
         Write-Host "MinGW installed. Checking g++ version:"
-        & "C:/Qt/6.5.3/Tools/mingw1120_64/bin/g++.exe" --version
+        & "C:/ProgramData/mingw64/mingw64/bin/g++.exe" --version
       shell: powershell
 
     - name: Verify Qt and MinGW
@@ -100,8 +104,8 @@ jobs:
           "C:/Qt/$qtVersion/mingw_64/bin/uic.exe",
           "C:/Qt/$qtVersion/mingw_64/bin/windeployqt.exe",
           "C:/Qt/$qtVersion/mingw_64/bin/moc.exe",
-          "C:/Qt/6.5.3/Tools/mingw1120_64/bin/g++.exe",
-          "C:/Qt/6.5.3/Tools/mingw1120_64/bin/mingw32-make.exe",
+          "C:/ProgramData/mingw64/mingw64/bin/g++.exe",
+          "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe",
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Core.dll",
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Gui.dll",
           "C:/Qt/$qtVersion/mingw_64/bin/Qt6Widgets.dll",
@@ -114,13 +118,13 @@ jobs:
             exit 1
           }
         }
-        $env:Path = "C:/Qt/$qtVersion/mingw_64/bin;C:/Qt/6.5.3/Tools/mingw1120_64/bin;" + $env:Path
+        $env:Path = "C:/Qt/$qtVersion/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         qmake --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: qmake failed"
           exit 1
         }
-        & "C:/Qt/6.5.3/Tools/mingw1120_64/bin/g++.exe" --version
+        & "C:/ProgramData/mingw64/mingw64/bin/g++.exe" --version
         if ($LASTEXITCODE -ne 0) {
           Write-Host "Error: g++ failed"
           exit 1
@@ -133,7 +137,7 @@ jobs:
         path: |
           C:/vcpkg
           C:/vcpkg/installed
-        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '8' }}
+        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '4' }}
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
@@ -236,7 +240,7 @@ jobs:
         Get-ChildItem -Recurse | ForEach-Object { $_.FullName }
 
         Write-Host "Checking for winsock2.h..."
-        if (Test-Path "C:/Qt/6.5.3/Tools/mingw1120_64/include/winsock2.h") {
+        if (Test-Path "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/winsock2.h") {
           Write-Host "winsock2.h found"
         } else {
           Write-Host "Error: winsock2.h not found"
@@ -244,7 +248,7 @@ jobs:
         }
 
         Write-Host "Checking for iphlpapi.h..."
-        if (Test-Path "C:/Qt/6.5.3/Tools/mingw1120_64/include/iphlpapi.h") {
+        if (Test-Path "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/iphlpapi.h") {
           Write-Host "iphlpapi.h found"
         } else {
           Write-Host "Error: iphlpapi.h not found"
@@ -252,11 +256,8 @@ jobs:
         }
 
         Write-Host "Checking for gdiplus.h..."
-        $gdiplusPath = "C:/Qt/6.5.3/Tools/mingw1120_64/include/gdiplus.h"
-        if (Test-Path $gdiplusPath) {
+        if (Test-Path "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus.h") {
           Write-Host "gdiplus.h found"
-          Write-Host "Printing first 60 lines of gdiplus.h..."
-          Get-Content -Path $gdiplusPath | Select-Object -First 60
         } else {
           Write-Host "Error: gdiplus.h not found"
           exit 1
@@ -277,37 +278,30 @@ jobs:
         Write-Host "Printing lines 40-60 of ui/mainwindow.cpp..."
         Get-Content -Path "ui/mainwindow.cpp" | Select-Object -Index (39..59)
 
-        $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/Qt/6.5.3/Tools/mingw1120_64/bin;" + $env:Path
+        $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
-        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;C:/Qt/6.5.3/Tools/mingw1120_64/include;C:/Qt/6.5.3/Tools/mingw1120_64/include/gdiplus;" + $env:INCLUDE
-        $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/Qt/6.5.3/Tools/mingw1120_64/lib;C:/Program Files (x86)/Windows Kits/10/Lib/10.0.22621.0/um/x64;" + $env:LIB
-
+        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include;" + $env:INCLUDE
+        $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib;C:/Program Files (x86)/Windows Kits/10/Lib/10.0.22621.0/um/x64;" + $env:LIB
+        
         # Set temporary directory
         $env:TEMP = "C:/Temp"
         $env:TMP = "C:/Temp"
         New-Item -Path "C:/Temp" -ItemType Directory -Force
-        if (-not (Test-Path "C:/Temp")) {
-          Write-Host "Error: Failed to create C:/Temp"
-          exit 1
-        }
-
+        
         # Generate BUILD_DATE and BUILD_VERSION
         $buildDate = Get-Date -Format "yyyy-MM-dd"
         $buildVersion = git rev-parse --short HEAD
         if (-not $buildVersion) { $buildVersion = "unknown" }
-
+        
         # Create build directory
         New-Item -Path "build" -ItemType Directory -Force
         Set-Location build
-
+        
         Write-Host "Running qmake with command:"
         $qmakeCmd = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/qmake.exe ../ui/DeadCode.pro " +
                     "CONFIG+=release " +
                     "QMAKE_INCDIR+=C:/vcpkg/installed/x64-mingw-dynamic/include " +
-                    "QMAKE_INCDIR+=C:/Qt/6.5.3/Tools/mingw1120_64/include " +
-                    "QMAKE_INCDIR+=C:/Qt/6.5.3/Tools/mingw1120_64/include/gdiplus " +
                     "QMAKE_LIBDIR+=C:/vcpkg/installed/x64-mingw-dynamic/lib " +
-                    "QMAKE_LIBDIR+=C:/Qt/6.5.3/Tools/mingw1120_64/lib " +
                     "DEFINES+=""BUILD_DATE=$buildDate"" " +
                     "DEFINES+=""BUILD_VERSION=$buildVersion"""
         Write-Host $qmakeCmd
@@ -316,9 +310,9 @@ jobs:
           Write-Host "Error: qmake failed"
           exit 1
         }
-
+        
         Write-Host "Running mingw32-make with verbose output..."
-        $makeCmd = "C:/Qt/6.5.3/Tools/mingw1120_64/bin/mingw32-make.exe -f Makefile.Release -j4 VERBOSE=1"
+        $makeCmd = "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j4 VERBOSE=1"
         Write-Host "Make command: $makeCmd"
         try {
           Invoke-Expression "$makeCmd 2>&1 | Tee-Object -FilePath make.log"
@@ -332,7 +326,7 @@ jobs:
           Get-Content -Path make.log -Raw
           exit 1
         }
-
+        
         if (-not (Test-Path release/DeadCode.exe)) {
           Write-Host "Error: DeadCode.exe not found"
           exit 1
@@ -350,7 +344,7 @@ jobs:
     - name: Deploy Qt dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
-        $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/Qt/6.5.3/Tools/mingw1120_64/bin;" + $env:Path
+        $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         Write-Host "Running windeployqt..."
         & "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/windeployqt.exe" DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
         if ($LASTEXITCODE -ne 0) {
@@ -384,10 +378,6 @@ jobs:
         foreach ($dll in $dlls) {
           if ($dll -eq "gdiplus.dll") {
             $sourceDir = $system32Dir
-            if (-not (Test-Path "$sourceDir/$dll")) {
-              Write-Host "Error: gdiplus.dll not found in $sourceDir"
-              exit 1
-            }
           } else {
             $sourceDir = $vcpkgBinDir
           }

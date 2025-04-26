@@ -30,31 +30,13 @@ RC_FILE = ../icon.rc
 INCLUDEPATH += \
     ../src \
     ../ui \
-    C:/Qt/6.5.3/Tools/mingw1120_64/include \
-    C:/Qt/6.5.3/Tools/mingw1120_64/include/gdiplus \
-    C:/vcpkg/installed/x64-mingw-dynamic/include
+    C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include \
+    C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus
 
 # Библиотеки для линковки
 LIBS += \
-    -L"C:/Qt/6.5.3/Tools/mingw1120_64/lib" \
-    -L"C:/vcpkg/installed/x64-mingw-dynamic/lib" \
-    -lgdiplus \
-    -lws2_32 \
-    -lgdi32 \
-    -luser32 \
-    -ladvapi32 \
-    -lshell32 \
-    -lole32 \
-    -lcrypt32 \
-    -lbcrypt \
-    -liphlpapi \
-    -lsqlite3 \
-    -lcurl \
-    -lssl \
-    -lcrypto \
-    -lzip \
-    -lbz2 \
-    -lz
+    -L"C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib" \
+    -lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 -lgdiplus -lbcrypt -liphlpapi
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += \
@@ -83,6 +65,9 @@ CONFIG(release, debug|release) {
 # Очистка при сборке
 QMAKE_CLEAN += \
     release/DeadCode.exe \
+    release/*.o \
+    release/moc_*.cpp \
+    release/ui_*.h \
     release/DeadCode-Portable.zip
 
 # Настройки для Windows
@@ -94,6 +79,9 @@ win32 {
         MOC_DIR = debug
         UI_DIR = debug
         QMAKE_CLEAN += \
-            debug/DeadCode.exe
+            debug/DeadCode.exe \
+            debug/*.o \
+            debug/moc_*.cpp \
+            debug/ui_*.h
     }
 }

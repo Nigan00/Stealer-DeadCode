@@ -1,11 +1,9 @@
-// Пользовательские заголовки
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "build_key.h"
 #include "polymorphic_code.h"
 #include "junk_code.h"
 
-// Заголовки Qt
 #include <QMessageBox>
 #include <QProcess>
 #include <QFileDialog>
@@ -32,11 +30,6 @@
 #include <QClipboard>
 #include <QPainter>
 #include <QScrollBar>
-#include <QThreadPool>
-#include <QRunnable>
-#include <QByteArray>
-
-// Заголовки стандартной библиотеки C++
 #include <random>
 #include <sstream>
 #include <iomanip>
@@ -45,27 +38,22 @@
 #include <set>
 #include <fstream>
 #include <filesystem>
-#include <cstring>
-#include <array>
-
-// Заголовки Windows API
-#include <winsock2.h> // Сетевые функции Windows
-#define WIN32_LEAN_AND_MEAN // Исключить устаревшие заголовки
-#define GDIPLUS_NO_AUTOINIT // Отключить автоматическую инициализацию GDI+
 #include <windows.h>
-#include <gdiplus.h> // Явное включение GDI+ после windows.h
 #include <bcrypt.h>
+#include <zip.h>
+#include <sqlite3.h>
+#include <curl/curl.h>
 #include <shlwapi.h>
 #include <tlhelp32.h>
 #include <psapi.h>
 #include <iphlpapi.h>
-
-// Сторонние библиотеки
-#include <zip.h>
-#include <sqlite3.h>
-#include <curl/curl.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
+#include <QThreadPool>
+#include <QRunnable>
+#include <cstring>
+#include <QByteArray>
+#include <array>
 
 // Пространство имён для filesystem
 namespace fs = std::filesystem;
