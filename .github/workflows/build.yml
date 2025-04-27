@@ -8,7 +8,7 @@ on:
     inputs:
       cache-buster:
         description: 'Cache buster'
-        default: '7'
+        default: '8'
 
 env:
   VCPKG_COMMIT: "latest"
@@ -66,7 +66,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: C:/Qt
-          key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '7' }}
+          key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '8' }}
           restore-keys: |
             qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
 
@@ -137,7 +137,7 @@ jobs:
           path: |
             C:/vcpkg
             C:/vcpkg/installed
-          key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '7' }}
+          key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '8' }}
           restore-keys: |
             vcpkg-${{ env.VCPKG_COMMIT }}-
 
