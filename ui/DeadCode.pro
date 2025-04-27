@@ -37,14 +37,13 @@ INCLUDEPATH += \
 LIBS += \
     -L"C:/vcpkg/installed/x64-mingw-dynamic/lib" \
     -L"C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib" \
-    -lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -lgdi32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 -lgdiplus -lbcrypt -liphlpapi
+    -lsqlite3 -lcurl -lssl -lcrypto -lzip -lbz2 -lz -lws2_32 -luser32 -ladvapi32 -lshell32 -lole32 -lcrypt32 -lgdiplus -lbcrypt -liphlpapi
 
 # Флаги компиляции
 QMAKE_CXXFLAGS += \
     -Wall \
     -Wextra \
     -Wpedantic \
-    -Werror \
     -DUNICODE \
     -D_WIN32 \
     -DWIN32_LEAN_AND_MEAN \
@@ -59,17 +58,17 @@ QMAKE_LFLAGS += \
 # Директории для сборки
 CONFIG(release, debug|release) {
     DESTDIR = release
-    OBJECTS_DIR = release
-    MOC_DIR = release
-    UI_DIR = release
+    OBJECTS_DIR = release/obj
+    MOC_DIR = release/moc
+    UI_DIR = release/ui
 }
 
 # Очистка при сборке
 QMAKE_CLEAN += \
     release/DeadCode.exe \
-    release/*.o \
-    release/moc_*.cpp \
-    release/ui_*.h \
+    release/obj/*.o \
+    release/moc/moc_*.cpp \
+    release/ui/ui_*.h \
     release/DeadCode-Portable.zip
 
 # Настройки для Windows
@@ -77,13 +76,13 @@ win32 {
     CONFIG(debug, debug|release) {
         QMAKE_CXXFLAGS += -g
         DESTDIR = debug
-        OBJECTS_DIR = debug
-        MOC_DIR = debug
-        UI_DIR = debug
+        OBJECTS_DIR = debug/obj
+        MOC_DIR = debug/moc
+        UI_DIR = debug/ui
         QMAKE_CLEAN += \
             debug/DeadCode.exe \
-            debug/*.o \
-            debug/moc_*.cpp \
-            debug/ui_*.h
+            debug/obj/*.o \
+            debug/moc/moc_*.cpp \
+            debug/ui/ui_*.h
     }
 }

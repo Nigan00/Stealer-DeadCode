@@ -8,10 +8,10 @@ on:
     inputs:
       cache-buster:
         description: 'Cache buster'
-        default: '5' # Увеличено до 5 для сброса кеша
+        default: '6' # Увеличено до 6 для сброса кеша
 
 env:
-  VCPKG_COMMIT: "latest" # Используем последнюю версию vcpkg
+  VCPKG_COMMIT: "latest"
   QT_VERSION: "6.5.3"
 
 jobs:
@@ -66,7 +66,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: C:/Qt
-        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '5' }}
+        key: qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-${{ github.event.inputs.cache-buster || '6' }}
         restore-keys: |
           qt-${{ env.QT_VERSION }}-${{ runner.os }}-win64_mingw-
 
@@ -137,7 +137,7 @@ jobs:
         path: |
           C:/vcpkg
           C:/vcpkg/installed
-        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '5' }}
+        key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ github.event.inputs.cache-buster || '6' }}
         restore-keys: |
           vcpkg-${{ env.VCPKG_COMMIT }}-
 
@@ -223,6 +223,8 @@ jobs:
             Write-Host "Processing $file..."
             try {
               $content = Get-Content -Path $fullPath -Raw -Encoding UTF8 -ErrorAction Stop
+              $content = $content -replace "\r\n", "`n" # Normalize line endings
+              $content = $content -replace "// ÐŸÑ€Ð¾ÑÑ‚Ñ€Ð°Ð½ÑÑ‚Ð²Ð¾ Ð¸Ð¼Ñ‘Ð½ Ð´Ð»Ñ filesystem", "// Пространство имён для filesystem" # Fix specific encoding issue
               [System.IO.File]::WriteAllText($fullPath, $content, [System.Text.UTF8Encoding]::new($false))
               Write-Host "Fixed encoding for $file to UTF-8 without BOM"
             } catch {
@@ -247,7 +249,7 @@ jobs:
         $headers = @(
           "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/winsock2.h",
           "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/iphlpapi.h",
-          "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus.h",
+          "C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include/gdiplus/gdiplus.h",
           "C:/vcpkg/installed/x64-mingw-dynamic/include/sqlite3.h",
           "C:/vcpkg/installed/x64-mingw-dynamic/include/curl/curl.h",
           "C:/vcpkg/installed/x64-mingw-dynamic/include/openssl/evp.h"
@@ -279,7 +281,7 @@ jobs:
         $env:Path = "C:/Qt/${{ env.QT_VERSION }}/mingw_64/bin;C:/ProgramData/mingw64/mingw64/bin;" + $env:Path
         $env:VCPKG_ROOT = "C:/vcpkg"
         $env:INCLUDE = "C:/vcpkg/installed/x64-mingw-dynamic/include;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/include;" + $env:INCLUDE
-        $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib;C:/Program Files (x86)/Windows Kits/10/Lib/10.0.22621.0/um/x64;" + $env:LIB
+        $env:LIB = "C:/vcpkg/installed/x64-mingw-dynamic/lib;C:/ProgramData/mingw64/mingw64/x86_64-w64-mingw32/lib;" + $env:LIB
 
         # Set temporary directory
         $env:TEMP = "C:/Temp"
@@ -326,7 +328,7 @@ jobs:
         }
 
         Write-Host "Verifying encoding of generated files..."
-        $generatedFiles = @("release/moc_mainwindow.cpp", "release/moc_stealerworker.cpp", "release/ui_mainwindow.h")
+        $generatedFiles = @("release/ui/ui_mainwindow.h", "release/moc/moc_mainwindow.cpp", "release/moc/moc_stealerworker.cpp")
         foreach ($file in $generatedFiles) {
           if (Test-Path $file) {
             $content = Get-Content -Path $file -Raw -Encoding Byte
@@ -373,7 +375,7 @@ jobs:
         Write-Host "Qt dependencies deployed"
       shell: powershell
 
-    - name: Copy vcpkg dependencies
+    - name: Copy vcpkg and system dependencies
       run: |
         Set-Location $env:GITHUB_WORKSPACE/Stealer-DeadCode/build/release
         $vcpkgBinDir = "C:/vcpkg/installed/x64-mingw-dynamic/bin"
